@@ -12,162 +12,164 @@ Do not edit by hand; `make check-bricks` fails when it is stale.
 **Owner** is the brick whose permission groups the router's code names most (`base` = base plate or a
 group that is not a brick yet, `none` = no permission constant found). It is a hint for gating, not a decision.
 
-| Line | Router | Crate | Prefixes | Gate today | Permission groups | Owner |
-|---|---|---|---|---|---|---|
-| 95 | `medbrains_auth::router()` | medbrains-auth | `/api/auth` | NONE | admin | base |
-| 110 | `medbrains_error_tracking::public_router()` | medbrains-error-tracking | `/api/public` | NONE | admin | base |
-| 112 | `medbrains_infra_settings::public_router()` | medbrains-infra-settings | `/api/tls` | NONE | admin | base |
-| 114 | `medbrains_sso_login::router()` | medbrains-sso-login | `/api/auth` | NONE | admin | base |
-| 118 | `medbrains_nhcx_callback::public_router()` | medbrains-nhcx-callback | `/api/integrations` | NONE | insurance | billing |
-| 121 | `abdm::hip::public_router()` | medbrains-server | none found | NONE | none | none |
-| 123 | `abdm::hiu::public_router()` | medbrains-server | none found | NONE | none | none |
-| 126 | `uhi::public_router()` | medbrains-server | `/api/uhi` | NONE | none | none |
-| 137 | `medbrains_device_pairing::router()` | medbrains-device-pairing | `/api/device-pairing`, `/api/device-binding` | NONE | devices, billing | base |
-| 138 | `medbrains_device_pairing::device_code_router()` | medbrains-device-pairing | `/api/device-pairing`, `/ws/counter-display` | NONE | devices, billing | base |
-| 145 | `medbrains_device_pairing::machine_agent::router()` | medbrains-device-pairing | `/api/machine-agent` | NONE | none | none |
-| 147 | `medbrains_fhir_api::public_router()` | medbrains-fhir-api | `/api/fhir` | NONE | lab, patients, radiology | lab |
-| 150 | `medbrains_connected_apps::public_router()` | medbrains-connected-apps | `/api/oauth` | NONE | admin, devices, audit | base |
-| 152 | `medbrains_onboarding::public_router()` | medbrains-onboarding | `/api/onboarding` | NONE | admin | base |
-| 156 | `medbrains_onboarding::email_verification::router()` | medbrains-onboarding | `/api/auth` | NONE | none | none |
-| 158 | `medbrains_invitations::public_router()` | medbrains-invitations | `/api/public` | NONE | admin | base |
-| 160 | `medbrains_cms::public_router()` | medbrains-cms | `/api/public` | NONE | none | none |
-| 176 | `medbrains_auth::protected_router()` | medbrains-auth | `/api/auth` | NONE | admin | base |
-| 177 | `medbrains_client_errors::router()` | medbrains-client-errors | `/api/client-errors` | NONE | none | none |
-| 178 | `medbrains_error_tracking::router()` | medbrains-error-tracking | `/api/admin` | NONE | admin | base |
-| 179 | `medbrains_device_pairing::device_code_admin_router()` | medbrains-device-pairing | `/api/admin`, `/api/device`, `/api/counter-display` | NONE | devices, billing | base |
-| 183 | `medbrains_device_pairing::admin_router()` | medbrains-device-pairing | `/api/admin`, `/api/device-pairing` | NONE | devices, billing | base |
-| 184 | `medbrains_device_pairing::machines::admin_router()` | medbrains-device-pairing | `/api/admin` | NONE | devices | base |
-| 185 | `medbrains_invitations::admin_router()` | medbrains-invitations | `/api/admin` | NONE | admin | base |
-| 186 | `medbrains_cms::admin_router()` | medbrains-cms | `/api/cms` | NONE | none | none |
-| 188 | `medbrains_app_manifest::router()` | medbrains-app-manifest | `/api/app` | NONE | none | none |
-| 189 | `medbrains_clinical_scores::router()` | medbrains-clinical-scores | `/api/clinical`, `/api/patients` | NONE | ipd, lab, patients | ipd |
-| 190 | `medbrains_clinical_ops::router()` | medbrains-clinical-ops | `/api/clinical` | NONE | ipd | ipd |
-| 191 | `medbrains_vte::router()` | medbrains-vte | `/api/vte-assessments`, `/api/patients` | NONE | ipd | ipd |
-| 192 | `medbrains_health_intel::router()` | medbrains-health-intel | `/api/health-intel` | NONE | health | base |
-| 193 | `medbrains_marketing::router()` | medbrains-marketing | `/api/marketing` | NONE | marketing, patients | base |
-| 194 | `medbrains_setup::router()` | medbrains-setup | `/api/setup`, `/api/access-groups`, `/api/branding` | NONE | admin, opd, patients | base |
-| 195 | `medbrains_history_import::router()` | medbrains-history-import | `/api/history-import` | NONE | admin | base |
-| 196 | `medbrains_research::router()` | medbrains-research | `/api/research`, `/api/clinical-trials` | NONE | research, specialty.clinical_trials | base |
-| 197 | `medbrains_knowledge::router()` | medbrains-knowledge | `/api/knowledge` | NONE | knowledge, flows, admin | base |
-| 198 | `medbrains_sop_flows::router()` | medbrains-sop-flows | `/api/flows` | NONE | flows, ipd, insurance | flow |
-| 200 | `medbrains_fhir_api::router()` | medbrains-fhir-api | `/api/fhir` | NONE | lab, patients, radiology | lab |
-| 202 | `debug::e2e_router()` | medbrains-server | `/api/debug` | NONE | none | none |
-| 204 | `medbrains_sharing::router()` | medbrains-sharing | `/api/sharing` | NONE | admin | base |
-| 205 | `medbrains_identity::router()` | medbrains-identity | `/api/admin`, `/api/iam` | NONE | admin | base |
-| 206 | `medbrains_approvals_api::router()` | medbrains-approvals-api | `/api/approvals` | NONE | admin | base |
-| 207 | `medbrains_onboarding::router()` | medbrains-onboarding | `/api/onboarding`, `/api/setup` | NONE | admin | base |
-| 208 | `medbrains_api_keys_api::router()` | medbrains-api-keys-api | `/api/admin`, `/api/openapi.json` | NONE | admin | base |
-| 209 | `medbrains_connected_apps::router()` | medbrains-connected-apps | `/api/admin` | NONE | admin, devices, audit | base |
-| 211 | `medbrains_mfa::router()` | medbrains-mfa | `/api/auth` | NONE | none | none |
-| 223 | `medbrains_documents_render::router()` | medbrains-documents-render | `/api/documents` | NONE | patients, admin, documents | base |
-| 227 | `medbrains_catalog_import::router()` | medbrains-catalog-import | `/api/setup`, `/api/opd`, `/api/billing`, `/api/lab` +1 | NONE | admin, lab, pharmacy | base |
-| 229 | `medbrains_terminology::router()` | medbrains-terminology | `/api/terminology` | NONE | terminology | base |
-| 230 | `medbrains_infra_settings::router()` | medbrains-infra-settings | `/api/admin` | NONE | admin | base |
-| 231 | `medbrains_mail_provisioning::router()` | medbrains-mail-provisioning | `/api/admin` | NONE | admin | base |
-| 245 | `medbrains_patients::router()` | medbrains-patients | `/api/patients`, `/api/masters`, `/api/immunizations`, `/api/privacy-requests` +1 | **registration** (merge) | patients, admin, lab | registration |
-| 258 | `medbrains_tokens::router()` | medbrains-tokens | `/api/tokens`, `/api/queues` | NONE | front_office, camp, opd | registration |
-| 278 | `medbrains_dashboard::router()` | medbrains-dashboard | `/api/dashboards`, `/api/users`, `/api/dashboard`, `/api/widget-templates` | NONE | admin, dashboard, lab | base |
-| 283 | `medbrains_opd::router()` | medbrains-opd | `/api/opd`, `/api/clinical` | NONE | opd, patients, pharmacy | opd |
-| 294 | `appointments::router()` | medbrains-server | `/api/opd` | **opd** (merge) | none | none |
-| 294 | `medbrains_opd::opd_only_router()` | medbrains-opd | `/api/opd` | **opd** (merge) | opd, patients, pharmacy | opd |
-| 295 | `medbrains_platform::router()` | medbrains-platform | `/api/ckb`, `/api/integration`, `/api/geo`, `/api/integrations` +3 | NONE | integration, ckb, admin | base |
-| 296 | `medbrains_telehealth::router()` | medbrains-telehealth | `/api/cds`, `/api/telemedicine`, `/api/doctors`, `/api/admin` | NONE | opd, admin, doctor | opd |
-| 298 | `medbrains_billing::router()` | medbrains-billing | `/api/billing` | **billing** (merge) | billing, insurance, indent | billing |
-| 324 | `medbrains_payment_gateway::router()` | medbrains-payment-gateway | `/api/payments`, `/api/billing` | NONE | billing, pharmacy | billing |
-| 326 | `medbrains_oauth::router()` | medbrains-oauth | `/api/oauth` | NONE | admin | base |
-| 328 | `medbrains_lab::router()` | medbrains-lab | `/api/lab` | **lab** (merge) | lab, doctor_payouts, camp | lab |
-| 329 | `medbrains_radiology::router()` | medbrains-radiology | `/api/radiology` | radiology (22 handler checks) | radiology | radiology |
-| 331 | `medbrains_pharmacy::catalog_router()` | medbrains-pharmacy | `/api/pharmacy` | NONE | pharmacy, patients, doctor | pharmacy |
-| 332 | `medbrains_pharmacy::router()` | medbrains-pharmacy | `/api/pharmacy`, `/api/doctor` | **pharmacy** (merge) | pharmacy, patients, doctor | pharmacy |
-| 333 | `medbrains_ward_stock::router()` | medbrains-ward-stock | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
-| 334 | `medbrains_clinical_notes::router()` | medbrains-clinical-notes | `/api/clinical-notes`, `/api/fhir`, `/api/patients`, `/api/encounters` | NONE | clinical_notes | opd |
-| 336 | `medbrains_dictation::router()` | medbrains-dictation | `/api/opd`, `/api/admin` | NONE | opd, admin | opd |
-| 338 | `medbrains_pharmacy_finance::router()` | medbrains-pharmacy-finance | `/api/pharmacy` | **pharmacy** (merge) | pharmacy, billing, patients | pharmacy |
-| 339 | `medbrains_pharmacy_fulfilment::router()` | medbrains-pharmacy-fulfilment | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
-| 341 | `medbrains_pharmacy_safety::router()` | medbrains-pharmacy-safety | `/api/pharmacy` | **pharmacy** (merge) | pharmacy, patients | pharmacy |
-| 343 | `medbrains_pharmacy_payments::router()` | medbrains-pharmacy-payments | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
-| 520 | `uhi::staff_router()` | medbrains-server | `/api/uhi` | NONE | none | none |
-| 530 | `medbrains_pharmacy_repeats::router()` | medbrains-pharmacy-repeats | `/api/pharmacy`, `/api/doctors` | **pharmacy** (merge) | pharmacy_improvements, doctor | pharmacy |
-| 531 | `medbrains_pharmacy_delivery::router()` | medbrains-pharmacy-delivery | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
-| 533 | `medbrains_pharmacy_cash_drawer::router()` | medbrains-pharmacy-cash-drawer | `/api/pharmacy` | **pharmacy** (merge) | pharmacy, pharmacy_finance | pharmacy |
-| 535 | `medbrains_ipd::router()` | medbrains-ipd | `/api/ipd`, `/api/nurse` | **ipd** (merge) | ipd, nurse, billing | ipd |
-| 536 | `medbrains_nursing::router()` | medbrains-nursing | `/api/nurse` | NONE | nurse | nursing |
-| 537 | `medbrains_nursing::station_router()` | medbrains-nursing | `/api/nurse` | **nursing** (merge) | nurse | nursing |
-| 542 | `medbrains_clinical_offline::router()` | medbrains-clinical-offline | `/api/clinical` | NONE | nurse, emergency, patients | nursing |
-| 544 | `medbrains_pharmacy_dispense_ops::router()` | medbrains-pharmacy-dispense-ops | `/api/pharmacy` | **pharmacy** (merge) | pharmacy_improvements | pharmacy |
-| 546 | `medbrains_pharmacy_petty_cash::router()` | medbrains-pharmacy-petty-cash | `/api/pharmacy` | **pharmacy** (merge) | pharmacy_finance | pharmacy |
-| 548 | `medbrains_pharmacy_free_dispensing::router()` | medbrains-pharmacy-free-dispensing | `/api/pharmacy` | **pharmacy** (merge) | pharmacy_finance | pharmacy |
-| 549 | `medbrains_indent::router()` | medbrains-indent | `/api/indent` | **inventory** (merge) | indent, pharmacy | inventory |
-| 550 | `medbrains_materials::router()` | medbrains-materials | `/api/procurement`, `/api/housekeeping`, `/api/pharmacy` | NONE | procurement, housekeeping, pharmacy | inventory |
-| 552 | `medbrains_quality::router()` | medbrains-quality | `/api/quality` | NONE | quality | base |
-| 556 | `medbrains_regulatory::router()` | medbrains-regulatory | `/api/regulatory` | NONE | regulatory | base |
-| 563 | `medbrains_infection_control::router()` | medbrains-infection-control | `/api/infection-control` | NONE | infection_control | base |
-| 564 | `medbrains_infra_utils::router()` | medbrains-infra-utils | `/api/schema`, `/api/setup`, `/api/communications`, `/api/aebas` | NONE | communications, integration, hr | base |
-| 591 | `medbrains_custom_code::router()` | medbrains-custom-code | `/api/integration` | NONE | integration | base |
-| 593 | `medbrains_ai::router()` | medbrains-ai | `/api/ai` | NONE | ai, patients, billing | base |
-| 595 | `medbrains_vpn::router()` | medbrains-vpn | `/api/vpn` | NONE | vpn | base |
-| 598 | `medbrains_microsite::router()` | medbrains-microsite | `/api/microsite` | NONE | specialty.health_packages | specialty_other |
-| 599 | `medbrains_specialty::router()` | medbrains-specialty | `/api/specialty`, `/api/ltc` | dental (8 handler checks), maternity (13 handler checks), ophthalmology (1 handler checks), psychiatry (16 handler checks) | specialty.psychiatry, specialty.ltc, specialty.dental | psychiatry |
-| 600 | `medbrains_ancillary::router()` | medbrains-ancillary | `/api/front-office`, `/api/clinical-trials`, `/api/trial-visits`, `/api/trial-adverse-events` +2 | NONE | front_office, specialty.clinical_trials, patients | registration |
-| 601 | `medbrains_home_health::router()` | medbrains-home-health | `/api/home-health`, `/api/home-visits`, `/api/hospice`, `/api/advance-directives` +1 | NONE | home_health | base |
-| 603 | `medbrains_case_sheet_scan::router()` | medbrains-case-sheet-scan | `/api/case-sheets` | NONE | mrd | ipd |
-| 609 | `medbrains_ipd_post_discharge::router()` | medbrains-ipd-post-discharge | `/api/ipd` | **ipd** (merge) | ipd, pharmacy | ipd |
-| 611 | `medbrains_reports::nabh_indicators::router()` | medbrains-reports | `/api/nabh` | **reports** (merge) | quality | base |
-| 613 | `medbrains_ot::router()` | medbrains-ot | `/api/ot` | ot (36 handler checks) | ot | ot |
-| 614 | `medbrains_blood_bank::router()` | medbrains-blood-bank | `/api/blood-bank`, `/api/ipd` | blood_bank (39 handler checks) | blood_bank, nurse | blood_bank |
-| 615 | `medbrains_cssd::router()` | medbrains-cssd | `/api/cssd` | NONE | cssd | ot |
-| 616 | `medbrains_emergency::router()` | medbrains-emergency | `/api/emergency` | emergency (33 handler checks) | emergency, ipd | emergency |
-| 617 | `medbrains_diet::router()` | medbrains-diet | `/api/diet` | diet (20 handler checks) | diet | diet |
-| 619 | `medbrains_hr::router()` | medbrains-hr | `/api/hr` | NONE | hr | hr |
-| 620 | `medbrains_hrms_gateway::router()` | medbrains-hrms-gateway | `/api/hrms` | **hr** (merge) | integration | base |
-| 622 | `medbrains_payroll::router()` | medbrains-payroll | `/api/hr` | **hr** (merge) | hr | hr |
-| 624 | `medbrains_bme::router()` | medbrains-bme | `/api/bme` | **inventory** (merge) | bme | inventory |
-| 626 | `medbrains_assets::router()` | medbrains-assets | `/api/assets`, `/api/camp` | NONE | assets, camp | inventory |
-| 627 | `medbrains_materials::ops::router()` | medbrains-materials | `/api/materials` | NONE | indent, assets | inventory |
-| 628 | `medbrains_lms::router()` | medbrains-lms | `/api/lms` | **hr** (merge) | lms | hr |
-| 630 | `medbrains_mrd::router()` | medbrains-mrd | `/api/mrd` | NONE | mrd, opd, patients | ipd |
-| 632 | `medbrains_consent::router()` | medbrains-consent | `/api/consent` | **registration** (merge) | consent | registration |
-| 633 | `medbrains_forms::router()` | medbrains-forms | `/api/forms` | NONE | forms | base |
-| 635 | `medbrains_camp::router()` | medbrains-camp | `/api/camp` | NONE | camp, patients, opd | base |
-| 636 | `medbrains_ambulance::router()` | medbrains-ambulance | `/api/ambulance` | NONE | ambulance | emergency |
-| 637 | `medbrains_care_mgmt::router()` | medbrains-care-mgmt | `/api/chronic-care`, `/api/bedside`, `/api/case-mgmt` | NONE | chronic, bedside, case_mgmt | ipd |
-| 639 | `medbrains_communications::router()` | medbrains-communications | `/api/communications` | NONE | communications | base |
-| 640 | `medbrains_analytics::router()` | medbrains-analytics | `/api/command-center`, `/api/utilization-review`, `/api/care-view`, `/api/retrospective` +1 | NONE | command_center, ur, care_view | reports |
-| 641 | `medbrains_facilities::router()` | medbrains-facilities | `/api/insurance`, `/api/facilities`, `/api/icu`, `/api/billing` +1 | NONE | insurance, facilities, icu | billing |
-| 643 | `medbrains_nhcx_callback::router()` | medbrains-nhcx-callback | `/api/integrations`, `/api/insurance`, `/api/billing` | NONE | insurance | billing |
-| 645 | `medbrains_security::router()` | medbrains-security | `/api/security`, `/api/data-processors` | NONE | security, audit | base |
-| 647 | `medbrains_specialty_other::router()` | medbrains-specialty-other | `/api/specialty` | palliative (12 handler checks), pmr (8 handler checks), specialty_other (16 handler checks) | specialty.other, specialty.palliative, specialty.pmr | specialty_other |
-| 649 | `medbrains_specialty_interventional::router()` | medbrains-specialty-interventional | `/api/specialty` | cath_lab (12 handler checks), endoscopy (10 handler checks) | specialty.cath_lab, specialty.endoscopy | cath_lab |
-| 654 | `medbrains_documents::router()` | medbrains-documents | `/api/documents`, `/api/admin`, `/api/signatures`, `/api/document-ingestion` +1 | NONE | documents, mrd, doctor | base |
-| 656 | `medbrains_order_basket::router()` | medbrains-order-basket | `/api/orders` | NONE | order_basket, pharmacy, lab | opd |
-| 658 | `medbrains_doctor_packages::router()` | medbrains-doctor-packages | `/api/admin` | NONE | admin | base |
-| 659 | `medbrains_doctor_payouts::router()` | medbrains-doctor-payouts | `/api/doctor-payouts` | **billing** (merge) | doctor_payouts | billing |
-| 661 | `medbrains_flow::router()` | medbrains-flow | `/api/flow` | flow (1 handler checks) | none | none |
-| 663 | `medbrains_patient_packages::router()` | medbrains-patient-packages | `/api/patient-packages` | **billing** (merge) | patient_packages | billing |
-| 674 | `medbrains_order_sets::router()` | medbrains-order-sets | `/api/order-sets` | NONE | order_sets | base |
-| 675 | `medbrains_community_health::router()` | medbrains-community-health | `/api/occ-health` | NONE | occ_health | base |
-| 676 | `medbrains_scheduling::router()` | medbrains-scheduling | `/api/scheduling` | **opd** (merge) | scheduling | opd |
-| 678 | `medbrains_reports::analytics::router()` | medbrains-reports | `/api/analytics` | **reports** (merge) | analytics | reports |
-| 680 | `medbrains_reports::reports::router()` | medbrains-reports | `/api/reports` | **reports** (merge) | analytics, quality, ipd | base |
-| 682 | `medbrains_print_data::general::router()` | medbrains-print-data | `/api/print-data` | NONE | lab, patients, opd | lab |
-| 683 | `medbrains_print_data::clinical::router()` | medbrains-print-data | `/api/print-data` | NONE | patients, opd, ipd | registration |
-| 685 | `medbrains_print_data::billing::router()` | medbrains-print-data | `/api/print-data` | NONE | billing, patients, insurance | billing |
-| 687 | `medbrains_print_data::consent::router()` | medbrains-print-data | `/api/print-data` | NONE | ipd, patients, ot | ipd |
-| 689 | `medbrains_print_data::mrd::router()` | medbrains-print-data | `/api/print-data` | NONE | ipd, blood_bank | ipd |
-| 692 | `medbrains_print_data::surgical::router()` | medbrains-print-data | `/api/print-data` | NONE | ot, ipd, nurse | ot |
-| 694 | `medbrains_print_data::medicolegal::router()` | medbrains-print-data | `/api/print-data` | NONE | emergency, patients, ipd | emergency |
-| 696 | `medbrains_print_data::quality::router()` | medbrains-print-data | `/api/print-data` | NONE | quality, regulatory, blood_bank | base |
-| 700 | `medbrains_print_data::regulatory::router()` | medbrains-print-data | `/api/print-data` | NONE | regulatory, mrd, lab | base |
-| 702 | `medbrains_print_data::admin::router()` | medbrains-print-data | `/api/print-data` | NONE | pharmacy, indent, procurement | inventory |
-| 707 | `medbrains_print_data::hr::router()` | medbrains-print-data | `/api/print-data` | NONE | hr, front_office | hr |
-| 709 | `medbrains_print_data::bme::router()` | medbrains-print-data | `/api/print-data` | NONE | facilities, bme, regulatory | base |
-| 717 | `medbrains_print_data::academic::router()` | medbrains-print-data | `/api/print-data` | NONE | opd, dashboard | opd |
-| 720 | `medbrains_admin::router()` | medbrains-admin | `/api/multi-hospital`, `/api/qa`, `/api/admin`, `/api/blog` +1 | NONE | admin, ipd, qa | base |
-| 736 | `medbrains_tv::router()` | medbrains-tv | `/api/tv` | NONE | admin | base |
-| 801 | `medbrains_news::router()` | medbrains-news | `/api/admin`, `/api/news` | NONE | none | none |
-| 802 | `medbrains_notes::router()` | medbrains-notes | `/api/notes` | NONE | notes | opd |
-| 832 | `medbrains_it_security::router()` | medbrains-it-security | `/api/disposals`, `/api/break-glass`, `/api/tat`, `/api/data-quality` +9 | NONE | admin, audit, security | base |
-| 833 | `medbrains_security_intel::routes::router()` | medbrains-security-intel | `/api/security` | NONE | security | base |
-| 846 | `medbrains_devices::router()` | medbrains-devices | `/api/devices`, `/api/device-ingest` | NONE | devices | base |
-| 854 | `medbrains_upload::router()` | medbrains-upload | `/api/upload` | NONE | documents, patients, emergency | base |
-| 969 | `medbrains_marketing::public_router()` | medbrains-marketing | `/api/public` | NONE | marketing, patients | base |
+Rows are in `mod.rs` order. No line numbers: any added line would make the table stale.
+
+| Router | Crate | Prefixes | Gate today | Permission groups | Owner |
+|---|---|---|---|---|---|
+| `medbrains_auth::router()` | medbrains-auth | `/api/auth` | NONE | admin | base |
+| `medbrains_error_tracking::public_router()` | medbrains-error-tracking | `/api/public` | NONE | admin | base |
+| `medbrains_infra_settings::public_router()` | medbrains-infra-settings | `/api/tls` | NONE | admin | base |
+| `medbrains_sso_login::router()` | medbrains-sso-login | `/api/auth` | NONE | admin | base |
+| `medbrains_nhcx_callback::public_router()` | medbrains-nhcx-callback | `/api/integrations` | NONE | insurance | billing |
+| `abdm::hip::public_router()` | medbrains-server | none found | NONE | none | none |
+| `abdm::hiu::public_router()` | medbrains-server | none found | NONE | none | none |
+| `uhi::public_router()` | medbrains-server | `/api/uhi` | NONE | none | none |
+| `medbrains_device_pairing::router()` | medbrains-device-pairing | `/api/device-pairing`, `/api/device-binding` | NONE | devices, billing | base |
+| `medbrains_device_pairing::device_code_router()` | medbrains-device-pairing | `/api/device-pairing`, `/ws/counter-display` | NONE | devices, billing | base |
+| `medbrains_device_pairing::machine_agent::router()` | medbrains-device-pairing | `/api/machine-agent` | NONE | none | none |
+| `medbrains_fhir_api::public_router()` | medbrains-fhir-api | `/api/fhir` | NONE | lab, patients, radiology | lab |
+| `medbrains_connected_apps::public_router()` | medbrains-connected-apps | `/api/oauth` | NONE | admin, devices, audit | base |
+| `medbrains_onboarding::public_router()` | medbrains-onboarding | `/api/onboarding` | NONE | admin | base |
+| `medbrains_onboarding::email_verification::router()` | medbrains-onboarding | `/api/auth` | NONE | none | none |
+| `medbrains_invitations::public_router()` | medbrains-invitations | `/api/public` | NONE | admin | base |
+| `medbrains_cms::public_router()` | medbrains-cms | `/api/public` | NONE | none | none |
+| `medbrains_auth::protected_router()` | medbrains-auth | `/api/auth` | NONE | admin | base |
+| `medbrains_client_errors::router()` | medbrains-client-errors | `/api/client-errors` | NONE | none | none |
+| `medbrains_error_tracking::router()` | medbrains-error-tracking | `/api/admin` | NONE | admin | base |
+| `medbrains_device_pairing::device_code_admin_router()` | medbrains-device-pairing | `/api/admin`, `/api/device`, `/api/counter-display` | NONE | devices, billing | base |
+| `medbrains_device_pairing::admin_router()` | medbrains-device-pairing | `/api/admin`, `/api/device-pairing` | NONE | devices, billing | base |
+| `medbrains_device_pairing::machines::admin_router()` | medbrains-device-pairing | `/api/admin` | NONE | devices | base |
+| `medbrains_invitations::admin_router()` | medbrains-invitations | `/api/admin` | NONE | admin | base |
+| `medbrains_cms::admin_router()` | medbrains-cms | `/api/cms` | NONE | none | none |
+| `medbrains_app_manifest::router()` | medbrains-app-manifest | `/api/app` | NONE | none | none |
+| `medbrains_clinical_scores::router()` | medbrains-clinical-scores | `/api/clinical`, `/api/patients` | NONE | ipd, lab, patients | ipd |
+| `medbrains_clinical_ops::router()` | medbrains-clinical-ops | `/api/clinical` | NONE | ipd | ipd |
+| `medbrains_vte::router()` | medbrains-vte | `/api/vte-assessments`, `/api/patients` | NONE | ipd | ipd |
+| `medbrains_health_intel::router()` | medbrains-health-intel | `/api/health-intel` | NONE | health | base |
+| `medbrains_marketing::router()` | medbrains-marketing | `/api/marketing` | NONE | marketing, patients | base |
+| `medbrains_setup::router()` | medbrains-setup | `/api/setup`, `/api/access-groups`, `/api/branding` | NONE | admin, opd, patients | base |
+| `medbrains_history_import::router()` | medbrains-history-import | `/api/history-import` | NONE | admin | base |
+| `medbrains_research::router()` | medbrains-research | `/api/research`, `/api/clinical-trials` | NONE | research, specialty.clinical_trials | base |
+| `medbrains_knowledge::router()` | medbrains-knowledge | `/api/knowledge` | NONE | knowledge, flows, admin | base |
+| `medbrains_sop_flows::router()` | medbrains-sop-flows | `/api/flows` | NONE | flows, ipd, insurance | flow |
+| `medbrains_fhir_api::router()` | medbrains-fhir-api | `/api/fhir` | NONE | lab, patients, radiology | lab |
+| `debug::e2e_router()` | medbrains-server | `/api/debug` | NONE | none | none |
+| `medbrains_sharing::router()` | medbrains-sharing | `/api/sharing` | NONE | admin | base |
+| `medbrains_identity::router()` | medbrains-identity | `/api/admin`, `/api/iam` | NONE | admin | base |
+| `medbrains_approvals_api::router()` | medbrains-approvals-api | `/api/approvals` | NONE | admin | base |
+| `medbrains_onboarding::router()` | medbrains-onboarding | `/api/onboarding`, `/api/setup` | NONE | admin | base |
+| `medbrains_api_keys_api::router()` | medbrains-api-keys-api | `/api/admin`, `/api/openapi.json` | NONE | admin | base |
+| `medbrains_connected_apps::router()` | medbrains-connected-apps | `/api/admin` | NONE | admin, devices, audit | base |
+| `medbrains_mfa::router()` | medbrains-mfa | `/api/auth` | NONE | none | none |
+| `medbrains_documents_render::router()` | medbrains-documents-render | `/api/documents` | NONE | patients, admin, documents | base |
+| `medbrains_catalog_import::router()` | medbrains-catalog-import | `/api/setup`, `/api/opd`, `/api/billing`, `/api/lab` +1 | NONE | admin, lab, pharmacy | base |
+| `medbrains_terminology::router()` | medbrains-terminology | `/api/terminology` | NONE | terminology | base |
+| `medbrains_infra_settings::router()` | medbrains-infra-settings | `/api/admin` | NONE | admin | base |
+| `medbrains_mail_provisioning::router()` | medbrains-mail-provisioning | `/api/admin` | NONE | admin | base |
+| `medbrains_patients::router()` | medbrains-patients | `/api/patients`, `/api/masters`, `/api/immunizations`, `/api/privacy-requests` +1 | **registration** (merge) | patients, admin, lab | registration |
+| `medbrains_tokens::router()` | medbrains-tokens | `/api/tokens`, `/api/queues` | NONE | front_office, camp, opd | registration |
+| `medbrains_dashboard::router()` | medbrains-dashboard | `/api/dashboards`, `/api/users`, `/api/dashboard`, `/api/widget-templates` | NONE | admin, dashboard, lab | base |
+| `medbrains_opd::router()` | medbrains-opd | `/api/opd`, `/api/clinical` | NONE | opd, patients, pharmacy | opd |
+| `appointments::router()` | medbrains-server | `/api/opd` | **opd** (merge) | none | none |
+| `medbrains_opd::opd_only_router()` | medbrains-opd | `/api/opd` | **opd** (merge) | opd, patients, pharmacy | opd |
+| `medbrains_platform::router()` | medbrains-platform | `/api/ckb`, `/api/integration`, `/api/geo`, `/api/integrations` +3 | NONE | integration, ckb, admin | base |
+| `medbrains_telehealth::router()` | medbrains-telehealth | `/api/cds`, `/api/telemedicine`, `/api/doctors`, `/api/admin` | NONE | opd, admin, doctor | opd |
+| `medbrains_billing::router()` | medbrains-billing | `/api/billing` | **billing** (merge) | billing, insurance, indent | billing |
+| `medbrains_payment_gateway::router()` | medbrains-payment-gateway | `/api/payments`, `/api/billing` | NONE | billing, pharmacy | billing |
+| `medbrains_oauth::router()` | medbrains-oauth | `/api/oauth` | NONE | admin | base |
+| `medbrains_lab::router()` | medbrains-lab | `/api/lab` | **lab** (merge) | lab, doctor_payouts, camp | lab |
+| `medbrains_radiology::router()` | medbrains-radiology | `/api/radiology` | radiology (22 handler checks) | radiology | radiology |
+| `medbrains_pharmacy::catalog_router()` | medbrains-pharmacy | `/api/pharmacy` | NONE | pharmacy, patients, doctor | pharmacy |
+| `medbrains_pharmacy::router()` | medbrains-pharmacy | `/api/pharmacy`, `/api/doctor` | **pharmacy** (merge) | pharmacy, patients, doctor | pharmacy |
+| `medbrains_ward_stock::router()` | medbrains-ward-stock | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
+| `medbrains_clinical_notes::router()` | medbrains-clinical-notes | `/api/clinical-notes`, `/api/fhir`, `/api/patients`, `/api/encounters` | NONE | clinical_notes | opd |
+| `medbrains_dictation::router()` | medbrains-dictation | `/api/opd`, `/api/admin` | NONE | opd, admin | opd |
+| `medbrains_pharmacy_finance::router()` | medbrains-pharmacy-finance | `/api/pharmacy` | **pharmacy** (merge) | pharmacy, billing, patients | pharmacy |
+| `medbrains_pharmacy_fulfilment::router()` | medbrains-pharmacy-fulfilment | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
+| `medbrains_pharmacy_safety::router()` | medbrains-pharmacy-safety | `/api/pharmacy` | **pharmacy** (merge) | pharmacy, patients | pharmacy |
+| `medbrains_pharmacy_payments::router()` | medbrains-pharmacy-payments | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
+| `uhi::staff_router()` | medbrains-server | `/api/uhi` | NONE | none | none |
+| `medbrains_pharmacy_repeats::router()` | medbrains-pharmacy-repeats | `/api/pharmacy`, `/api/doctors` | **pharmacy** (merge) | pharmacy_improvements, doctor | pharmacy |
+| `medbrains_pharmacy_delivery::router()` | medbrains-pharmacy-delivery | `/api/pharmacy` | **pharmacy** (merge) | pharmacy | pharmacy |
+| `medbrains_pharmacy_cash_drawer::router()` | medbrains-pharmacy-cash-drawer | `/api/pharmacy` | **pharmacy** (merge) | pharmacy, pharmacy_finance | pharmacy |
+| `medbrains_ipd::router()` | medbrains-ipd | `/api/ipd`, `/api/nurse` | **ipd** (merge) | ipd, nurse, billing | ipd |
+| `medbrains_nursing::router()` | medbrains-nursing | `/api/nurse` | NONE | nurse | nursing |
+| `medbrains_nursing::station_router()` | medbrains-nursing | `/api/nurse` | **nursing** (merge) | nurse | nursing |
+| `medbrains_clinical_offline::router()` | medbrains-clinical-offline | `/api/clinical` | NONE | nurse, emergency, patients | nursing |
+| `medbrains_pharmacy_dispense_ops::router()` | medbrains-pharmacy-dispense-ops | `/api/pharmacy` | **pharmacy** (merge) | pharmacy_improvements | pharmacy |
+| `medbrains_pharmacy_petty_cash::router()` | medbrains-pharmacy-petty-cash | `/api/pharmacy` | **pharmacy** (merge) | pharmacy_finance | pharmacy |
+| `medbrains_pharmacy_free_dispensing::router()` | medbrains-pharmacy-free-dispensing | `/api/pharmacy` | **pharmacy** (merge) | pharmacy_finance | pharmacy |
+| `medbrains_indent::router()` | medbrains-indent | `/api/indent` | **inventory** (merge) | indent, pharmacy | inventory |
+| `medbrains_materials::router()` | medbrains-materials | `/api/procurement`, `/api/housekeeping`, `/api/pharmacy` | NONE | procurement, housekeeping, pharmacy | inventory |
+| `medbrains_quality::router()` | medbrains-quality | `/api/quality` | NONE | quality | base |
+| `medbrains_regulatory::router()` | medbrains-regulatory | `/api/regulatory` | NONE | regulatory | base |
+| `medbrains_infection_control::router()` | medbrains-infection-control | `/api/infection-control` | NONE | infection_control | base |
+| `medbrains_infra_utils::router()` | medbrains-infra-utils | `/api/schema`, `/api/setup`, `/api/communications`, `/api/aebas` | NONE | communications, integration, hr | base |
+| `medbrains_custom_code::router()` | medbrains-custom-code | `/api/integration` | NONE | integration | base |
+| `medbrains_ai::router()` | medbrains-ai | `/api/ai` | NONE | ai, patients, billing | base |
+| `medbrains_vpn::router()` | medbrains-vpn | `/api/vpn` | NONE | vpn | base |
+| `medbrains_microsite::router()` | medbrains-microsite | `/api/microsite` | NONE | specialty.health_packages | specialty_other |
+| `medbrains_specialty::router()` | medbrains-specialty | `/api/specialty`, `/api/ltc` | dental (8 handler checks), maternity (13 handler checks), ophthalmology (1 handler checks), psychiatry (16 handler checks) | specialty.psychiatry, specialty.ltc, specialty.dental | psychiatry |
+| `medbrains_ancillary::router()` | medbrains-ancillary | `/api/front-office`, `/api/clinical-trials`, `/api/trial-visits`, `/api/trial-adverse-events` +2 | NONE | front_office, specialty.clinical_trials, patients | registration |
+| `medbrains_home_health::router()` | medbrains-home-health | `/api/home-health`, `/api/home-visits`, `/api/hospice`, `/api/advance-directives` +1 | NONE | home_health | base |
+| `medbrains_case_sheet_scan::router()` | medbrains-case-sheet-scan | `/api/case-sheets` | NONE | mrd | ipd |
+| `medbrains_ipd_post_discharge::router()` | medbrains-ipd-post-discharge | `/api/ipd` | **ipd** (merge) | ipd, pharmacy | ipd |
+| `medbrains_reports::nabh_indicators::router()` | medbrains-reports | `/api/nabh` | **reports** (merge) | quality | base |
+| `medbrains_ot::router()` | medbrains-ot | `/api/ot` | ot (36 handler checks) | ot | ot |
+| `medbrains_blood_bank::router()` | medbrains-blood-bank | `/api/blood-bank`, `/api/ipd` | blood_bank (39 handler checks) | blood_bank, nurse | blood_bank |
+| `medbrains_cssd::router()` | medbrains-cssd | `/api/cssd` | NONE | cssd | ot |
+| `medbrains_emergency::router()` | medbrains-emergency | `/api/emergency` | emergency (33 handler checks) | emergency, ipd | emergency |
+| `medbrains_diet::router()` | medbrains-diet | `/api/diet` | diet (20 handler checks) | diet | diet |
+| `medbrains_hr::router()` | medbrains-hr | `/api/hr` | NONE | hr | hr |
+| `medbrains_hrms_gateway::router()` | medbrains-hrms-gateway | `/api/hrms` | **hr** (merge) | integration | base |
+| `medbrains_payroll::router()` | medbrains-payroll | `/api/hr` | **hr** (merge) | hr | hr |
+| `medbrains_bme::router()` | medbrains-bme | `/api/bme` | **inventory** (merge) | bme | inventory |
+| `medbrains_assets::router()` | medbrains-assets | `/api/assets`, `/api/camp` | NONE | assets, camp | inventory |
+| `medbrains_materials::ops::router()` | medbrains-materials | `/api/materials` | NONE | indent, assets | inventory |
+| `medbrains_lms::router()` | medbrains-lms | `/api/lms` | **hr** (merge) | lms | hr |
+| `medbrains_mrd::router()` | medbrains-mrd | `/api/mrd` | NONE | mrd, opd, patients | ipd |
+| `medbrains_consent::router()` | medbrains-consent | `/api/consent` | **registration** (merge) | consent | registration |
+| `medbrains_forms::router()` | medbrains-forms | `/api/forms` | NONE | forms | base |
+| `medbrains_camp::router()` | medbrains-camp | `/api/camp` | NONE | camp, patients, opd | base |
+| `medbrains_ambulance::router()` | medbrains-ambulance | `/api/ambulance` | NONE | ambulance | emergency |
+| `medbrains_care_mgmt::router()` | medbrains-care-mgmt | `/api/chronic-care`, `/api/bedside`, `/api/case-mgmt` | NONE | chronic, bedside, case_mgmt | ipd |
+| `medbrains_communications::router()` | medbrains-communications | `/api/communications` | NONE | communications | base |
+| `medbrains_analytics::router()` | medbrains-analytics | `/api/command-center`, `/api/utilization-review`, `/api/care-view`, `/api/retrospective` +1 | NONE | command_center, ur, care_view | reports |
+| `medbrains_facilities::router()` | medbrains-facilities | `/api/insurance`, `/api/facilities`, `/api/icu`, `/api/billing` +1 | NONE | insurance, facilities, icu | billing |
+| `medbrains_nhcx_callback::router()` | medbrains-nhcx-callback | `/api/integrations`, `/api/insurance`, `/api/billing` | NONE | insurance | billing |
+| `medbrains_security::router()` | medbrains-security | `/api/security`, `/api/data-processors` | NONE | security, audit | base |
+| `medbrains_specialty_other::router()` | medbrains-specialty-other | `/api/specialty` | palliative (12 handler checks), pmr (8 handler checks), specialty_other (16 handler checks) | specialty.other, specialty.palliative, specialty.pmr | specialty_other |
+| `medbrains_specialty_interventional::router()` | medbrains-specialty-interventional | `/api/specialty` | cath_lab (12 handler checks), endoscopy (10 handler checks) | specialty.cath_lab, specialty.endoscopy | cath_lab |
+| `medbrains_documents::router()` | medbrains-documents | `/api/documents`, `/api/admin`, `/api/signatures`, `/api/document-ingestion` +1 | NONE | documents, mrd, doctor | base |
+| `medbrains_order_basket::router()` | medbrains-order-basket | `/api/orders` | NONE | order_basket, pharmacy, lab | opd |
+| `medbrains_doctor_packages::router()` | medbrains-doctor-packages | `/api/admin` | NONE | admin | base |
+| `medbrains_doctor_payouts::router()` | medbrains-doctor-payouts | `/api/doctor-payouts` | **billing** (merge) | doctor_payouts | billing |
+| `medbrains_flow::router()` | medbrains-flow | `/api/flow` | flow (1 handler checks) | none | none |
+| `medbrains_patient_packages::router()` | medbrains-patient-packages | `/api/patient-packages` | **billing** (merge) | patient_packages | billing |
+| `medbrains_order_sets::router()` | medbrains-order-sets | `/api/order-sets` | NONE | order_sets | base |
+| `medbrains_community_health::router()` | medbrains-community-health | `/api/occ-health` | NONE | occ_health | base |
+| `medbrains_scheduling::router()` | medbrains-scheduling | `/api/scheduling` | **opd** (merge) | scheduling | opd |
+| `medbrains_reports::analytics::router()` | medbrains-reports | `/api/analytics` | **reports** (merge) | analytics | reports |
+| `medbrains_reports::reports::router()` | medbrains-reports | `/api/reports` | **reports** (merge) | analytics, quality, ipd | base |
+| `medbrains_print_data::general::router()` | medbrains-print-data | `/api/print-data` | NONE | lab, patients, opd | lab |
+| `medbrains_print_data::clinical::router()` | medbrains-print-data | `/api/print-data` | NONE | patients, opd, ipd | registration |
+| `medbrains_print_data::billing::router()` | medbrains-print-data | `/api/print-data` | NONE | billing, patients, insurance | billing |
+| `medbrains_print_data::consent::router()` | medbrains-print-data | `/api/print-data` | NONE | ipd, patients, ot | ipd |
+| `medbrains_print_data::mrd::router()` | medbrains-print-data | `/api/print-data` | NONE | ipd, blood_bank | ipd |
+| `medbrains_print_data::surgical::router()` | medbrains-print-data | `/api/print-data` | NONE | ot, ipd, nurse | ot |
+| `medbrains_print_data::medicolegal::router()` | medbrains-print-data | `/api/print-data` | NONE | emergency, patients, ipd | emergency |
+| `medbrains_print_data::quality::router()` | medbrains-print-data | `/api/print-data` | NONE | quality, regulatory, blood_bank | base |
+| `medbrains_print_data::regulatory::router()` | medbrains-print-data | `/api/print-data` | NONE | regulatory, mrd, lab | base |
+| `medbrains_print_data::admin::router()` | medbrains-print-data | `/api/print-data` | NONE | pharmacy, indent, procurement | inventory |
+| `medbrains_print_data::hr::router()` | medbrains-print-data | `/api/print-data` | NONE | hr, front_office | hr |
+| `medbrains_print_data::bme::router()` | medbrains-print-data | `/api/print-data` | NONE | facilities, bme, regulatory | base |
+| `medbrains_print_data::academic::router()` | medbrains-print-data | `/api/print-data` | NONE | opd, dashboard | opd |
+| `medbrains_admin::router()` | medbrains-admin | `/api/multi-hospital`, `/api/qa`, `/api/admin`, `/api/blog` +1 | NONE | admin, ipd, qa | base |
+| `medbrains_tv::router()` | medbrains-tv | `/api/tv` | NONE | admin | base |
+| `medbrains_news::router()` | medbrains-news | `/api/admin`, `/api/news` | NONE | none | none |
+| `medbrains_notes::router()` | medbrains-notes | `/api/notes` | NONE | notes | opd |
+| `medbrains_it_security::router()` | medbrains-it-security | `/api/disposals`, `/api/break-glass`, `/api/tat`, `/api/data-quality` +9 | NONE | admin, audit, security | base |
+| `medbrains_security_intel::routes::router()` | medbrains-security-intel | `/api/security` | NONE | security | base |
+| `medbrains_devices::router()` | medbrains-devices | `/api/devices`, `/api/device-ingest` | NONE | devices | base |
+| `medbrains_upload::router()` | medbrains-upload | `/api/upload` | NONE | documents, patients, emergency | base |
+| `medbrains_marketing::public_router()` | medbrains-marketing | `/api/public` | NONE | marketing, patients | base |
