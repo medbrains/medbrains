@@ -140,6 +140,15 @@ web_dir() { if [[ "$1" == local ]]; then echo "$TO_WEB"; else echo "$CACHE/$1/we
 # The real rollback: the host helper install.sh installs (.prev binaries and the previous web tree).
 rollback() { docker exec "$BOX" medbrains-rollback && check_running "$FROM"; }
 
+# Installs TO a second time and checks .prev still holds FROM (server binary and web build), not TO.
+reinstall_keeps_previous() {
+    install_release "$TO_LABEL" || return 1
+    docker exec "$BOX" sha256sum /usr/local/bin/medbrains-server.prev \
+        | grep -q "$(docker exec "$BOX" sha256sum "$STAGE_ROOT/$FROM/medbrains-server" | cut -d' ' -f1)" || return 1
+    docker exec "$BOX" grep -q "$(grep -o 'assets/index-[^"]*\.js' "$(web_dir "$FROM")/index.html" | head -1)" \
+        /var/www/medbrains.prev/index.html
+}
+
 # Forces the reload path for the open TO tab: removes from the served web tree every
 # file only TO's build has, so the tab's next lazy screen cannot be fetched.
 drop_to_only_chunks() {
@@ -232,4 +241,5 @@ TAB_CMD=__rollback EXPECT_RELOADS=1 step "tab-reloads-once-after-rollback" phase
 step_after "rollback-to-$FROM" "flows-after-rollback" phase verify after-rollback "${FROM#v}" "$FROM"
 step "rollforward-to-$TO_LABEL" install_release "$TO_LABEL"
 step "flows-after-rollforward" phase verify after-rollforward "$EXPECT_TO" "$TO_LABEL"
+step "reinstall-keeps-$FROM-as-previous" reinstall_keeps_previous
 report
