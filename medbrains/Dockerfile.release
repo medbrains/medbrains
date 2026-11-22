@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.7
+# The published image: the release's own medbrains-server binary on distroless.
+#
+# Nothing is compiled and nothing is RUN here, so one runner assembles both
+# architectures with no emulation. The release workflow's docker job fills the
+# build context with <arch>/medbrains-server from the tag's cargo-zigbuild
+# tarballs (ENGINEERING.md: the only cross-compile path), after checking their
+# provenance. `Dockerfile` beside this one compiles from source and stays for
+# local and CI builds; the runtime stage there and this file must stay the same
+# (base digest, path, port, user, entrypoint).
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f
+# amd64 or arm64, set by buildx for each platform of the build.
+ARG TARGETARCH
+WORKDIR /app
+
+# A workflow artifact drops the execute bit, so it is set here.
+COPY --chmod=0755 ${TARGETARCH}/medbrains-server /app/medbrains-server
+
+# Default port (overridable via PORT env)
+EXPOSE 3000
+
+# Drop privileges (distroless nonroot = uid/gid 65532)
+USER nonroot:nonroot
+
+# Health probe via /api/health (Kubernetes does the actual probing)
+ENTRYPOINT ["/app/medbrains-server"]
