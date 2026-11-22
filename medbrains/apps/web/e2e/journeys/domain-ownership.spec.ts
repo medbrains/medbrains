@@ -4,19 +4,9 @@
  * says what is missing, and the domain stays unproven — no sign-in routing,
  * no certificate.
  */
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { api } from "../helpers/api";
+import { dbExec } from "./support/db";
 import { expect, test } from "./support/world";
-
-const COMPOSE_DIR = fileURLToPath(new URL("../../../../", import.meta.url));
-
-function sql(statement: string): void {
-  execFileSync("docker", ["compose", "exec", "-T", "postgres", "psql", "-U", "medbrains", "-d", "medbrains", "-c", statement], {
-    cwd: COMPOSE_DIR,
-    encoding: "utf8",
-  });
-}
 
 test("an unproven domain shows its TXT record and is not trusted yet", async ({ hospital }) => {
   test.setTimeout(90_000);
@@ -39,7 +29,7 @@ test("an unproven domain shows its TXT record and is not trusted yet", async ({ 
     expect(tls.status).toBe(404);
   } finally {
     // Put the hospital's own (proven) domain back exactly as it was.
-    sql(
+    dbExec(
       `UPDATE tenants SET custom_domain = NULLIF('${previous}', ''), custom_domain_verified_at = CASE WHEN '${previous}' = '' THEN NULL ELSE now() END WHERE id = '${tenant.id}'`,
     );
   }
