@@ -10,6 +10,9 @@
 /// The engine name reported by the health check.
 pub const ENGINE: &str = "medbrains";
 
+/// The release version of this server build (the workspace version, as tagged).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// A distinctive token unique to MedBrains builds.
 pub const SIGNATURE: &str = "mbx-kestrel-4d42-2026";
 

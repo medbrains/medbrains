@@ -13,6 +13,7 @@ import { App } from "./App";
 import { EcgLoader } from "./components/EcgLoader";
 import { toast } from "./components/ui/toast";
 import i18n, { RTL_LANGUAGES } from "./i18n";
+import { installChunkLoadRecovery } from "./lib/chunk-reload";
 import { isDesktopSetup } from "./lib/desktop-runtime";
 import { startErrorTracking } from "./lib/error-tracking";
 import { sessionService } from "./services/session.service";
@@ -130,6 +131,7 @@ function installConsoleErrorReporter() {
 }
 
 installConsoleErrorReporter();
+installChunkLoadRecovery();
 void startErrorTracking();
 
 const queryClient = createQueryClient({

@@ -5459,6 +5459,10 @@ pub async fn completeness_check(
 
 // ── GET /api/setup/health ───────────────────────────────────
 
+/// `GET /api/setup/health`: setup counts and the server's release version for
+/// Admin → Settings → System health, where an admin compares it with the web
+/// build. The version is behind `admin.settings.general.manage`, never on the
+/// public health check, so it is not handed to anyone probing for old releases.
 pub async fn system_health(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5498,6 +5502,7 @@ pub async fn system_health(
         "departments": dept_count,
         "modules": module_count,
         "migrations_applied": migration_count,
+        "server_version": medbrains_core::provenance::VERSION,
     })))
 }
 
