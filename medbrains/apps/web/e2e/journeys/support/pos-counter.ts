@@ -22,6 +22,7 @@ export function nextYear(): string {
 }
 
 export interface Received {
+  id: string;
   name: string;
   batchNumber: string;
   stamp: string;
@@ -57,7 +58,7 @@ export async function receiveStock(
     quantity_received: opts.quantity,
     selling_rate: opts.price,
   });
-  return { name, batchNumber, stamp };
+  return { id: drug.id, name, batchNumber, stamp };
 }
 
 export async function openCounter(page: Page) {
