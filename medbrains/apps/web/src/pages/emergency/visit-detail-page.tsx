@@ -3,14 +3,7 @@
 import { Box, Card, Grid, Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import {
-  IconAlertTriangle,
-  IconArrowLeft,
-  IconGavel,
-  IconHeartbeat,
-  IconPlus,
-  IconReceipt,
-} from "@tabler/icons-react";
+import { IconArrowLeft, IconHeartbeat, IconPlus, IconReceipt } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -27,10 +20,11 @@ import { billingService } from "@/services/billing.service";
 import { emergencyService } from "@/services/emergency.service";
 import { billingInvoiceWorkspaceRoute } from "../billing-workspace";
 import classes from "../emergency.module.scss";
-import { MlcCaseDetail } from "./mlc-case-detail";
 import { ResuscitationVisitPanel } from "./resuscitation-visit-panel";
+import { SuspectedMlcAlert } from "./suspected-mlc-alert";
 import { EmergencyVisitCommandBar } from "./visit-command-bar";
 import { EmergencyVisitContextRail } from "./visit-context-rail";
+import { VisitMlcSection } from "./visit-mlc-section";
 
 export function EmergencyVisitDetailPage() {
   useRequirePermission([
@@ -195,6 +189,7 @@ export function EmergencyVisitDetailPage() {
             canAdmit={canAdmit}
             canViewPatientRecord={canViewPatientRecord}
           />
+          <SuspectedMlcAlert visit={visit} />
           <Grid align="flex-start" className={classes.workspaceGrid}>
             <Grid.Col span={{ base: 12, lg: 8 }}>
               <Stack className={classes.workspaceMain}>
@@ -246,34 +241,11 @@ export function EmergencyVisitDetailPage() {
                 <ErObservationPanel visitId={visit.id} />
                 <ErDischargeSummaryPanel visitId={visit.id} />
                 {shouldShowMlcWorkspace && (
-                  <Box id="mlc">
-                    <Stack>
-                      <Group gap="xs">
-                        <IconGavel size={18} />
-                        <Text fw={700}>MLC case workspace</Text>
-                      </Group>
-                      {mlcCasesLoading ? (
-                        <Text size="sm" c="dimmed">
-                          Loading MLC case...
-                        </Text>
-                      ) : visitMlcCases.length > 0 ? (
-                        <Stack>
-                          {visitMlcCases.map((mlcCase) => (
-                            <MlcCaseDetail
-                              key={mlcCase.id}
-                              mlcCase={mlcCase}
-                              canViewPatientRecord={canViewPatientRecord}
-                            />
-                          ))}
-                        </Stack>
-                      ) : (
-                        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
-                          This visit is flagged as MLC, but no linked MLC case is available for your
-                          current role.
-                        </Alert>
-                      )}
-                    </Stack>
-                  </Box>
+                  <VisitMlcSection
+                    canViewPatientRecord={canViewPatientRecord}
+                    cases={visitMlcCases}
+                    loading={mlcCasesLoading}
+                  />
                 )}
               </Stack>
             </Grid.Col>
