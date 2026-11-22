@@ -361,10 +361,16 @@ async fn ipd_off_names_the_never_set_up_bricks_and_together_switches_them_off_to
     let both = json!({ "status": "disabled", "together": true });
     let (status, body) = switch_as(&app, &client, &csrf, "ipd", both).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(codes_in(&app, tenant, "enabled").await, ["opd", "registration"]);
+    assert_eq!(
+        codes_in(&app, tenant, "enabled").await,
+        ["opd", "registration"]
+    );
     let off = codes_in(&app, tenant, "disabled").await;
     for code in ["ipd", "maternity", "nursing", "ot"] {
-        assert!(off.iter().any(|c| c == code), "{code} has no disabled row: {off:?}");
+        assert!(
+            off.iter().any(|c| c == code),
+            "{code} has no disabled row: {off:?}"
+        );
     }
 }
 
@@ -399,7 +405,10 @@ async fn ipd_off_marks_switched_on_and_never_set_up_bricks_apart() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let off = codes_in(&app, tenant, "disabled").await;
     for code in ["diet", "ipd", "maternity", "nursing", "ot"] {
-        assert!(off.iter().any(|c| c == code), "{code} has no disabled row: {off:?}");
+        assert!(
+            off.iter().any(|c| c == code),
+            "{code} has no disabled row: {off:?}"
+        );
     }
     assert_eq!(codes_in(&app, tenant, "enabled").await, ["registration"]);
 }

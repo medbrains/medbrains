@@ -1,3 +1,4 @@
+import { notifications } from "@mantine/notifications";
 import { ApiError } from "@medbrains/api";
 import type { ModuleConfig } from "@medbrains/types";
 import userEvent from "@testing-library/user-event";
@@ -88,9 +89,14 @@ describe("ModulesSettings: switching a brick off", () => {
   it("says so, and asks nothing, when the switch fails for another reason", async () => {
     service.listModules.mockResolvedValue(SMALL);
     service.updateModule.mockRejectedValueOnce(new ApiError("Service unavailable", 503));
+    const shown = vi.spyOn(notifications, "show");
     render(<ModulesSettings />);
     await userEvent.click(await screen.findByRole("switch", { name: "IPD / Inpatient: on" }));
-    expect(await screen.findByText("Could not switch it")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(shown).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Could not switch it", message: "Service unavailable" }),
+      ),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

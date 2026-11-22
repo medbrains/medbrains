@@ -1,5 +1,6 @@
 import { Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { ApiError } from "@medbrains/api";
 import { useModuleStore } from "@medbrains/stores";
 import type { ModuleConfig } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
@@ -10,7 +11,7 @@ import { EDITIONS } from "@/lib/editions";
 import { sessionService } from "@/services/session.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { ModuleBrickCard } from "./ModuleBrickCard";
-import { CORE_BRICKS, names, offDependencies, onDependents } from "./module-bricks";
+import { CORE_BRICKS, names, offDependencies } from "./module-bricks";
 import { type PendingSwitch, PendingSwitchText } from "./PendingSwitchText";
 
 /** What one confirmed switch sends. `together` lets the server switch the dependents with it. */
@@ -88,16 +89,26 @@ export function ModulesSettings() {
         icon: <IconCheck size={16} />,
       });
     },
-    onError: async (err: Error) => {
+    onError: async (err: Error, { codes, status, together }) => {
+      // The server refused because apps that are on need this one. Only it knows all of them
+      // (an app that was never set up has no row here), so its words become the one question.
+      const mod = modules?.find((m) => m.code === codes.at(-1));
+      const blocked = err instanceof ApiError && err.status === 409;
+      if (mod && blocked && status === "disabled" && !together) {
+        setPending({ mod, others: [], on: false, refusal: err.message });
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
       notifications.show({ title: "Could not switch it", message: err.message, color: "danger" });
     },
   });
 
-  /** Switches a brick at once, or asks first when other bricks have to be switched with it. */
+  /**
+   * Switches a brick at once, or asks first when the bricks it needs are off. Switching off is
+   * sent straight away: the server answers 409 when other bricks need it, and that opens the question.
+   */
   const handleToggle = (mod: ModuleConfig, on: boolean) => {
-    const all = modules ?? [];
-    const others = on ? offDependencies(mod.code, all) : onDependents(mod.code, all);
+    const others = on ? offDependencies(mod.code, modules ?? []) : [];
     if (others.length > 0) {
       setPending({ mod, others, on });
       return;
@@ -152,8 +163,8 @@ export function ModulesSettings() {
           Modules
         </Text>
         <Text size="sm" c="dimmed">
-          Switch apps on or off for your hospital. Switching off an app that other apps need asks to
-          switch those off with it.
+          Switch apps on or off for your hospital. Switching off an app that other apps need names
+          every one of them, including apps nobody set up, and asks to switch those off with it.
         </Text>
       </Stack>
 

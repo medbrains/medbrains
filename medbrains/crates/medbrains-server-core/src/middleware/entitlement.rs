@@ -93,9 +93,10 @@ pub fn effective_outcome<S: BuildHasher>(
 /// What stands in the way of switching `code` on (`turning_on`) or off, as brick ids in table
 /// order.
 ///
-/// Switching on, the bricks it needs that are off. Switching off, the bricks that need it and
-/// that this hospital switched on (a stored `enabled`). A brick nobody set up (no row, or
-/// `available`) never blocks: it goes off with the brick it needs, as [`effective_outcome`] has it.
+/// Switching on, the bricks it needs that are off. Switching off, every brick that needs it and
+/// is on as the module check sees it ([`effective_outcome`]): a stored `enabled`, and equally an
+/// edition brick nobody set up (no row, or `available`), which answers its API all the same.
+/// Leaving those out would let them go dark with no word to the operator.
 fn blocker_ids<S: BuildHasher>(
     code: &str,
     turning_on: bool,
@@ -110,9 +111,29 @@ fn blocker_ids<S: BuildHasher>(
     } else {
         bricks::dependents(code)
             .into_iter()
-            .filter(|id| status(id) == Some("enabled"))
+            .filter(|id| effective_outcome(id, by_code) == Outcome::Allow)
             .collect()
     }
+}
+
+/// A brick's name with why it is on, so the operator can tell a brick the hospital switched on
+/// from one that answers only because nobody ever set it up. For bricks that are on.
+fn named_with_reason<S: BuildHasher>(id: &str, by_code: &HashMap<String, String, S>) -> String {
+    let name = bricks::find(id).map_or(id, |b| b.name);
+    if by_code.get(id).map(String::as_str) == Some("enabled") {
+        format!("{name} (switched on)")
+    } else {
+        format!("{name} (on, never set up)")
+    }
+}
+
+/// Display names for brick ids, for writing a row to a brick that has none; an id that names
+/// no brick stands for itself.
+#[must_use]
+pub fn brick_names(ids: &[String]) -> Vec<&str> {
+    ids.iter()
+        .map(|id| bricks::find(id).map_or(id.as_str(), |b| b.name))
+        .collect()
 }
 
 /// The module codes one switch of `code` changes, `code` last.
@@ -130,13 +151,15 @@ pub fn switch_plan<S: BuildHasher>(
 ) -> Result<Vec<String>, String> {
     let blockers = blocker_ids(code, turning_on, by_code);
     if !blockers.is_empty() && !together {
-        let names: Vec<&str> = blockers
-            .iter()
-            .filter_map(|id| bricks::find(id))
-            .map(|b| b.name)
-            .collect();
         let name = bricks::find(code).map_or(code, |b| b.name);
-        let listed = names.join(", ");
+        let named = |id: &&str| {
+            if turning_on {
+                bricks::find(id).map_or(*id, |b| b.name).to_owned()
+            } else {
+                named_with_reason(id, by_code)
+            }
+        };
+        let listed = blockers.iter().map(named).collect::<Vec<_>>().join(", ");
         return Err(if turning_on {
             format!("{name} cannot be switched on: it needs {listed}, switched off.")
         } else {
@@ -387,7 +410,10 @@ mod tests {
         let refused = switch_plan("registration", false, false, &on)
             .err()
             .unwrap_or_default();
-        assert!(refused.contains("OPD / Outpatient (on, never set up)"), "{refused}");
+        assert!(
+            refused.contains("OPD / Outpatient (on, never set up)"),
+            "{refused}"
+        );
         assert!(!refused.contains("Patient Companion"), "{refused}");
         let plan = switch_plan("registration", false, true, &on).unwrap_or_default();
         assert!(!plan.iter().any(|c| c == "companion"), "{plan:?}");
