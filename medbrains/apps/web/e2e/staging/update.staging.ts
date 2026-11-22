@@ -107,12 +107,16 @@ async function adminFlow(page: Page, request: APIRequestContext): Promise<void> 
   const health = await api<{ server_version?: string }>(ctx, "GET", "/api/setup/health");
   const want = process.env.STAGING_EXPECT_VERSION;
   if (health.server_version && want) expect(health.server_version, "server version").toBe(want);
-  writeRun(`health-${LABEL}.json`, health);
   const on = (await api<Brick[]>(ctx, "GET", "/api/setup/modules")).filter((m) => m.status === "enabled");
   expect(on.map((m) => m.code).sort(), "bricks on").toEqual(readRun<{ on: string[] }>("bricks.json").on);
   await page.goto("/admin/settings#system-health");
-  // A web build with the version row shows the server's beside its own on System health.
-  if (health.server_version && process.env.STAGING_WEB_SHOWS_VERSION) await expect(page.getByText(`Server v${health.server_version}`)).toBeVisible({ timeout: 20_000 });
+  // Web builds up to 3.35.6 crash on this screen (no table sizes from the server); that is recorded, and
+  // required of a build with the version row, which shows the server's version beside its own.
+  const shows = Boolean(process.env.STAGING_WEB_SHOWS_VERSION);
+  const loaded = await page.getByText("Setup Completeness").waitFor({ timeout: 20_000 }).then(() => true, () => false);
+  writeRun(`health-${LABEL}.json`, { ...health, system_health_screen: loaded ? "loaded" : "did not load" });
+  if (shows) expect(loaded, "System health loads").toBe(true);
+  if (health.server_version && shows) await expect(page.getByText(`Server v${health.server_version}`)).toBeVisible({ timeout: 20_000 });
   await shot(page, "admin");
 }
 
@@ -182,22 +186,26 @@ for (const phase of ["baseline", "verify"]) {
 
 test("oldtab", async ({ browser }) => {
   const { uhid } = readRun<Patient>("baseline.json");
-  const page = await pageAs(browser, "receptionist");
+  // After a rollback the tab's own chunks are gone: it must reload itself, exactly once.
+  const exact = process.env.STAGING_EXPECT_RELOADS;
+  // A screen whose chunk the tab has not fetched: nothing on the way to the patient list loads it.
+  const [role, path, heading] = exact
+    ? (["admin", "/admin/roles", "Roles & Permissions"] as const)
+    : (["receptionist", "/patients/register", "Patient registration"] as const);
+  const page = await pageAs(browser, role);
   await findByUhid(page, uhid);
   let reloads = 0;
   page.on("load", () => {
     reloads += 1;
   });
   execSync(process.env.STAGING_UPDATE_CMD ?? "false", { stdio: "inherit" });
-  // Move on inside the app, as a click would: a lazy screen the tab has not loaded yet.
-  await page.evaluate(() => {
-    window.history.pushState({}, "", "/patients/register");
+  // Move on inside the app, as a click would.
+  await page.evaluate((to) => {
+    window.history.pushState({}, "", to);
     window.dispatchEvent(new PopStateEvent("popstate"));
-  });
-  await expect(page.getByText("Patient registration"), "the old tab still works").toBeVisible({ timeout: 30_000 });
+  }, path);
+  await expect(page.getByText(heading).first(), "the open tab still works").toBeVisible({ timeout: 30_000 });
   writeRun(`oldtab-${LABEL}.json`, { reloads });
-  // After a rollback the tab's own chunks are gone: it must reload itself, exactly once.
-  const exact = process.env.STAGING_EXPECT_RELOADS;
   if (exact) expect(reloads, "reloads onto the served build").toBe(Number(exact));
   else expect(reloads, "at most one reload").toBeLessThanOrEqual(1);
   await shot(page, "oldtab");
