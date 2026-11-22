@@ -454,7 +454,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/**/Cargo.toml') }}
+          # Toolchain first, then the dependency graph. A Cargo.lock change misses the key but
+          # restores the newest cache on the same toolchain, and saves a fresh one under the new key.
+          key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/rust-toolchain.toml') }}-${{ hashFiles('medbrains/Cargo.lock', 'medbrains/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/rust-toolchain.toml') }}-
 
       # Library code is clean and is the bar worth holding first.
       # Every crate except the desktop GUI tree, which needs GTK on the runner.
@@ -536,7 +539,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
+          # Toolchain first, then the dependency graph. A Cargo.lock change misses the key but
+          # restores the newest cache on the same toolchain, and saves a fresh one under the new key.
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/rust-toolchain.toml') }}-${{ hashFiles('medbrains/Cargo.lock', 'medbrains/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/rust-toolchain.toml') }}-
 
       # Blocking since #5978. A test that flakes is fixed, or quarantined by name in
       # .config/nextest.toml with its issue; never left to fail here.
