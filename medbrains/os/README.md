@@ -1017,6 +1017,13 @@ The PostgreSQL configuration and `/etc/medbrains` are symlinks into `/var`, so r
 partitions keeps the data. The system partition holds a copy of the image's `/var`, with no secrets in it,
 to start the data partition from.
 
+The boot file's initrd only has to find the system disk and start the system from it, so `mkosi.conf`
+(`KernelModulesInitrdExclude`) keeps six groups of drivers out of it: sound, cameras and tuners, industrial
+sensors, InfiniBand, Bluetooth and staging. They stay in the installed system and load from there, once it has
+started (a sound card's driver used to load in the initrd). Storage, file systems, crypto, md/dm, USB, HID,
+GPU and network drivers are all still in the initrd. The boot file goes from 153 MB to 135 MB.
+**Not yet tried on real hardware**, where a machine may need a driver nobody expected to reach its disk.
+
 ### Data disk
 
 Task T1, disk half. Every key, what happens if it is lost or stolen, and the failure table are in
