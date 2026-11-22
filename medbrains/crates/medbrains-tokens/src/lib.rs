@@ -2246,7 +2246,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/{id}/finish", post(finish_token))
         .route("/api/tokens/{id}/complete", post(complete_token))
         .route("/api/tokens/{id}/no-show", post(no_show_token))
-        .route("/api/tokens/{id}/priority", put(escalate_priority))
+        .route("/api/tokens/{id}/priority", put(board::escalate_and_nudge))
         .route("/api/tokens/{id}/requeue", post(requeue_token))
 }
 

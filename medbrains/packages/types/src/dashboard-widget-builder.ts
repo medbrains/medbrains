@@ -925,6 +925,8 @@ export interface QueueEntry {
   /** The queue this token belongs to — a department, room, or station. */
   token_room: string | null;
   token_priority: string | null;
+  /** Why the desk moved this token up, in its own words. Staff screens only. */
+  token_priority_reason: string | null;
   status: string;
   queue_date: string;
   called_at: string | null;

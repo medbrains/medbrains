@@ -54,6 +54,7 @@ import {
   QueueAppointmentMarker,
   QueuePatientCell,
   QueueRowPrintMenu,
+  QueueTokenCell,
   QueueVisitTypeBadge,
   QueueVitalsCell,
 } from "./queue-cells";
@@ -414,21 +415,13 @@ export function OpdPageInner() {
       label: t("queueColumns.token"),
       sortable: true,
       searchable: true,
-      // Sort on the queue's own integer, which is monotonic within the day and
-      // is what ORDER BY on the server uses. The displayed code is shared
-      // across a visit, so sorting by it would interleave modules.
+      // The server sends priority first, then arrival, and the table keeps
+      // that order until this header is clicked. Clicking sorts on the queue's
+      // own integer: the displayed code is shared across a visit, so sorting
+      // by it would interleave modules.
       sortValue: (row: QueueEntry) => row.token_number,
       accessor: (row: QueueEntry) => queueTokenLabel(row),
-      render: (row: QueueEntry) => (
-        <Text
-          size="sm"
-          fw={700}
-          ff="var(--mb-font-mono, monospace)"
-          style={{ whiteSpace: "nowrap" }}
-        >
-          {queueTokenLabel(row)}
-        </Text>
-      ),
+      render: (row: QueueEntry) => <QueueTokenCell row={row} />,
     },
     {
       key: "token_room",

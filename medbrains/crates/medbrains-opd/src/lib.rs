@@ -208,6 +208,9 @@ pub struct QueueEntry {
     /// The queue the token belongs to -- a department, a room, or a station.
     pub token_room: Option<String>,
     pub token_priority: Option<String>,
+    /// Why the token was moved up, in the words the desk typed. Staff only:
+    /// this list is never a public board.
+    pub token_priority_reason: Option<String>,
     pub status: String,
     pub queue_date: NaiveDate,
     pub called_at: Option<DateTime<Utc>>,
@@ -1257,6 +1260,13 @@ pub async fn list_queue(
 ///
 /// Filtered as the desk asks; patient identity is shown only to callers who may
 /// see it. Shared by `GET /api/opd/queue` and the `opd.queue.today` action.
+///
+/// Priority, then arrival: a patient still waiting sorts by the weight of their
+/// token (`token_queue_weight`, which the token console, the boards and
+/// call-next sort by), so a patient the desk moved up is first on the doctor's
+/// list too. It was ordered by arrival alone, and a patient raised to STAT
+/// stayed where they were. A row no longer waiting, or with no token, keeps an
+/// ordinary token's weight (6) and its arrival place.
 pub async fn queue_rows(
     conn: &mut sqlx::PgConnection,
     claims: &Claims,
@@ -1273,10 +1283,9 @@ pub async fn queue_rows(
             .iter()
             .any(|permission| permission == permissions::patients::VIEW);
 
-    let queue_date = if let Some(date) = params.date {
-        date
-    } else {
-        tenant_local_today(&mut *conn, claims.tenant_id).await?
+    let queue_date = match params.date {
+        Some(date) => date,
+        None => tenant_local_today(&mut *conn, claims.tenant_id).await?,
     };
 
     let mut conditions = vec![
@@ -1372,17 +1381,15 @@ pub async fn queue_rows(
 
     let sql = format!(
         "SELECT q.id, q.encounter_id, q.department_id, q.doctor_id, q.token_number, \
-                q.status::text AS status, q.queue_date, q.called_at, q.completed_at, \
-                e.close_reason, \
+                q.status::text AS status, q.queue_date, q.called_at, q.completed_at, e.close_reason, \
                 tok.number AS token_code, \
                 tok.counter_label AS token_counter_label, \
                 tok.scope_label AS token_room, \
-                tok.priority AS token_priority, \
+                tok.priority AS token_priority, tok.priority_reason AS token_priority_reason, \
                 e.patient_id, \
                 CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', p.last_name) ELSE NULL END AS patient_name, \
                 CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
-                e.visit_type::text AS visit_type, \
-                e.chief_complaints AS chief_complaint, \
+                e.visit_type::text AS visit_type, e.chief_complaints AS chief_complaint, \
                 EXISTS (SELECT 1 FROM vitals v WHERE v.encounter_id = e.id) AS has_vitals, \
                 NULLIF(e.attributes->>'camp_id', '')::uuid AS camp_id, \
                 e.attributes->>'camp_name' AS camp_name, \
@@ -1403,7 +1410,7 @@ pub async fn queue_rows(
          LEFT JOIN referrals rf ON rf.id = q.referral_id \
          LEFT JOIN users rfu ON rfu.id = rf.from_doctor_id \
          LEFT JOIN LATERAL ( \
-             SELECT t.number, t.counter_label, t.scope_label, t.priority \
+             SELECT t.* \
                FROM tokens t \
               WHERE t.tenant_id = q.tenant_id AND t.module = 'opd' \
                 AND ((q.kind = 'primary' AND t.entity_type = 'encounter' \
@@ -1413,7 +1420,9 @@ pub async fn queue_rows(
               ORDER BY t.created_at LIMIT 1 \
          ) tok ON TRUE \
          WHERE {where_clause} \
-         ORDER BY q.token_number ASC LIMIT 5000"
+         ORDER BY CASE WHEN q.status = 'waiting' AND tok.id IS NOT NULL \
+                  THEN token_queue_weight(tok.queue_id, tok.priority, tok.created_at) ELSE 6 END, \
+                  q.token_number LIMIT 5000"
     );
 
     let mut query = sqlx::query_as::<_, QueueEntry>(&sql)
