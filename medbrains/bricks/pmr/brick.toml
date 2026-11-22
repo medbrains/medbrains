@@ -11,7 +11,6 @@ prefixes = []
 jobs = []
 tables = []
 screens = ["/specialty/pmr"]
-tests = []
 
 [[routers]]
 router = "medbrains_specialty_other::router()"

@@ -45,7 +45,6 @@ screens = [
     "/admin/queues",
     "/admin/history-import",
 ]
-tests = []
 
 [[routers]]
 router = "medbrains_patients::router()"

@@ -70,7 +70,6 @@ screens = [
     "/pharmacy/nppa-ceilings",
     "/pharmacy/dispatch",
 ]
-tests = []
 
 [[routers]]
 router = "medbrains_pharmacy::router()"

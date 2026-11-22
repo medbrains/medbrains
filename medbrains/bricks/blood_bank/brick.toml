@@ -26,7 +26,6 @@ tables = [
     "transfusions",
 ]
 screens = ["/blood-bank"]
-tests = []
 
 [[routers]]
 router = "medbrains_blood_bank::router()"

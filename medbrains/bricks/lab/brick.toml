@@ -36,7 +36,6 @@ tables = [
     "lab_test_panels",
 ]
 screens = ["/lab"]
-tests = []
 
 [[routers]]
 router = "medbrains_lab::router()"

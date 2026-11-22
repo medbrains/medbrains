@@ -34,7 +34,6 @@ tables = [
     "wound_assessments",
 ]
 screens = ["/nurse"]
-tests = []
 
 [[routers]]
 router = "medbrains_nursing::station_router()"

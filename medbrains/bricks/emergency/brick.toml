@@ -26,7 +26,6 @@ tables = [
     "mlc_police_intimations",
 ]
 screens = ["/emergency", "/ambulance"]
-tests = []
 
 [[routers]]
 router = "medbrains_emergency::router()"

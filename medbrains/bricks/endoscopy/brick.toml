@@ -11,7 +11,6 @@ prefixes = []
 jobs = []
 tables = []
 screens = ["/specialty/endoscopy"]
-tests = []
 
 [[routers]]
 router = "medbrains_specialty_interventional::router()"

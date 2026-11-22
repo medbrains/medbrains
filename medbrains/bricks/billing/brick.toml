@@ -62,24 +62,6 @@ screens = [
     "/billing/doctor-payouts",
     "/insurance",
 ]
-tests = [
-    "crates/medbrains-billing/tests/charge_attention.rs",
-    "crates/medbrains-billing/tests/leakage.rs",
-    "crates/medbrains-billing/tests/leakage_post.rs",
-    "crates/medbrains-billing/tests/preauth_closing.rs",
-    "crates/medbrains-billing/tests/preauth_list_guards.rs",
-    "crates/medbrains-billing/tests/preauth_review.rs",
-    "crates/medbrains-billing/tests/preauth_settlement.rs",
-    "crates/medbrains-billing/tests/preauth_sweep.rs",
-    "crates/medbrains-billing/tests/preauth_used_up.rs",
-    "crates/medbrains-billing/tests/room_cut.rs",
-    "crates/medbrains-billing/tests/room_eligibility.rs",
-    "crates/medbrains-billing/tests/stock_leakage.rs",
-    "crates/medbrains-billing/tests/stock_leakage_duplicate.rs",
-    "crates/medbrains-billing/tests/stock_leakage_queue.rs",
-    "crates/medbrains-billing/tests/stock_leakage_registry.rs",
-    "crates/medbrains-billing/tests/stock_leakage_review.rs",
-]
 
 [[routers]]
 router = "medbrains_billing::router()"

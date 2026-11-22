@@ -24,7 +24,6 @@ tables = [
     "radiology_unmatched_studies",
 ]
 screens = ["/radiology"]
-tests = []
 
 [[routers]]
 router = "medbrains_radiology::router()"

@@ -60,7 +60,6 @@ screens = [
     "/case-management",
     "/long-term-care",
 ]
-tests = []
 
 [[routers]]
 router = "medbrains_ipd::router()"

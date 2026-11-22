@@ -23,7 +23,6 @@ tables = [
     "ot_surgical_safety_checklists",
 ]
 screens = ["/ot", "/cssd"]
-tests = ["crates/medbrains-ot/tests/blood_gate.rs"]
 
 [[routers]]
 router = "medbrains_ot::router()"

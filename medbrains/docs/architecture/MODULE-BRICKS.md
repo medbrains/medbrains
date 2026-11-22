@@ -42,12 +42,26 @@ routers with no switch: `make check-bricks` fails on a new one, and adding a lin
 ## One manifest per brick (2026-11-22)
 
 `bricks/<id>/brick.toml` states what a brick is made of: the bricks it needs, its permission
-groups, the routers its switch covers and their path prefixes, its jobs, the tables only its code
-writes, its screens and its own crates' tests. The files are generated from the code by
-`scripts/brick_manifests.py --write`, so they are true by construction; `make check-bricks`
-refuses a manifest that does not parse, names an unknown brick, closes a cycle, shares a gated
-prefix with another brick, or differs from the code. `bricks.rs` is still the source. An empty
-field is a missing stud: `prefixes = []` means no router of that brick is gated at the merge.
+groups, the routers its switch covers and their path prefixes, its jobs, its screens and the tables
+only its own crates write. The files are generated from the code by
+`scripts/brick_manifests.py --write`; `make check-bricks` refuses a manifest that does not parse,
+names an unknown brick, closes a cycle, shares a gated prefix with another brick, or differs from
+the code. `bricks.rs` is still the source. An empty field is a missing stud: `prefixes = []` means
+no router of that brick is gated at the merge.
+
+What is copied and what is inferred:
+
+- **Copied from a declaration:** id, name, `needs`, permission groups, jobs, screens, and each
+  router with the switch in front of it. These are as true as the code they are read from.
+- **Inferred:** `tables`. A table is listed under a brick when every crate that writes it has
+  routers switched by that brick and by no other. That is a rule, not a declaration, and it can be
+  wrong both ways: a brick's crate may write a table that is really shared, and a brick's table
+  written from a shared crate is not listed. `medbrains-server` mounts every router and serves many
+  bricks, so it is never one brick's crate and nothing it writes is listed.
+  `scripts/brick_manifests.py --unowned` prints every written table no brick owns, with its
+  writers (604 today). It is printed, not checked in, so it cannot go stale.
+- **Not listed:** tests. A list of the test files in a brick's crates went stale whenever an
+  unrelated pull request added a test. Test tagging is lane B3.
 
 ## A brick's background jobs (2026-11-19)
 

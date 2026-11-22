@@ -35,7 +35,6 @@ screens = [
     "/indent",
     "/bme",
 ]
-tests = []
 
 [[routers]]
 router = "medbrains_indent::router()"

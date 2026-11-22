@@ -17,7 +17,6 @@ tables = [
     "flow_zone_sources",
 ]
 screens = ["/flow", "/admin/flows"]
-tests = []
 
 [[routers]]
 router = "medbrains_flow::router()"

@@ -18,7 +18,6 @@ screens = [
     "/retrospective",
     "/admin/nabh-indicators",
 ]
-tests = ["crates/medbrains-reports/tests/report_safety.rs"]
 
 [[routers]]
 router = "medbrains_reports::nabh_indicators::router()"

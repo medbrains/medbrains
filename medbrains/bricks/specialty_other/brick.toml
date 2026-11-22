@@ -18,7 +18,6 @@ screens = [
     "/specialty/cancer-registry",
     "/clinical-trials",
 ]
-tests = []
 
 [[routers]]
 router = "medbrains_specialty_other::router()"

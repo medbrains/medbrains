@@ -19,7 +19,6 @@ tables = [
     "meal_preparations",
 ]
 screens = ["/diet-kitchen"]
-tests = []
 
 [[routers]]
 router = "medbrains_diet::router()"
