@@ -142,7 +142,6 @@ def rows() -> list[dict]:
             "prefixes": prefixes(paths_of(call)), "gate": gate, "checks": dict(checks),
             "permissions": [g for g, _ in perms.most_common(3)],
             "owner": owners.most_common(1)[0][0] if owners else "none",
-            "line": text.count("\n", 0, merge.start()) + 1,
         })
     return out
 
@@ -162,6 +161,7 @@ def render(table: list[dict]) -> str:
     gated = [r for r in routers if r["gate"]]
     partial = [r for r in routers if not r["gate"] and r["checks"]]
     direct = len(re.findall(r"\.route\(", MOD_RS.read_text()))
+    gate_calls = len(re.findall(r"\bgated\(", MOD_RS.read_text()))
     lines = [
         "# Brick router inventory",
         "",
@@ -170,7 +170,7 @@ def render(table: list[dict]) -> str:
         "",
         f"- `.merge(...)` calls: **{len(table)}**, of which {len(table) - len(routers)} only join routers built in the same file.",
         f"- Routers merged: **{len(routers)}**. Behind a brick switch at the merge (`gated`): **{len(gated)}**"
-        f" (from {len(re.findall(r'\bgated\(', MOD_RS.read_text()))} `gated(...)` calls).",
+        f" (from {gate_calls} `gated(...)` calls).",
         f"- Not gated at the merge, but some handlers check a brick themselves: **{len(partial)}**.",
         f"- No brick switch at all: **{len(routers) - len(gated) - len(partial)}**.",
         f"- Routes written directly in `mod.rs` with `.route(...)`, none behind a brick switch: **{direct}**.",
@@ -178,13 +178,15 @@ def render(table: list[dict]) -> str:
         "**Owner** is the brick whose permission groups the router's code names most (`base` = base plate or a",
         "group that is not a brick yet, `none` = no permission constant found). It is a hint for gating, not a decision.",
         "",
-        "| Line | Router | Crate | Prefixes | Gate today | Permission groups | Owner |",
-        "|---|---|---|---|---|---|---|",
+        "Rows are in `mod.rs` order. No line numbers: any added line would make the table stale.",
+        "",
+        "| Router | Crate | Prefixes | Gate today | Permission groups | Owner |",
+        "|---|---|---|---|---|---|",
     ]
     for row in routers:
         shown = ", ".join(f"`{p}`" for p in row["prefixes"][:4]) + (f" +{len(row['prefixes']) - 4}" if len(row["prefixes"]) > 4 else "")
         lines.append(
-            f"| {row['line']} | `{row['router']}` | {row['crate']} | {shown or 'none found'} | {gate_cell(row)} "
+            f"| `{row['router']}` | {row['crate']} | {shown or 'none found'} | {gate_cell(row)} "
             f"| {', '.join(row['permissions']) or 'none'} | {row['owner']} |"
         )
     return "\n".join(lines) + "\n"
