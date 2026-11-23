@@ -472,6 +472,13 @@ check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts,
 	python3 scripts/check_size_budgets.py --self-test
 	python3 scripts/check_size_budgets.py
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-shell-size
+check-all: check-shell-size
+check-shell-size: ## Ratchet: medbrains-server/src lines and direct .route( calls only shrink
+	python3 scripts/check_shell_size.py --self-test
+	python3 scripts/check_shell_size.py
+
 check-kernel-authz: ## Kernel crates reach the database only behind an authorisation decision
 	python3 scripts/check_kernel_authz.py --self-test
 	python3 scripts/check_kernel_authz.py
