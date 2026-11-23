@@ -73,8 +73,17 @@ link_target() {
     return 0
 }
 
+# Lists every file under $1/assets as a path relative to it, subfolders
+# included: a build keeps fonts, images and worker chunks below the top level,
+# and an open tab asks for those too.
+own_assets() {
+    [[ -d "$1/assets" ]] || return 0
+    (cd "$1/assets" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)
+}
+
 # Copies the live tree's own assets into $1/assets when the new build lacks
-# them (hashed names, so an existing name is the same file).
+# them (hashed names, so an existing name is the same file). Paths come from
+# the live tree's own list; one that climbs out of assets/ is skipped.
 carry_assets() {
     local new="$1" live="$PARENT/$2" name
     [[ -n "$2" && -d "$live/assets" ]] || return 0
@@ -82,10 +91,12 @@ carry_assets() {
     if [[ -f "$live/$OWN_LIST" ]]; then
         cat "$live/$OWN_LIST"
     else
-        ls -A "$live/assets"
+        own_assets "$live"
     fi | while IFS= read -r name; do
-        [[ -n "$name" && "$name" != */* && -f "$live/assets/$name" ]] || continue
-        [[ -e "$new/assets/$name" ]] || cp -p "$live/assets/$name" "$new/assets/$name"
+        [[ -n "$name" && "$name" != /* && "$name" != *..* && -f "$live/assets/$name" ]] || continue
+        [[ -e "$new/assets/$name" ]] && continue
+        mkdir -p "$new/assets/$(dirname "$name")"
+        cp -p "$live/assets/$name" "$new/assets/$name"
     done
 }
 
@@ -117,7 +128,7 @@ install_web() {
     trap 'rm -rf "$new" "$ROOT.next" "$ROOT.prev.next"' ERR
     mkdir -m 0755 "$new"
     cp -R "$src/." "$new/"
-    if [[ -d "$new/assets" ]]; then ls -A "$new/assets"; fi > "$new/$OWN_LIST"
+    own_assets "$new" > "$new/$OWN_LIST"
     old="$(link_target "$ROOT")"
     carry_assets "$new" "$old"
     if [[ "$(id -u)" == 0 ]]; then chown -R 0:0 "$new"; fi

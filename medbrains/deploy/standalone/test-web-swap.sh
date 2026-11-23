@@ -25,11 +25,13 @@ check() {
     if "$@"; then echo "PASS $name"; else echo "FAIL $name"; fail=1; fi
 }
 
-# Writes a fake dist build $1 whose one hashed chunk is assets/$2.
+# Writes a fake dist build $1 whose hashed chunk is assets/$2, with one more
+# file in a subfolder of assets/, as a real build has (fonts, workers).
 make_build() {
-    mkdir -p "$TMP/$1/assets"
+    mkdir -p "$TMP/$1/assets/fonts"
     echo "<html>$1</html>" > "$TMP/$1/index.html"
     echo "chunk $1" > "$TMP/$1/assets/$2"
+    echo "font $1" > "$TMP/$1/assets/fonts/$1-font.woff2"
 }
 
 # True when the live index.html is build $1's.
@@ -42,6 +44,8 @@ live_is() {
 mkdir -p "$LIVE/assets"
 echo "<html>legacy</html>" > "$LIVE/index.html"
 echo "chunk legacy" > "$LIVE/assets/legacy-0.js"
+mkdir -p "$LIVE/assets/fonts"
+echo "font legacy" > "$LIVE/assets/fonts/legacy-font.woff2"
 
 make_build r1 r1-aaa.js
 "$SWAP" install "$TMP/r1" >/dev/null
@@ -53,6 +57,9 @@ make_build r2 r2-bbb.js
 "$SWAP" install "$TMP/r2" >/dev/null
 check "r2 live" live_is r2
 check "old chunk r1 still served after swap" test -f "$LIVE/assets/r1-aaa.js"
+check "old file in a subfolder of assets still served after swap" \
+    test -f "$LIVE/assets/fonts/r1-font.woff2"
+check "subfolder file two releases old is pruned" test ! -e "$LIVE/assets/fonts/legacy-font.woff2"
 check "chunk two releases old is pruned" test ! -e "$LIVE/assets/legacy-0.js"
 check ".prev holds r1" grep -q "<html>r1</html>" "$LIVE.prev/index.html"
 check "only live and prev trees kept" test "$(find "$LIVE.d" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = 2
