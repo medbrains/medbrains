@@ -246,6 +246,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_in_loop.py --self-test
           python3 medbrains/scripts/check_query_in_loop.py --check
+      # Report only: SQL in one brick's crates that reads or writes a table another brick
+      # owns. A rise in writes shows as a warning on the run; nothing here fails yet.
+      - name: Cross-brick table access (report)
+        run: |
+          python3 medbrains/scripts/check_brick_tables.py --self-test
+          python3 medbrains/scripts/check_brick_tables.py
       # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
       - name: Rust functions and files only shrink
         run: |

@@ -30,6 +30,7 @@ A brick touches the rest of the system only through these, so it can be added, r
 - **No brick imports another brick, on any layer.** A check fails CI if a module crate, web package or Slint app depends on another module's code (backend, web and native alike).
 - **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its background jobs stop, its native app is not started, and nothing else breaks.
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
+  - Measured, not yet enforced: `make brick-tables-report` (`scripts/check_brick_tables.py`) counts SQL in one brick's crates that reads or writes a table another brick owns, per brick pair, against `scripts/brick_tables.baseline.txt`. CI prints the change and warns when a pair's writes rise. The owner of a table is guessed from who writes it most, and only upper-case SQL in `src/` is seen, so the numbers are a floor.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
 
 ## A brick's background jobs (2026-11-19)
