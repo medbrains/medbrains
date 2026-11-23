@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE doctor_signature_credentials SET is_default = FALSE, valid_until = now() WHERE tenant_id = $1 AND doctor_user_id = $2 AND is_default AND revoked_at IS NULL RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1baea4be44e0106d90c18d467810a653b20a75937dec6268417188b225b55989"
+}

@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1260 permissions, one per constant in the Rust source. */
+/** 1262 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7082,6 +7082,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "For questions no report covers, the assistant may write one SELECT over the curated `ai_query` views — identifiers hashed, restricted classes excluded, read-only, time-boxed and audited. Whole-hospital figures, so held by no built-in role: admins hold it by bypass, and it can be granted to a custom role.",
     module: "ai",
   },
+  // signatures
+  {
+    code: "signatures.own.manage",
+    label: "Set up and replace your own signature",
+    description: "Draw or upload the signature image printed on the records you sign, or choose none, and replace it later. Only for yourself, in your own session, after re-entering your password. Asked for the first time you click Sign on a record.",
+    module: "signatures",
+  },
   // nurse
   {
     code: "nurse.signature.sign",
@@ -7943,6 +7950,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.PCPNDT.LIST,
       P.RETROSPECTIVE.AUDIT,
       P.RETROSPECTIVE.CREATE,
+      P.SIGNATURES.OWN.MANAGE,
       P.SPECIALTY.CATH_LAB.DEVICES.LIST,
       P.SPECIALTY.CATH_LAB.DEVICES.MANAGE,
       P.SPECIALTY.CATH_LAB.MONITORING.CREATE,
@@ -8212,6 +8220,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RETROSPECTIVE.CREATE,
       P.SECURITY.PATIENT_SAFETY.REPORT_EVENT,
       P.SECURITY.PATIENT_SAFETY.VERIFY_MATCH,
+      P.SIGNATURES.OWN.MANAGE,
       P.SPECIALTY.CATH_LAB.DEVICES.MANAGE,
       P.SPECIALTY.CATH_LAB.MONITORING.LIST,
       P.SPECIALTY.CATH_LAB.PROCEDURES.LIST,

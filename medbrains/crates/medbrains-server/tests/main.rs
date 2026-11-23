@@ -333,6 +333,7 @@ mod signable_guard_test;
 mod signable_types_test;
 mod signature_payload_test;
 mod signature_verify_test;
+mod signature_own_test;
 mod signatures_test;
 mod snomed_terminology_test;
 mod soap_note_access_test;

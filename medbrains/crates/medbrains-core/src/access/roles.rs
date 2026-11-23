@@ -64,6 +64,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::profile::VIEW_OWN,
             permissions::doctor::profile::UPDATE_OWN,
             permissions::doctor::signature::SIGN,
+            // Sets up their own signature the first time they sign.
+            permissions::signatures::own::MANAGE,
             // The consultant's countersignature on a resident's or a
             // colleague's record (signer_role co_signer).
             permissions::doctor::signature::CO_SIGN,
@@ -452,6 +454,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::display_settings::READ,
             // Signs the MAR, vitals and charting she recorded (signable.rs).
             permissions::nurse::signature::SIGN,
+            permissions::signatures::own::MANAGE,
             permissions::clinical_notes::MARK_IN_ERROR,
             permissions::home_health::LIST,
             permissions::home_health::MANAGE,

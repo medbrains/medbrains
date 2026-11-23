@@ -261,6 +261,18 @@ export interface SignatureCredential {
   created_at: string;
 }
 
+/** A signer's own signature choice. No user id: the server takes the signer from the session. */
+export interface SetMyCredentialRequest {
+  /** A PNG, JPEG or WebP data URL; `null` to sign with no image. */
+  image: string | null;
+}
+
+export interface SetMyCredentialResponse {
+  credential: SignatureCredential;
+  /** True when an earlier signature was ended by this one. */
+  replaced: boolean;
+}
+
 export interface IssueCredentialRequest {
   doctor_user_id: string;
   display_image_url?: string | null;

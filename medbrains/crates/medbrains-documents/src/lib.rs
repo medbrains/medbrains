@@ -11,6 +11,7 @@ pub mod document_ingestion;
 pub mod documents;
 pub mod roi;
 pub mod signable;
+pub mod signature_own;
 pub mod signature_verify;
 pub mod signatures;
 pub mod storage;
@@ -168,7 +169,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/signatures/my-credentials",
-            get(signatures::list_my_credentials),
+            get(signatures::list_my_credentials).post(signature_own::set_my_credential),
         )
         .route("/api/signatures/review", post(signatures::review_record))
         .route("/api/signatures/types", get(signable::list_signable_types))

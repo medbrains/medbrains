@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO doctor_signature_credentials ( tenant_id, doctor_user_id, credential_type, algorithm, public_key, encrypted_private_key, display_image_url, display_font, valid_until, is_default, created_by ) VALUES ($1,$2,'stored_key','Ed25519',$3,$4,$5,$6,$7,$8,$9) RETURNING id, tenant_id, doctor_user_id, credential_type, algorithm, public_key, display_image_url, display_font, valid_from, valid_until, revoked_at, revoked_reason, is_default, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "doctor_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "credential_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "algorithm",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "public_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "display_image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "display_font",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "valid_from",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "valid_until",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "revoked_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "is_default",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Bytea",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3686d71936ad150b8e4259c2dbf102a4bf3b7760ea1fdc975b6970402938e84f"
+}

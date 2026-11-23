@@ -3260,6 +3260,12 @@ export const P = {
     VENDOR_ACCESS_REVOKE: "security.vendor_access.revoke",
     VENDOR_ACCESS_VIEW: "security.vendor_access.view",
   },
+  SIGNATURES: {
+    OWN: {
+      MANAGE: "signatures.own.manage",
+    },
+    OWN_MANAGE: "signatures.own.manage",
+  },
   SPECIALTY: {
     CATH_LAB: {
       DEVICES: {
