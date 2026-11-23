@@ -340,6 +340,13 @@ check-app-screens: ## Fail if app-screens.generated.ts is stale against screens.
 	python3 scripts/generate_app_screens.py --self-test
 	python3 scripts/generate_app_screens.py --check
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-web-brick-imports
+check-all: check-web-brick-imports
+check-web-brick-imports: ## Ratchet: web imports from one brick's source into another's only fall
+	python3 scripts/check_web_brick_imports.py --self-test
+	python3 scripts/check_web_brick_imports.py
+
 check-ui-slop: ## Decorative effects in the web app only ever go down
 	python3 scripts/check_ui_slop.py
 
@@ -465,9 +472,22 @@ check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts,
 	python3 scripts/check_size_budgets.py --self-test
 	python3 scripts/check_size_budgets.py
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-shell-size
+check-all: check-shell-size
+check-shell-size: ## Ratchet: medbrains-server/src lines and direct .route( calls only shrink
+	python3 scripts/check_shell_size.py --self-test
+	python3 scripts/check_shell_size.py
+
 check-kernel-authz: ## Kernel crates reach the database only behind an authorisation decision
 	python3 scripts/check_kernel_authz.py --self-test
 	python3 scripts/check_kernel_authz.py
+
+# Report only, so it is not in check-all: it prints the change and never fails.
+.PHONY: brick-tables-report
+brick-tables-report: ## Report: SQL in one brick's crates touching another brick's tables
+	python3 scripts/check_brick_tables.py --self-test
+	python3 scripts/check_brick_tables.py
 
 check-kernel-no-domain: ## The kernel is technical: no domain crates below it, no domain words in it
 	python3 scripts/check_kernel_no_domain.py --self-test
