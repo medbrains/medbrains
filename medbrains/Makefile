@@ -469,6 +469,12 @@ check-kernel-authz: ## Kernel crates reach the database only behind an authorisa
 	python3 scripts/check_kernel_authz.py --self-test
 	python3 scripts/check_kernel_authz.py
 
+# Report only, so it is not in check-all: it prints the change and never fails.
+.PHONY: brick-tables-report
+brick-tables-report: ## Report: SQL in one brick's crates touching another brick's tables
+	python3 scripts/check_brick_tables.py --self-test
+	python3 scripts/check_brick_tables.py
+
 check-kernel-no-domain: ## The kernel is technical: no domain crates below it, no domain words in it
 	python3 scripts/check_kernel_no_domain.py --self-test
 	python3 scripts/check_kernel_no_domain.py
