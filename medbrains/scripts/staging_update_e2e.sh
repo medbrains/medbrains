@@ -6,6 +6,7 @@
 #   scripts/staging_update_e2e.sh v3.35.4 v3.35.5
 #   TO_SERVER=<arm64 server> TO_WEB=<web dist> TO_KIT=<deploy/standalone> TO_VERSION=x.y.z \
 #     scripts/staging_update_e2e.sh v3.35.5 local    # FROM's other binaries are reused
+#   scripts/staging_update_e2e.sh __self_check -     # the idle-memory verdict alone, no Docker
 # The box is Debian trixie arm64 with systemd (2 CPU, 2 GB), installed in attach mode
 # against a throwaway PostgreSQL 17; attach mode installs no Pingora, so a socat on
 # the box stands in for the hospital's proxy, published on loopback only. Results,
@@ -170,6 +171,52 @@ phase() {
         node_modules/.bin/playwright test -c apps/web/e2e/staging/playwright.staging.config.ts -g "(^| )$test\$")
 }
 
+# Prints the summed PSS, in MB, of every process in a container (run as a user that may read them).
+pss_mb() { docker exec -u "$2" "$1" sh -c 'cat /proc/[0-9]*/smaps_rollup 2>/dev/null' | awk '/^Pss:/ { kb += $2 } END { printf "%d", kb / 1024 }'; }
+
+# Prints four idle readings (server RSS, PostgreSQL, connections, total) against the budget file
+# and says whether all are within it. A reading that is empty, zero or not a number fails: a dead
+# server or a failed docker exec measures nothing, and nothing must not read as "under budget".
+within_budget() {
+    local reading
+    # shellcheck source-path=SCRIPTDIR source=staging_idle_memory.budget
+    . "$HERE/scripts/staging_idle_memory.budget"
+    echo "server RSS ${1:-?}/$SERVER_RSS_MB MB, PostgreSQL ${2:-?}/$POSTGRES_MB MB, connections ${3:-?}/$DB_CONNECTIONS, total ${4:-?}/$TOTAL_MB MB"
+    for reading in "$@"; do
+        [[ "$reading" =~ ^[1-9][0-9]*$ ]] || return 1
+    done
+    [[ "$#" -eq 4 && "$1" -le "$SERVER_RSS_MB" && "$2" -le "$POSTGRES_MB" && "$3" -le "$DB_CONNECTIONS" && "$4" -le "$TOTAL_MB" ]]
+}
+
+# After a quiet spell, measures idle memory and database connections, and fails when one is over
+# the budget in staging_idle_memory.budget. PostgreSQL and the box are PSS, so the total adds up.
+idle_memory() {
+    local pid rss pg conns box total=""
+    sleep "${STAGING_IDLE_SECONDS:-300}"
+    pid="$(docker exec "$BOX" systemctl show -p MainPID --value medbrains-server || true)"
+    rss="$(docker exec "$BOX" awk '/^Rss:/ { printf "%d", $2 / 1024 }' "/proc/$pid/smaps_rollup" || true)"
+    pg="$(pss_mb "$PG" postgres || true)"
+    conns="$(docker exec "$PG" psql -X -tA -U medbrains -d medbrains -c \
+        "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()" || true)"
+    box="$(pss_mb "$BOX" root || true)"
+    # A missing part leaves the total unread too, not a small number.
+    [[ "$box" =~ ^[1-9][0-9]*$ && "$pg" =~ ^[1-9][0-9]*$ ]] && total=$(( box + pg ))
+    within_budget "$rss" "$pg" "$conns" "$total" | tee "$RUN/idle-memory.txt"
+}
+
+# Checks within_budget against the committed budget with made-up readings; needs no Docker.
+self_check() {
+    local bad=0 readings a b c d
+    within_budget 100 100 10 200 > /dev/null || { echo "FAIL: readings within budget were refused"; bad=1; }
+    for readings in "|100|10|200" "100||10|200" "100|100||200" "100|100|10|" "0|100|10|200" "100|100|10|0" \
+                    "x|100|10|200" "100|100|10|1 2" "9999|100|10|200" "100|9999|10|200" "100|100|9999|200" "100|100|10|9999"; do
+        IFS='|' read -r a b c d <<< "$readings"
+        within_budget "$a" "$b" "$c" "$d" > /dev/null && { echo "FAIL: passed with readings '$readings'"; bad=1; }
+    done
+    [[ "$bad" -eq 0 ]] && echo "idle-memory self-check: empty, zero, non-numeric and over-budget FAIL; within PASS"
+    return "$bad"
+}
+
 # Saves the box's logs and removes its containers, network and volumes (the image is kept as a cache).
 cleanup() {
     [[ -d "$RUN/logs" ]] || return 0
@@ -198,7 +245,10 @@ step_after() {
 need_pass() { grep -q $'\tFAIL\t' "$RUN/results.tsv" && { report; exit 1; }; return 0; }
 
 # Re-entry from the open-tab phase: performs the update, or the rollback, while that tab is open.
-if [[ "$FROM" == __update ]]; then
+if [[ "$FROM" == __self_check ]]; then
+    self_check
+    exit
+elif [[ "$FROM" == __update ]]; then
     install_release "$TO_LABEL" > "$RUN/logs/update.log" 2>&1
     exit
 elif [[ "$FROM" == __rollback ]]; then
@@ -242,4 +292,6 @@ step_after "rollback-to-$FROM" "flows-after-rollback" phase verify after-rollbac
 step "rollforward-to-$TO_LABEL" install_release "$TO_LABEL"
 step "flows-after-rollforward" phase verify after-rollforward "$EXPECT_TO" "$TO_LABEL"
 step "reinstall-keeps-$FROM-as-previous" reinstall_keeps_previous
+# Last, on the release about to ship, freshly restarted by the reinstall and then left alone.
+step_after "rollforward-to-$TO_LABEL" idle-memory idle_memory
 report

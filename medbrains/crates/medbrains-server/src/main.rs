@@ -474,7 +474,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_infra_settings::preflight::record(findings);
 
     if !bootstrap_pool.is_closed() && std::env::var("MIGRATION_DATABASE_URL").is_ok() {
-        bootstrap_pool.close().await;
+        // Not `close()` alone: that left the connection the checks above had just used open.
+        medbrains_db::pool::close_fully(&bootstrap_pool).await;
     }
 
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey
