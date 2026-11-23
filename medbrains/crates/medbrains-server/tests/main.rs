@@ -5,12 +5,16 @@
 //! per file. They are modules of this crate now. Run one file with
 //! `cargo test -p medbrains-server --test integration <file_name>::`.
 //!
-//! One test at a time, always: `.cargo/config.toml` sets `RUST_TEST_THREADS=1`.
-//! Files used to be separate processes that ran one after another, so tests in
-//! different files never overlapped; ~24 of them share hospital-wide settings
-//! (payment providers, ABDM mock addresses, the NHCX participant code) and their
-//! per-file `SERIAL` locks do not reach across files. Give them their own tenant
-//! and the default parallelism comes back.
+//! About 24 of them set hospital-wide values (payment providers, ABDM mock
+//! addresses, the NHCX participant code), and their per-file `SERIAL` locks do
+//! not reach across files or processes. So tests never share a hospital at the
+//! same moment:
+//!
+//! - `cargo test`: one database, one test at a time (`.cargo/config.toml` sets
+//!   `RUST_TEST_THREADS=1`).
+//! - `cargo nextest`: each test is a process, and each parallel slot of the run
+//!   has a database and a hospital of its own (`common::database_url`). Tests
+//!   in a slot follow one another; `.config/nextest.toml` sets how many slots.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 mod abdm_abha_world;
