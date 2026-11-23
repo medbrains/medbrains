@@ -19,3 +19,8 @@ disable chrony-wait.service
 disable systemd-boot-update.service
 # Started by a udev rule only when a Wi-Fi card exists.
 disable iwd.service
+# Ctrl+Alt+Del must stay masked (mkosi.postinst.chroot). reboot.target carries
+# Alias=ctrl-alt-del.target and Debian's preset enables it, so mkosi's preset pass, which runs after
+# the postinst, took the mask away and put the alias back: v3.35.6 shipped rebooting on the keys.
+# Restarting the machine still works; only the alias is never made. mkosi.finalize.chroot checks.
+disable reboot.target
