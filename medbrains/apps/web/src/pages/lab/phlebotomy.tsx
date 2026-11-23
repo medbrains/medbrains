@@ -15,14 +15,35 @@ import { adminAccessService } from "@/services/adminAccess.service";
 import { labService } from "@/services/lab.service";
 import { phlebotomyStatusColors } from "./shared";
 
+/** Assigning a draw to a phlebotomist and moving it along; each refreshes the queue. */
+function useDrawQueueActions() {
+  const queryClient = useQueryClient();
+  const assignMutation = useMutation({
+    mutationFn: ({ id, assignedTo }: { id: string; assignedTo: string }) =>
+      labService.assignPhlebotomist(id, { assigned_to: assignedTo }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] });
+      toast.success("Draw assigned");
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Could not assign the draw" }),
+  });
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      labService.updatePhlebotomyStatus(id, {
+        status: status as "in_progress" | "completed" | "skipped" | "waiting",
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
+    onError: (error: Error) => toast.error(error.message, { title: "Could not update the draw" }),
+  });
+  return { assignMutation, statusMutation };
+}
+
 /** The phlebotomy draw queue: who is waiting for a draw, who draws it, and where each draw stands. */
 export function PhlebotomyTab() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.PHLEBOTOMY_MANAGE);
   const canCollect = useHasPermission(P.LAB.SAMPLES_COLLECT);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
   const {
     data: queue = [],
     isLoading,
@@ -42,24 +63,7 @@ export function PhlebotomyTab() {
     queryFn: () => adminAccessService.listUsers(),
     staleTime: 300_000,
   });
-  const assignMutation = useMutation({
-    mutationFn: ({ id, assignedTo }: { id: string; assignedTo: string }) =>
-      labService.assignPhlebotomist(id, { assigned_to: assignedTo }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] });
-      toast.success("Draw assigned");
-    },
-    onError: (error: Error) => toast.error(error.message, { title: "Could not assign the draw" }),
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      labService.updatePhlebotomyStatus(id, {
-        status: status as "in_progress" | "completed" | "skipped" | "waiting",
-      }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
-    onError: (error: Error) => toast.error(error.message, { title: "Could not update the draw" }),
-  });
+  const { assignMutation, statusMutation } = useDrawQueueActions();
 
   const staffOptions = staff.map((user) => ({ value: user.id, label: user.full_name }));
 
