@@ -31,6 +31,7 @@ pub fn to_print_signatures(
         .map(|s| medbrains_core::print_data::PrintSignatureData {
             signed_at: s.signed_at.to_rfc3339(),
             signer_name: s.signer_name,
+            signer_registration: s.signer_registration,
             display_image_url: s.display_image_url,
             display_block: s.display_block,
             verify_ref: s.verify_ref,
@@ -45,6 +46,8 @@ pub struct SignatureForPrint {
     pub signed_at: DateTime<Utc>,
     pub signer_user_id: Uuid,
     pub signer_name: Option<String>,
+    /// The signer's registration number, when their doctor profile has one.
+    pub signer_registration: Option<String>,
     /// URL of scanned signature image, stamped onto PDF at signature box.
     pub display_image_url: Option<String>,
     /// Text rendered below image: "Digitally signed by Dr. X on …"
@@ -67,6 +70,7 @@ struct SigRow {
     display_block: Option<String>,
     legal_class: String,
     signer_name: Option<String>,
+    signer_registration: Option<String>,
     verify_token: Option<String>,
 }
 
@@ -85,6 +89,7 @@ fn to_print(r: SigRow) -> SignatureForPrint {
         signed_at: r.signed_at,
         signer_user_id: r.signer_user_id,
         signer_name: r.signer_name,
+        signer_registration: r.signer_registration,
         display_image_url: r.display_image_snapshot,
         display_block: r.display_block,
         verify_ref: r.id.to_string(),
@@ -107,6 +112,7 @@ pub async fn fetch_signature_for_print(
         "SELECT sr.id, sr.signed_at, sr.signer_user_id, \
                 sr.display_image_snapshot, sr.display_block, sr.legal_class, \
                 COALESCE(dp.display_name, u.full_name) AS signer_name, \
+                COALESCE(dp.mci_number, dp.state_council_number) AS signer_registration, \
                 vl.token AS \"verify_token?\" \
          FROM signed_records sr \
          LEFT JOIN doctor_profiles dp \
@@ -158,6 +164,7 @@ pub async fn fetch_signatures_for_records(
         "SELECT sr.id, sr.signed_at, sr.signer_user_id, \
                 sr.display_image_snapshot, sr.display_block, sr.legal_class, \
                 COALESCE(dp.display_name, u.full_name) AS signer_name, \
+                COALESCE(dp.mci_number, dp.state_council_number) AS signer_registration, \
                 vl.token AS \"verify_token?\" \
          FROM signed_records sr \
          LEFT JOIN doctor_profiles dp \

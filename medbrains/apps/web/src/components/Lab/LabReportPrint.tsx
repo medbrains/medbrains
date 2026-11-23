@@ -1,8 +1,9 @@
 import { useHasPermission } from "@medbrains/stores";
-import type { LabParameter, LabReportFullPrintData } from "@medbrains/types";
+import type { LabParameter, LabReportFullPrintData, PrintSignatureData } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
+import { NOT_SIGNED, signedInWords } from "@/components/PrintSignatureBlock";
 import { Button, toast } from "@/components/ui";
 import { labService } from "@/services/lab.service";
 
@@ -92,6 +93,24 @@ function parameterRow(p: LabParameter): string {
   </tr>`;
 }
 
+/**
+ * What prints above the pathologist's line, so the signature area is never
+ * blank paper: the signer's own image, the words a signature with no image
+ * carries, or "Not signed". One line a signer: a report's results are signed
+ * one by one.
+ */
+export function signatureArea(signatures: PrintSignatureData[]): string {
+  const signers = new Map(signatures.map((sig) => [sig.signer_name, sig]));
+  if (signers.size === 0) return `<div><strong>${NOT_SIGNED}</strong></div>`;
+  return [...signers.values()]
+    .map((sig) =>
+      sig.display_image_url
+        ? `<img class="sigimg" src="${esc(sig.display_image_url)}" alt="Signature of ${esc(sig.signer_name ?? "the signer")}"/>`
+        : `<div>${esc(signedInWords(sig))}</div>`,
+    )
+    .join("");
+}
+
 function openReportWindow(data: LabReportFullPrintData) {
   const win = window.open("", "_blank", "width=900,height=1100");
   if (!win) {
@@ -138,6 +157,7 @@ function openReportWindow(data: LabReportFullPrintData) {
       .interp { border-top: .4pt solid #999; padding-top: 2mm; margin: 0 0 4mm; font-size: 9pt; }
       .sigs { margin-top: 8mm; display: flex; gap: 16mm; }
       .sig { font-size: 8.5pt; }
+      .sig .sigimg { max-height: 14mm; max-width: 52mm; display: block; }
       .sig .line { border-top: .6pt solid #000; width: 52mm; margin-bottom: 1mm; }
       .foot { margin-top: 6mm; border-top: .4pt solid #999; padding-top: 2mm; font-size: 7.5pt; }
       /* Repeat the column headings when a long panel breaks across pages, and
@@ -215,6 +235,7 @@ function openReportWindow(data: LabReportFullPrintData) {
           : ""
       }
       <div class="sig">
+        ${signatureArea(data.signatures)}
         <div class="line"></div>${esc(data.pathologist_name)}
         ${data.pathologist_registration_number ? `<br/>Reg. ${esc(data.pathologist_registration_number)}` : ""}
         <br/>Verified by${data.verified_at ? ` · ${esc(data.verified_at)}` : ""}

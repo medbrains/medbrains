@@ -335,7 +335,6 @@ mod render_tests {
             comments: None,
             pathologist_name: String::new(),
             pathologist_registration_number: None,
-            pathologist_signature_url: None,
             technician_name: None,
             verified_at: None,
             nabl_accredited: false,
