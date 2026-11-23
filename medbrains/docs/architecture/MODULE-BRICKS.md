@@ -126,6 +126,10 @@ What this does **not** shrink: the shell already code-split every page, so a Reg
 
 If `/auth/me` cannot answer and this tab has no cached permissions, the signed-in app shows **We couldn't check your access** with a retry, never an empty launcher: an unknown answer is not "no apps".
 
+## Web source of one brick imports no other brick's (2026-11-23)
+
+`apps/web/brick-units.json` gives every unit of `apps/web/src` (`pages/<entry>`, `components/<entry>`, `features/<entry>`, `services/<file>`, each other top-level folder) to a brick, to `core` (the shell and Administration) or to `shared` (design system, hooks, shared clinical pieces, and the patient, patient-name, doctor and drug pickers). `make check-web-brick-imports` (`scripts/check_web_brick_imports.py`) counts import statements from one brick's units into another's, per brick pair, against `scripts/web_brick_imports.baseline.txt`: a pair above its number, a new pair, or a unit with no row fails. A brick shows another brick's screen through a panel slot (next section) or by opening its route. The map is not yet checked against the screen registry, so a page that changes app needs its row changed by hand.
+
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 
 Some screens gather work from several apps: the patient record shows EMR, Billing, Lab and Pharmacy tabs. Each of those tabs belongs to its own brick, and is plugged in, never imported:
