@@ -224,6 +224,12 @@ jobs:
           python3 medbrains/scripts/check_query_fallbacks.py
       - name: Pages build from the @/components/ui seam
         run: python3 medbrains/scripts/check_ui_seam.py
+      # A brick's pages and components import no other brick's (apps/web/brick-units.json);
+      # the imports that exist are counted per brick pair and each count only falls.
+      - name: No new web import from one brick into another
+        run: |
+          python3 medbrains/scripts/check_web_brick_imports.py --self-test
+          python3 medbrains/scripts/check_web_brick_imports.py
       - name: No raw interactive HTML in shipped JSX
         run: python3 medbrains/scripts/check_raw_html.py
       # A field marked redactable but never classified falls back to Routine and
@@ -246,6 +252,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_in_loop.py --self-test
           python3 medbrains/scripts/check_query_in_loop.py --check
+      # Report only: SQL in one brick's crates that reads or writes a table another brick
+      # owns. A rise in writes shows as a warning on the run; nothing here fails yet.
+      - name: Cross-brick table access (report)
+        run: |
+          python3 medbrains/scripts/check_brick_tables.py --self-test
+          python3 medbrains/scripts/check_brick_tables.py
       # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
       - name: Rust functions and files only shrink
         run: |
