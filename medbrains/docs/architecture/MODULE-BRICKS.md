@@ -31,6 +31,7 @@ A brick touches the rest of the system only through these, so it can be added, r
 - **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its background jobs stop, its native app is not started, and nothing else breaks.
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
+- **The server is a shell, and it only shrinks.** `crates/medbrains-server` still holds whole areas of domain code and declares routes itself. `make check-shell-size` (`scripts/check_shell_size.py`) fails when the lines under its `src/` or its own `.route(` calls rise above `scripts/shell_size.baseline.txt`; a PR that moves code out lowers the file with `--update`. A handler, a job or a route goes in the crate that owns it.
 
 ## A brick's background jobs (2026-11-19)
 

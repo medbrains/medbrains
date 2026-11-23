@@ -275,6 +275,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_size_budgets.py --self-test
           python3 medbrains/scripts/check_size_budgets.py
+      # The server is to end as a thin shell; code and routes move out to the crates
+      # that own them, so its line count and its own .route( calls have a ceiling.
+      - name: Server shell only shrinks
+        run: |
+          python3 medbrains/scripts/check_shell_size.py --self-test
+          python3 medbrains/scripts/check_shell_size.py
       # The converted apps' menu entries come from the one screen registry; a stale copy would
       # show the web screens screens.rs no longer lists, and a nav entry whose permission differs
       # from its screen's shows a menu item the screen then refuses.
