@@ -32,6 +32,7 @@ A brick touches the rest of the system only through these, so it can be added, r
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
   - Measured, not yet enforced: `make brick-tables-report` (`scripts/check_brick_tables.py`) counts SQL in one brick's crates that reads or writes a table another brick owns, per brick pair, against `scripts/brick_tables.baseline.txt`. CI prints the change and warns when a pair's writes rise. The owner of a table is guessed from who writes it most, and only upper-case SQL in `src/` is seen, so the numbers are a floor.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
+- **The server is a shell, and it only shrinks.** `crates/medbrains-server` still holds whole areas of domain code and declares routes itself. `make check-shell-size` (`scripts/check_shell_size.py`) fails when the lines under its `src/` or its own `.route(` calls rise above `scripts/shell_size.baseline.txt`; a PR that moves code out lowers the file with `--update`. A handler, a job or a route goes in the crate that owns it.
 
 ## A brick's background jobs (2026-11-19)
 
