@@ -23,6 +23,10 @@ if grep -rqi caddy "$OS/mkosi.conf" "$OS/mkosi.postinst.chroot" "$OS/mkosi.extra
 fi
 grep -qx 'disable chronyd-restricted.service' "$UNITS/../system-preset/10-medbrains.preset" ||
     { echo "FAIL: the restricted chrony can take the LAN's time port away"; exit 1; }
+# mkosi's preset pass runs after the postinst and would put the Ctrl+Alt+Del alias back over its mask.
+grep -qx 'systemctl mask ctrl-alt-del.target' "$OS/mkosi.postinst.chroot" &&
+    grep -qx 'disable reboot.target' "$UNITS/../system-preset/10-medbrains.preset" ||
+    { echo "FAIL: Ctrl+Alt+Del would restart the machine: the mask or the preset that keeps it is gone"; exit 1; }
 # A node runs the screen and the agent, and opens nothing: no main-machine port in the base firewall.
 grep -qx 'ConditionPathExists=/var/lib/medbrains/config/role-node' "$UNITS/medbrains-node.target" ||
     { echo "FAIL: medbrains-node.target has no role condition"; exit 1; }
