@@ -1,7 +1,7 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
 import { useNetwork } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
+import { P, type SignatureCredential } from "@medbrains/types";
 import { useState } from "react";
 import { Alert, Button, Checkbox, SegmentedControl, SignaturePad } from "@/components/ui";
 import { useOwnSignature } from "@/hooks/useOwnSignature";
@@ -24,6 +24,19 @@ interface SignatureSetupFormProps {
   onLater: () => void;
 }
 
+/** Why the signer is here: replacing, after a withdrawal, or for the first time. */
+function intro(current?: SignatureCredential, withdrawn?: SignatureCredential): string {
+  if (current) {
+    return "Your new signature replaces the current one from now on. Records you already signed keep the signature they were signed with.";
+  }
+  const saved = "The record you were signing is saved, and stays unsigned until you sign it.";
+  if (withdrawn?.revoked_at) {
+    const on = new Date(withdrawn.revoked_at).toLocaleDateString();
+    return `Your signature was withdrawn on ${on}: ${withdrawn.revoked_reason ?? "no reason given"}. Set a new one. ${saved}`;
+  }
+  return `You have no signature yet. Set it up once and it is printed on the records you sign. ${saved}`;
+}
+
 /**
  * The form inside the signature set-up dialog: draw, upload or no image, the
  * printed preview, and the signer's own statement. Switching between the
@@ -37,7 +50,7 @@ export function SignatureSetupForm({
 }: SignatureSetupFormProps) {
   const canManage = useHasPermission(P.SIGNATURES.OWN.MANAGE);
   const { online } = useNetwork();
-  const { withdrawn } = useOwnSignature();
+  const { current, withdrawn } = useOwnSignature();
   const [source, setSource] = useState<Source>("draw");
   const [drawn, setDrawn] = useState<string | null>(null);
   const [uploaded, setUploaded] = useState<string | null>(null);
@@ -50,12 +63,7 @@ export function SignatureSetupForm({
 
   return (
     <Stack gap="md">
-      <Text size="sm">
-        {withdrawn?.revoked_at
-          ? `Your signature was withdrawn on ${new Date(withdrawn.revoked_at).toLocaleDateString()}: ${withdrawn.revoked_reason ?? "no reason given"}. Set a new one.`
-          : "You have no signature yet. Set it up once and it is printed on the records you sign."}{" "}
-        The record you were signing is saved, and stays unsigned until you sign it.
-      </Text>
+      <Text size="sm">{intro(current, withdrawn)}</Text>
       <SegmentedControl
         aria-label="How to add your signature"
         fullWidth

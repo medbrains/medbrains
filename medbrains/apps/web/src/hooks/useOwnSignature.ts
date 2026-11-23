@@ -39,5 +39,7 @@ export function useOwnSignature(enabled = true) {
   let status: OwnSignatureStatus = current ? "ready" : "missing";
   if (canSign && query.isError) status = "unknown";
   else if (canSign && query.isPending) status = "checking";
-  return { status, current, withdrawn, recheck: () => void query.refetch() };
+  // Every earlier one, newest first: replaced by the signer, or withdrawn.
+  const past = (query.data ?? []).filter((credential) => credential !== current);
+  return { status, canSign, current, past, withdrawn, recheck: () => void query.refetch() };
 }
