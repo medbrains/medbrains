@@ -68,6 +68,8 @@ export function StepUpGate() {
         <Input
           type="password"
           label="Password"
+          // A keyboard user lands on the field, not on the close button.
+          data-autofocus
           value={password}
           error={problem}
           onChange={(e) => {

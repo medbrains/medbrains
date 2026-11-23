@@ -32,14 +32,16 @@ import {
   IconCheck,
   IconFileText,
   IconHash,
-  IconKey,
   IconShield,
   IconSignature,
   IconUser,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { OwnSignatureNotice } from "@/components/Signatures/OwnSignatureNotice";
+import { SignatureSetupModal } from "@/components/Signatures/SignatureSetupModal";
 import { Modal } from "@/components/ui";
+import { useOwnSignature } from "@/hooks/useOwnSignature";
 import { signoffService } from "@/services/signoff.service";
 
 interface SignWorkspaceProps {
@@ -74,18 +76,16 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const { data: credentials = [], isLoading: credentialsLoading } = useQuery({
-    queryKey: ["my-signature-credentials"],
-    queryFn: () => signoffService.getMySignatureCredentials(),
-    enabled: opened,
-    staleTime: 30_000,
-  });
+  const signature = useOwnSignature(opened);
+  const [isSettingUp, setIsSettingUp] = useState(false);
   const previewPatient = preview ? getRecord(preview.payload_snapshot, "patient") : undefined;
-  const defaultCredential = credentials.find((credential) => credential.is_default);
-  const canSign = Boolean(preview && previewPatient && defaultCredential && attested);
+  const isChecked = signature.status === "ready" || signature.status === "missing";
+  const canSign = Boolean(preview && previewPatient && isChecked && attested);
 
   const handleSign = async () => {
     if (!canSign) return;
+    // No signature yet: the signer sets it up here, then signs.
+    if (signature.status === "missing") return setIsSettingUp(true);
     setIsSigning(true);
     try {
       const res = await signoffService.signRecord({
@@ -125,6 +125,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
       }
       size="md"
       padding="md"
+      closeOnEscape={!isSettingUp}
     >
       <Stack gap="md">
         <Alert color="primary" icon={<IconShield size={16} />} variant="light">
@@ -194,19 +195,8 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
 
         {preview && <SignoffDossier preview={preview} />}
 
-        {!credentialsLoading && !defaultCredential && (
-          <Alert color="warning" icon={<IconKey size={16} />} variant="light">
-            <Stack gap={4}>
-              <Text size="sm" fw={600}>
-                Signing credential required
-              </Text>
-              <Text size="xs">
-                An administrator must issue you a default signature credential before you can sign.
-                Go to Admin → Doctors → Signature credentials → Generate Ed25519 keypair.
-              </Text>
-            </Stack>
-          </Alert>
-        )}
+        <OwnSignatureNotice status={signature.status} onRecheck={signature.recheck} />
+        <SignatureSetupModal opened={isSettingUp} onClose={() => setIsSettingUp(false)} />
 
         <Divider />
 

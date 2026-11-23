@@ -13,6 +13,8 @@ export const signoffService = {
   getMySignatureCredentials: (
     ...args: Parameters<typeof signaturesApi.getMySignatureCredentials>
   ) => signaturesApi.getMySignatureCredentials(...args),
+  setMySignature: (...args: Parameters<typeof signaturesApi.setMySignatureCredential>) =>
+    signaturesApi.setMySignatureCredential(...args),
   signRecord: (...args: Parameters<typeof signaturesApi.signRecord>) =>
     signaturesApi.signRecord(...args),
   decideRefillRequest: (...args: Parameters<typeof doctorsApi.decideRefillRequest>) =>
