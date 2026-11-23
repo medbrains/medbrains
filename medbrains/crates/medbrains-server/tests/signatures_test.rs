@@ -99,27 +99,41 @@ pub(crate) async fn issue_default_credential(
     id
 }
 
-/// Helper: issue a default signing key to `user_id`, with no profile.
-pub(crate) async fn issue_key(app: &common::TestApp, csrf: &str, user_id: &str) -> String {
-    let doctor_user_id = user_id;
-    let resp = app
-        .client
-        .post(app.url("/api/admin/signature-credentials"))
-        .header("X-CSRF-Token", csrf)
-        .json(&json!({
-            "doctor_user_id": doctor_user_id,
-            "make_default": true,
-        }))
-        .send()
+/// Helper: give `user_id` a default signing key, with no profile, as if they
+/// had set up their signature. Nobody can do that for them through the API
+/// any more, so the row is written here: a plain key, which the server seals
+/// the first time it signs.
+pub(crate) async fn issue_key(app: &common::TestApp, _csrf: &str, user_id: &str) -> String {
+    let (private_key, public_key) = signing::generate_keypair().expect("keypair");
+    // Tests share the admin, so one at a time per user: end the default, then add.
+    let mut tx = app.db.begin().await.expect("begin");
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
+        .bind(user_id)
+        .execute(&mut *tx)
         .await
-        .expect("issue cred");
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "credential issue must succeed"
-    );
-    let body: serde_json::Value = resp.json().await.expect("cred json");
-    body["credential"]["id"].as_str().unwrap_or("").to_owned()
+        .expect("this user's turn");
+    sqlx::query(
+        "UPDATE doctor_signature_credentials SET is_default = FALSE \
+          WHERE doctor_user_id = $1::uuid AND is_default AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .expect("end the earlier default");
+    let id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO doctor_signature_credentials (tenant_id, doctor_user_id, credential_type, \
+            public_key, encrypted_private_key, is_default, created_by) \
+         SELECT tenant_id, id, 'stored_key', $2, $3, TRUE, id FROM users WHERE id = $1::uuid \
+         RETURNING id",
+    )
+    .bind(user_id)
+    .bind(public_key.as_slice())
+    .bind(private_key.as_slice())
+    .fetch_one(&mut *tx)
+    .await
+    .expect("credential");
+    tx.commit().await.expect("commit");
+    id.to_string()
 }
 
 /// Helper: give `user_id` a registered doctor profile allowed to sign every

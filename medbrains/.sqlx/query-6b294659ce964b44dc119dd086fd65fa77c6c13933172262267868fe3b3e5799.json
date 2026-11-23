@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO doctor_signature_credentials ( tenant_id, doctor_user_id, credential_type, algorithm, public_key, encrypted_private_key, display_image_url, display_font, valid_until, is_default, created_by ) VALUES ($1,$2,'stored_key','Ed25519',$3,$4,$5,$6,$7,$8,$9) RETURNING id, tenant_id, doctor_user_id, credential_type, algorithm, public_key, display_image_url, display_font, valid_from, valid_until, revoked_at, revoked_reason, is_default, created_at",
+  "query": "INSERT INTO doctor_signature_credentials ( tenant_id, doctor_user_id, credential_type, algorithm, public_key, encrypted_private_key, display_image_url, is_default, created_by ) VALUES ($1,$2,'stored_key','Ed25519',$3,$4,$5,TRUE,$2) RETURNING id, tenant_id, doctor_user_id, credential_type, algorithm, public_key, display_image_url, display_font, valid_from, valid_until, revoked_at, revoked_reason, is_default, created_at",
   "describe": {
     "columns": [
       {
@@ -80,11 +80,7 @@
         "Uuid",
         "Bytea",
         "Bytea",
-        "Text",
-        "Text",
-        "Timestamptz",
-        "Bool",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
@@ -104,5 +100,5 @@
       false
     ]
   },
-  "hash": "3686d71936ad150b8e4259c2dbf102a4bf3b7760ea1fdc975b6970402938e84f"
+  "hash": "6b294659ce964b44dc119dd086fd65fa77c6c13933172262267868fe3b3e5799"
 }

@@ -11,9 +11,7 @@ import {
   Avatar,
   Card,
   Divider,
-  FileInput,
   Group,
-  Image,
   Loader,
   Modal,
   MultiSelect,
@@ -27,16 +25,8 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type {
-  DoctorProfileFormInput,
-  LinkedDoctorUserFormInput,
-  SignatureCredentialIssueFormInput,
-} from "@medbrains/schemas";
-import {
-  doctorProfileFormSchema,
-  linkedDoctorUserFormSchema,
-  signatureCredentialIssueFormSchema,
-} from "@medbrains/schemas";
+import type { DoctorProfileFormInput, LinkedDoctorUserFormInput } from "@medbrains/schemas";
+import { doctorProfileFormSchema, linkedDoctorUserFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDoctorRequest,
@@ -50,10 +40,7 @@ import {
   IconCircleCheck,
   IconId,
   IconKey,
-  IconPhoto,
   IconPlus,
-  IconRefresh,
-  IconShieldCheck,
   IconSignature,
   IconStethoscope,
   IconUserCog,
@@ -1024,20 +1011,6 @@ function CreateLinkedDoctorUserModal({
 function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [includeRevoked, setIncludeRevoked] = useState(false);
-  const [signatureImageFile, setSignatureImageFile] = useState<File | null>(null);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<SignatureCredentialIssueFormInput>({
-    resolver: zodResolver(signatureCredentialIssueFormSchema),
-    defaultValues: { display_image_url: "" },
-  });
-  const imageUrl = watch("display_image_url");
-
   const { data: creds = [] } = useQuery({
     queryKey: ["sig-credentials", doctor.user_id, includeRevoked],
     queryFn: () =>
@@ -1045,27 +1018,6 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
         doctor_user_id: doctor.user_id,
         include_revoked: includeRevoked,
       }),
-  });
-
-  const issue = useMutation({
-    mutationFn: (values: SignatureCredentialIssueFormInput) =>
-      adminDoctorsService.issueSignatureCredential({
-        doctor_user_id: doctor.user_id,
-        display_image_url: values.display_image_url || null,
-        make_default: true,
-      }),
-    onSuccess: () => {
-      notifications.show({
-        title: "Credential issued",
-        message: "Ed25519 keypair generated and set as default.",
-        color: "success",
-      });
-      reset();
-      setSignatureImageFile(null);
-      void queryClient.invalidateQueries({ queryKey: ["sig-credentials"] });
-    },
-    onError: (err: Error) =>
-      notifications.show({ title: "Issue failed", message: err.message, color: "danger" }),
   });
 
   const revoke = useMutation({
@@ -1076,49 +1028,6 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
       void queryClient.invalidateQueries({ queryKey: ["sig-credentials"] });
     },
   });
-
-  const submitCredential = handleSubmit((values) => {
-    issue.mutate(values);
-  });
-
-  const handleSignatureImage = (file: File | null) => {
-    setSignatureImageFile(file);
-    if (!file) {
-      setValue("display_image_url", "", { shouldDirty: true, shouldValidate: true });
-      return;
-    }
-    if (!file.type.startsWith("image/")) {
-      notifications.show({
-        title: "Unsupported file",
-        message: "Upload a PNG, JPEG, or WebP signature image.",
-        color: "danger",
-      });
-      setSignatureImageFile(null);
-      return;
-    }
-    if (file.size > 750_000) {
-      notifications.show({
-        title: "Signature too large",
-        message: "Use a cropped signature image under 750 KB.",
-        color: "danger",
-      });
-      setSignatureImageFile(null);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setValue("display_image_url", reader.result, { shouldDirty: true, shouldValidate: true });
-      }
-    };
-    reader.onerror = () =>
-      notifications.show({
-        title: "Upload failed",
-        message: "Could not read the signature image.",
-        color: "danger",
-      });
-    reader.readAsDataURL(file);
-  };
 
   return (
     <Modal opened onClose={onClose} title="Signature credentials" size="lg">
@@ -1146,64 +1055,10 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                   : "No default credential"}
               </Badge>
             </Group>
-            <FileInput
-              size="sm"
-              label="Upload signature image"
-              description="Optional scanned signature image stamped onto PDFs and previews."
-              placeholder="PNG, JPEG, or WebP under 750 KB"
-              accept="image/png,image/jpeg,image/webp"
-              clearable
-              value={signatureImageFile}
-              onChange={handleSignatureImage}
-              leftSection={<IconPhoto size={14} />}
-            />
-            {imageUrl && (
-              <Card withBorder padding="xs">
-                <Group justify="space-between" align="center">
-                  <Image src={imageUrl} alt="Signature preview" h={56} fit="contain" w={220} />
-                  <Button
-                    tone="ghost"
-                    size="xs"
-                    leftSection={<IconRefresh size={12} />}
-                    onClick={() => {
-                      setValue("display_image_url", "", {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                      setSignatureImageFile(null);
-                    }}
-                  >
-                    Clear
-                  </Button>
-                </Group>
-              </Card>
-            )}
-            <Controller
-              control={control}
-              name="display_image_url"
-              render={({ field }) => (
-                <TextInput
-                  size="sm"
-                  label="Or paste signature image URL"
-                  description="Use this when the image is already stored in object storage."
-                  placeholder="https://.../signature.png"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.display_image_url?.message}
-                />
-              )}
-            />
-            <Group justify="flex-end">
-              <Button
-                tone="primary"
-                size="xs"
-                loading={issue.isPending}
-                leftSection={<IconShieldCheck size={14} />}
-                onClick={() => void submitCredential()}
-              >
-                Generate default Ed25519 credential
-              </Button>
-            </Group>
+            <Text size="xs" c="dimmed">
+              Each doctor sets up their own signature the first time they sign. You can withdraw one
+              that is compromised; the doctor sees your reason and sets a new one.
+            </Text>
           </Stack>
         </Card>
 
@@ -1258,7 +1113,9 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                     tone="subtle-danger"
                     size="xs"
                     onClick={() => {
-                      const reason = window.prompt("Reason for revocation?");
+                      const reason = window.prompt(
+                        "Reason for withdrawing it? The doctor sees it.",
+                      );
                       if (reason) revoke.mutate({ id: credential.id, reason });
                     }}
                   >
@@ -1270,7 +1127,7 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
           ))}
           {creds.length === 0 && (
             <Text size="sm" c="dimmed" ta="center" py="md">
-              No credentials yet. Generate one above before this doctor signs records.
+              No signature yet. The doctor sets one up the first time they sign.
             </Text>
           )}
         </Stack>

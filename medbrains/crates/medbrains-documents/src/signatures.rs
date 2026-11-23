@@ -59,60 +59,20 @@ pub struct SignatureCredentialPublic {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct IssueCredentialRequest {
-    pub doctor_user_id: Uuid,
-    pub display_image_url: Option<String>,
-    pub display_font: Option<String>,
-    pub valid_until: Option<DateTime<Utc>>,
-    /// If true, set this as the doctor's default credential
-    /// (existing default is unset).
-    #[serde(default)]
-    pub make_default: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct IssueCredentialResponse {
-    pub credential: SignatureCredentialPublic,
-}
-
-pub async fn issue_credential(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    body: Result<Json<IssueCredentialRequest>, JsonRejection>,
-) -> Result<Json<IssueCredentialResponse>, AppError> {
-    require_permission(&claims, permissions::admin::signature_credentials::ISSUE)?;
-    let Json(body) = body?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    if body.make_default {
-        // Unset any existing default for this doctor
-        let _ = sqlx::query(
-            "UPDATE doctor_signature_credentials \
-             SET is_default = FALSE \
-             WHERE tenant_id = $1 AND doctor_user_id = $2 \
-               AND is_default AND revoked_at IS NULL",
-        )
-        .bind(claims.tenant_id)
-        .bind(body.doctor_user_id)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    let new = crate::signature_own::NewCredential {
-        owner: body.doctor_user_id,
-        image: body.display_image_url.as_deref(),
-        font: body.display_font.as_deref(),
-        valid_until: body.valid_until,
-        is_default: body.make_default,
-    };
-    let row = crate::signature_own::create_credential(&state, &mut tx, &claims, &new).await?;
-
-    tx.commit().await?;
-    Ok(Json(IssueCredentialResponse { credential: row }))
+/// `POST /api/admin/signature-credentials`, retired: it answers 410 Gone to
+/// everyone and makes nothing.
+///
+/// An administrator used to make a doctor's signature here, with an image the
+/// administrator uploaded. A signature is its signer's own word, so each signer
+/// now sets their own (`POST /api/signatures/my-credentials`). Gone, not
+/// forbidden: no permission brings it back, and an administrator passes every
+/// permission check, so a 403 would be untrue. Credentials issued here before
+/// stay valid.
+pub async fn issue_credential() -> (axum::http::StatusCode, Json<Value>) {
+    let detail = "An administrator can no longer set a signature for someone else. \
+                  Each signer sets up their own the first time they sign.";
+    let body = json!({ "error": "gone", "detail": detail });
+    (axum::http::StatusCode::GONE, Json(body))
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,9 +152,19 @@ pub async fn list_credentials(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct MyCredentialsQuery {
+    /// Also the caller's ended and withdrawn signatures, newest first.
+    pub include_past: Option<bool>,
+}
+
+/// `GET /api/signatures/my-credentials`: the caller's own signatures. Only
+/// the usable ones unless `include_past`, which adds the ended and the
+/// withdrawn, so the signer sees when and why one was withdrawn.
 pub async fn list_my_credentials(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(q): Query<MyCredentialsQuery>,
 ) -> Result<Json<Vec<SignatureCredentialPublic>>, AppError> {
     // A nurse signs nursing entries with her own key, so she lists it too.
     medbrains_kernel::require_any_permission(
@@ -210,18 +180,21 @@ pub async fn list_my_credentials(
         .await?;
 
     let rows = sqlx::query_as::<_, SignatureCredentialPublic>(
-        "SELECT id, tenant_id, doctor_user_id, credential_type, algorithm, \
-                public_key, display_image_url, display_font, \
+        // A past one carries its dates and reason, not its image: images are
+        // up to 1 MB each and only the usable one is ever shown.
+        "SELECT id, tenant_id, doctor_user_id, credential_type, algorithm, public_key, \
+                CASE WHEN revoked_at IS NULL AND (valid_until IS NULL OR valid_until > now()) \
+                     THEN display_image_url END AS display_image_url, display_font, \
                 valid_from, valid_until, revoked_at, revoked_reason, \
                 is_default, created_at \
          FROM doctor_signature_credentials \
          WHERE deleted_at IS NULL AND tenant_id = $1 AND doctor_user_id = $2 \
-           AND revoked_at IS NULL \
-           AND (valid_until IS NULL OR valid_until > now()) \
-         ORDER BY is_default DESC, created_at DESC LIMIT 5000",
+           AND ($3 OR (revoked_at IS NULL AND (valid_until IS NULL OR valid_until > now()))) \
+         ORDER BY is_default DESC, created_at DESC LIMIT 50",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
+    .bind(q.include_past.unwrap_or(false))
     .fetch_all(&mut *tx)
     .await?;
 

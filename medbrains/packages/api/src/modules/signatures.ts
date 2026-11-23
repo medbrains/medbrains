@@ -16,7 +16,9 @@ import type {
 import { request } from "../client.js";
 
 export const signaturesApi = {
-  getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
+  /** The caller's own signatures, the ended and withdrawn ones too: the default first, then newest. */
+  getMySignatureCredentials: () =>
+    request<SignatureCredential[]>("/signatures/my-credentials?include_past=true"),
   /** Set or replace the caller's own signature; asks for the password again (step-up). */
   setMySignatureCredential: (data: SetMyCredentialRequest) =>
     request<SetMyCredentialResponse>("/signatures/my-credentials", {

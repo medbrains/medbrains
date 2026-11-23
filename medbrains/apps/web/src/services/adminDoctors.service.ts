@@ -18,8 +18,6 @@ export const adminDoctorsService = {
   listSignatureCredentials: (
     params: Parameters<typeof adminApi.adminListSignatureCredentials>[0],
   ) => adminApi.adminListSignatureCredentials(params),
-  issueSignatureCredential: (data: Parameters<typeof adminApi.adminIssueSignatureCredential>[0]) =>
-    adminApi.adminIssueSignatureCredential(data),
   revokeSignatureCredential: (
     id: string,
     data: Parameters<typeof adminApi.adminRevokeSignatureCredential>[1],

@@ -10,14 +10,12 @@
 use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json, extract::State};
 use base64::{Engine, engine::general_purpose::STANDARD};
-use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use medbrains_kernel as kernel;
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState, step_up};
 use medbrains_signing::signing;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use uuid::Uuid;
 
 use crate::signatures::{
     SignatureCredentialPublic, signature_key_context, signature_key_encryption_key,
@@ -43,31 +41,22 @@ pub struct SetMyCredentialResponse {
     pub replaced: bool,
 }
 
-/// What a new signing credential is made from.
-pub(crate) struct NewCredential<'a> {
-    pub owner: Uuid,
-    pub image: Option<&'a str>,
-    pub font: Option<&'a str>,
-    pub valid_until: Option<DateTime<Utc>>,
-    pub is_default: bool,
-}
-
-/// Make an Ed25519 key pair for `new.owner`, seal the private key under the
-/// server key and store the credential, created by the caller. The one place
-/// a signing credential is made.
+/// Make the caller's Ed25519 key pair, seal the private key under the server
+/// key and store it as their default credential, created by themselves. The
+/// one place a signing credential is made, and it makes one for nobody else.
 ///
 /// # Errors
 /// `Internal` when the key cannot be made or sealed; a database error.
-pub(crate) async fn create_credential(
+async fn create_credential(
     state: &AppState,
     tx: &mut sqlx::PgConnection,
     claims: &Claims,
-    new: &NewCredential<'_>,
+    image: Option<&str>,
 ) -> Result<SignatureCredentialPublic, AppError> {
     let (private_key, public_key) =
         signing::generate_keypair().map_err(|e| AppError::Internal(format!("keygen: {e}")))?;
     let sealing_key = signature_key_encryption_key(state).await?;
-    let context = signature_key_context(&claims.tenant_id, &new.owner);
+    let context = signature_key_context(&claims.tenant_id, &claims.sub);
     let sealed =
         medbrains_crypto::aead::encrypt_bytes(&sealing_key, context.as_bytes(), &private_key)
             .map_err(|_| AppError::Internal("signature key encryption failed".to_owned()))?;
@@ -75,22 +64,17 @@ pub(crate) async fn create_credential(
         SignatureCredentialPublic,
         "INSERT INTO doctor_signature_credentials ( \
             tenant_id, doctor_user_id, credential_type, algorithm, \
-            public_key, encrypted_private_key, display_image_url, \
-            display_font, valid_until, is_default, created_by \
-         ) VALUES ($1,$2,'stored_key','Ed25519',$3,$4,$5,$6,$7,$8,$9) \
+            public_key, encrypted_private_key, display_image_url, is_default, created_by \
+         ) VALUES ($1,$2,'stored_key','Ed25519',$3,$4,$5,TRUE,$2) \
          RETURNING id, tenant_id, doctor_user_id, credential_type, algorithm, \
                    public_key, display_image_url, display_font, \
                    valid_from, valid_until, revoked_at, revoked_reason, \
                    is_default, created_at",
         claims.tenant_id,
-        new.owner,
+        claims.sub,
         public_key.as_slice(),
         sealed.as_slice(),
-        new.image,
-        new.font,
-        new.valid_until,
-        new.is_default,
-        claims.sub,
+        image,
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -133,8 +117,8 @@ pub(crate) fn checked_image(data_url: &str) -> Result<String, AppError> {
 /// `POST /api/signatures/my-credentials`: the caller sets or replaces their
 /// own signature.
 ///
-/// An earlier signature is ended, not revoked: it stops being the default and
-/// its `valid_until` is now, and its row stays, because records signed with it
+/// Every earlier signature of theirs is ended, not revoked: none is the
+/// default any more and each one's `valid_until` is now, and the rows stay, because records signed with it
 /// still verify against its key and keep the image they were signed with.
 /// One audit row says who set or replaced it, and when.
 ///
@@ -155,23 +139,21 @@ pub async fn set_my_credential(
 
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let previous = sqlx::query_scalar!(
-        "UPDATE doctor_signature_credentials SET is_default = FALSE, valid_until = now() \
-         WHERE tenant_id = $1 AND doctor_user_id = $2 AND is_default AND revoked_at IS NULL \
+        // Every credential of theirs that could still sign, not only the
+        // default: one an administrator issued beside it must not outlive this.
+        // One that already ended keeps the date it ended on.
+        "UPDATE doctor_signature_credentials \
+            SET is_default = FALSE, valid_until = LEAST(COALESCE(valid_until, now()), now()) \
+          WHERE tenant_id = $1 AND doctor_user_id = $2 AND revoked_at IS NULL \
+            AND (is_default OR valid_until IS NULL OR valid_until > now()) \
          RETURNING id",
         claims.tenant_id,
         claims.sub,
     )
-    .fetch_optional(&mut *tx)
+    .fetch_all(&mut *tx)
     .await?;
-    let new = NewCredential {
-        owner: claims.sub,
-        image: image.as_deref(),
-        font: None,
-        valid_until: None,
-        is_default: true,
-    };
-    let credential = create_credential(&state, &mut tx, &claims, &new).await?;
-    let ended = previous.map(|id| json!({ "credential_id": id }));
+    let credential = create_credential(&state, &mut tx, &claims, image.as_deref()).await?;
+    let ended = (!previous.is_empty()).then(|| json!({ "credential_ids": previous }));
     let action = if ended.is_some() {
         "signature_replaced"
     } else {
@@ -191,7 +173,7 @@ pub async fn set_my_credential(
     tx.commit().await?;
     Ok(Json(SetMyCredentialResponse {
         credential,
-        replaced: previous.is_some(),
+        replaced: !previous.is_empty(),
     }))
 }
 

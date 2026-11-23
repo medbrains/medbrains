@@ -26,8 +26,8 @@ async fn set(app: &common::TestApp, staff: &common::Staff, body: Value) -> (Stat
     post(&staff.client, app, &staff.csrf, URL, body).await
 }
 
-/// `staff` reviews and signs a prescription they wrote, for a patient they attend.
-async fn sign_a_prescription(app: &common::TestApp, staff: &common::Staff) -> (StatusCode, Value) {
+/// A prescription `staff` wrote, for a patient they attend.
+async fn attended_prescription(app: &common::TestApp, staff: &common::Staff) -> Uuid {
     let record = signatures_test::doctor_prescription(app, &staff.user_id.to_string()).await;
     let record = Uuid::parse_str(&record).expect("prescription id");
     let (tenant, patient): (Uuid, Uuid) =
@@ -37,6 +37,12 @@ async fn sign_a_prescription(app: &common::TestApp, staff: &common::Staff) -> (S
             .await
             .expect("prescription");
     attend(app, tenant, patient, staff.user_id).await;
+    record
+}
+
+/// `staff` reviews and signs a prescription they wrote.
+async fn sign_a_prescription(app: &common::TestApp, staff: &common::Staff) -> (StatusCode, Value) {
+    let record = attended_prescription(app, staff).await;
     review_and_sign(&staff.client, app, &staff.csrf, "prescription", record).await
 }
 
@@ -163,5 +169,124 @@ async fn replacing_keeps_the_old_row_and_an_earlier_record_keeps_its_image() {
     assert_eq!(
         later["signed_record"]["display_image_snapshot"],
         Value::Null
+    );
+}
+
+/// An administrator cannot set anybody's signature, by any route: the admin
+/// route is gone for everyone, and the own route makes only the caller's.
+#[tokio::test]
+async fn an_admin_cannot_set_another_users_signature_by_any_route() {
+    let app = common::spawn_app().await;
+    let admin_csrf = app.login_admin().await;
+    app.step_up(&app.client, &admin_csrf, "admin123").await;
+    let staff = doctor(&app, &admin_csrf).await;
+
+    let body =
+        json!({ "doctor_user_id": staff.user_id, "display_image_url": PNG, "make_default": true });
+    let resp = app
+        .client
+        .post(app.url("/api/admin/signature-credentials"))
+        .header("x-csrf-token", &admin_csrf)
+        .json(&body)
+        .send()
+        .await
+        .expect("issue");
+    assert_eq!(resp.status(), StatusCode::GONE);
+    let gone: Value = resp.json().await.expect("json");
+    assert!(
+        gone["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("their own")),
+        "{gone}"
+    );
+
+    let own = json!({ "image": null, "doctor_user_id": staff.user_id });
+    let (status, _) = post(&app.client, &app, &admin_csrf, URL, own).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        credentials_of(&app, staff.user_id).await,
+        0,
+        "nothing was made for them"
+    );
+}
+
+/// A withdrawn signature is listed to its owner with the date and the reason,
+/// and only when they ask for past ones.
+#[tokio::test]
+async fn a_withdrawn_signature_tells_its_owner_when_and_why() {
+    let app = common::spawn_app().await;
+    let admin_csrf = app.login_admin().await;
+    let staff = doctor(&app, &admin_csrf).await;
+    let (_, set_body) = set(&app, &staff, json!({ "image": null })).await;
+    let id = set_body["credential"]["id"].as_str().unwrap_or_default();
+    let revoke = format!("/api/admin/signature-credentials/{id}/revoke");
+    let reason = json!({ "reason": "Reported copied" });
+    let (status, _) = post(&app.client, &app, &admin_csrf, &revoke, reason).await;
+    assert_eq!(status, StatusCode::OK);
+
+    for (query, expected) in [("", 0), ("?include_past=true", 1)] {
+        let list: Value = staff
+            .client
+            .get(app.url(&format!("{URL}{query}")))
+            .send()
+            .await
+            .expect("list")
+            .json()
+            .await
+            .expect("json");
+        assert_eq!(
+            list.as_array().map(Vec::len),
+            Some(expected),
+            "{query}: {list}"
+        );
+        if expected == 1 {
+            assert_eq!(list[0]["revoked_reason"], "Reported copied");
+            assert!(list[0]["revoked_at"].is_string());
+        }
+    }
+}
+
+/// A credential an administrator once issued beside the default must not go
+/// on signing after its owner replaced their signature.
+#[tokio::test]
+async fn replacing_ends_every_credential_that_could_still_sign() {
+    let app = common::spawn_app().await;
+    let admin_csrf = app.login_admin().await;
+    let staff = doctor(&app, &admin_csrf).await;
+    let old = signatures_test::issue_key(&app, &admin_csrf, &staff.user_id.to_string()).await;
+    sqlx::query("UPDATE doctor_signature_credentials SET is_default = FALSE WHERE id = $1::uuid")
+        .bind(&old)
+        .execute(&app.db)
+        .await
+        .expect("a second, non-default credential");
+    let (status, body) = set(&app, &staff, json!({ "image": null })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["replaced"], true);
+
+    let record = attended_prescription(&app, &staff).await;
+    let target = json!({ "record_type": "prescription", "record_id": record });
+    let (status, _) = post(
+        &staff.client,
+        &app,
+        &staff.csrf,
+        "/api/signatures/review",
+        target.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "the record opens for review");
+    let mut with_old = target;
+    with_old["credential_id"] = json!(old);
+    let (status, body) = post(
+        &staff.client,
+        &app,
+        &staff.csrf,
+        "/api/signatures/sign",
+        with_old,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "the ended one does not sign: {body}"
     );
 }

@@ -1,5 +1,5 @@
 import { useHasAnyPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
+import { P, type SignatureCredential } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { signoffService } from "@/services/signoff.service";
 
@@ -12,6 +12,12 @@ export const OWN_SIGNATURE_KEY = ["my-signature-credentials"] as const;
  * would otherwise ask a doctor who has a signature to set one up again.
  */
 export type OwnSignatureStatus = "checking" | "ready" | "missing" | "unknown";
+
+/** Neither withdrawn nor ended: a signature that still signs. */
+function isUsable(credential: SignatureCredential): boolean {
+  const ended = credential.valid_until !== null && new Date(credential.valid_until) <= new Date();
+  return !credential.revoked_at && !ended;
+}
 
 /**
  * The caller's own signature, for every screen that signs or shows it. The
@@ -26,9 +32,12 @@ export function useOwnSignature(enabled = true) {
     enabled: enabled && canSign,
     staleTime: 30_000,
   });
-  const current = query.data?.find((credential) => credential.is_default);
+  const current = query.data?.find((credential) => credential.is_default && isUsable(credential));
+  // The newest one, when an administrator withdrew it and nothing replaced it.
+  const newest = query.data?.[0];
+  const withdrawn = !current && newest?.revoked_at ? newest : undefined;
   let status: OwnSignatureStatus = current ? "ready" : "missing";
   if (canSign && query.isError) status = "unknown";
   else if (canSign && query.isPending) status = "checking";
-  return { status, current, recheck: () => void query.refetch() };
+  return { status, current, withdrawn, recheck: () => void query.refetch() };
 }

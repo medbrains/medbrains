@@ -273,14 +273,6 @@ export interface SetMyCredentialResponse {
   replaced: boolean;
 }
 
-export interface IssueCredentialRequest {
-  doctor_user_id: string;
-  display_image_url?: string | null;
-  display_font?: string | null;
-  valid_until?: string | null;
-  make_default?: boolean;
-}
-
 export interface RevokeCredentialRequest {
   reason: string;
 }

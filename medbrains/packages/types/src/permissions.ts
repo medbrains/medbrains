@@ -295,11 +295,9 @@ export const P = {
     },
     SHARING_MANAGE: "admin.sharing.manage",
     SIGNATURE_CREDENTIALS: {
-      ISSUE: "admin.signature_credentials.issue",
       LIST: "admin.signature_credentials.list",
       REVOKE: "admin.signature_credentials.revoke",
     },
-    SIGNATURE_CREDENTIALS_ISSUE: "admin.signature_credentials.issue",
     SIGNATURE_CREDENTIALS_LIST: "admin.signature_credentials.list",
     SIGNATURE_CREDENTIALS_REVOKE: "admin.signature_credentials.revoke",
     SSO: {
