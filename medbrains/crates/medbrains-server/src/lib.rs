@@ -30,7 +30,6 @@ pub mod preflight_error_tracking;
 pub mod routes;
 pub mod secret_backend;
 pub mod services;
-pub mod shutdown;
 pub mod storage_archive;
 pub mod worker_pool;
 

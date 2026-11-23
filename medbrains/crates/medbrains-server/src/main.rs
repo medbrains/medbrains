@@ -806,8 +806,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // of aborting mid-write on every deploy restart; but only for
     // `DRAIN_DEADLINE`, so a stream held open by a browser tab cannot keep
     // the process up until the supervisor kills it.
-    let deadline = medbrains_server::shutdown::DRAIN_DEADLINE;
-    medbrains_server::shutdown::serve_until(listener, app, shutdown_signal(), deadline).await?;
+    let deadline = medbrains_server_core::shutdown::DRAIN_DEADLINE;
+    medbrains_server_core::shutdown::serve_until(listener, app, shutdown_signal(), deadline).await?;
     Ok(())
 }
 
