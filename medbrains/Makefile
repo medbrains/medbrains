@@ -340,6 +340,13 @@ check-app-screens: ## Fail if app-screens.generated.ts is stale against screens.
 	python3 scripts/generate_app_screens.py --self-test
 	python3 scripts/generate_app_screens.py --check
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-web-brick-imports
+check-all: check-web-brick-imports
+check-web-brick-imports: ## Ratchet: web imports from one brick's source into another's only fall
+	python3 scripts/check_web_brick_imports.py --self-test
+	python3 scripts/check_web_brick_imports.py
+
 check-ui-slop: ## Decorative effects in the web app only ever go down
 	python3 scripts/check_ui_slop.py
 
