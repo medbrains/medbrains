@@ -15,6 +15,7 @@ import { adminAccessService } from "@/services/adminAccess.service";
 import { labService } from "@/services/lab.service";
 import { phlebotomyStatusColors } from "./shared";
 
+/** The phlebotomy draw queue: who is waiting for a draw, who draws it, and where each draw stands. */
 export function PhlebotomyTab() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.PHLEBOTOMY_MANAGE);
@@ -22,7 +23,11 @@ export function PhlebotomyTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: queue = [], isLoading } = useQuery({
+  const {
+    data: queue = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["lab-phlebotomy-queue"],
     queryFn: () => labService.listPhlebotomyQueue(),
     refetchInterval: 15_000,
@@ -164,7 +169,14 @@ export function PhlebotomyTab() {
   return (
     <Stack>
       <Text fw={600}>{t("phlebotomyCollectionQueue")}</Text>
-      <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={queue}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        // A queue that failed to load is not an empty queue: say which it is.
+        emptyTitle={isError ? "Could not load the draw queue" : "No draws in the queue"}
+      />
     </Stack>
   );
 }
