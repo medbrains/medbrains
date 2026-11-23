@@ -1,6 +1,6 @@
 name: 🏥 Feedback from a hospital
 description: Something in daily hospital work is slow, confusing or missing
-labels: ["feedback", "needs-triage"]
+labels: ["feedback", "needs-triage", "status:intake"]
 body:
   - type: markdown
     attributes:

@@ -517,6 +517,8 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 
 ## Ticket / Story Execution Workflow
 
+**The whole lifecycle, stage by stage with its gates and evidence, is `medbrains/docs/AI-SDLC.md`.** This section is its Spec stage.
+
 When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
 
 1. **Research the real-world scenario first** — who actually uses this, in what hospital workflow, and what are the real business rules and edge cases? Read the relevant RFC(s), the existing code paths (`ccc search`), the regulatory norms, and how similar features behave. Confirm what exists vs what's missing (many backlog tickets are already partly done).
