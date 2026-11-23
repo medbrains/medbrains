@@ -2,39 +2,25 @@
  * Every role sees what its permissions allow — no more, no less (#4804).
  *
  * For each built-in role (administrators bypass every check, so they are left
- * out): a new member of staff in that role signs in; the sidebar must list
- * exactly the screens the menu config opens for their permissions (the
- * permissions come from the server, the menu from docs/testing/nav-menu.json,
- * exported from NAV_GROUPS); each of those screens must open without a
+ * out): a new member of staff in that role signs in; the side panel must list
+ * exactly the screens the screen registry opens for their permissions (the
+ * permissions come from the server, the screens from APP_SCREENS, which the
+ * menu itself is built from); each of those screens must open without a
  * refusal or a crash; and typing the address of a sensitive screen they may
  * not use must be refused.
+ *
+ * The panel lists one app at a time (the launcher replaced the whole-menu
+ * sidebar), so the menu is read panel by panel: the core one, then each app's.
  *
  *   npx playwright test e2e/journeys/role-access.spec.ts --workers=4
  *   ROLE=nurse npx playwright test e2e/journeys/role-access.spec.ts
  */
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { ROLE_TEMPLATES } from "@medbrains/types";
+import { APP_SCREENS, type AppScreen, ROLE_TEMPLATES } from "@medbrains/types";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/world";
 
-interface MenuItem {
-  group: string;
-  label: string;
-  path: string;
-  one: string | null;
-  any: string[];
-  module: string | null;
-  parent: string | null;
-}
-
-const MENU: MenuItem[] = JSON.parse(
-  readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../../../docs/testing/nav-menu.json"),
-    "utf8",
-  ),
-);
+/** The menu's screens. Developer screens are listed only by a development build, so they are left out. */
+const MENU = APP_SCREENS.filter((s) => s.group !== "dev_only");
 /** The screens a leak would hurt most, probed by address when not allowed. */
 const SENSITIVE = ["/admin/users", "/audit", "/billing", "/mrd", "/pharmacy", "/lab", "/ipd", "/hr/payroll"];
 const ADMINS = new Set(["super_admin", "hospital_admin"]);
@@ -42,25 +28,43 @@ const ROLES = Object.keys(ROLE_TEMPLATES).filter(
   (role) => !ADMINS.has(role) && (!process.env.ROLE || process.env.ROLE === role),
 );
 
-/** The sidebar's rule (AppLayout): the single code, and any one of the list. */
-function opens(item: MenuItem, granted: Set<string>, off: Set<string>): boolean {
-  if (item.module && off.has(item.module)) return false;
-  return (!item.one || granted.has(item.one)) && (item.any.length === 0 || item.any.some((p) => granted.has(p)));
+/** The menu's rule (launcherModel `isItemVisible`): the single code, any one of the list, the app on. */
+function opens(screen: AppScreen, granted: Set<string>, off: Set<string>): boolean {
+  if (screen.brick && off.has(screen.brick)) return false;
+  return (
+    (!screen.permission || granted.has(screen.permission)) &&
+    (screen.anyOf.length === 0 || screen.anyOf.some((p) => granted.has(p)))
+  );
 }
 
-async function sidebarPaths(page: Page, parents: string[]): Promise<Set<string>> {
-  const known = new Set(MENU.map((m) => m.path));
-  const nav = page.locator("nav").first();
-  await expect(nav.locator("a[href^='/']").first()).toBeVisible();
-  // Children (Administration → Admin → Users) render once their parent is opened.
-  for (const parent of parents) {
-    const toggle = nav.getByRole("button", { name: parent, exact: true });
-    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+/** The menu links in the side panel as it stands, with Administration and Advanced opened. */
+async function panelPaths(page: Page): Promise<string[]> {
+  const panel = page.getByTestId("app-sidebar");
+  if ((await panel.getAttribute("data-mode")) === "rail") {
+    await panel.getByRole("button", { name: "Expand" }).click();
   }
-  const hrefs = await nav
-    .locator("a[href^='/']")
-    .evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""));
-  return new Set(hrefs.filter((h) => known.has(h)));
+  await expect(panel.locator("a[href='/home']")).toBeVisible();
+  // Administration holds its pages, and Advanced the rest: two levels, opened outermost first.
+  for (let depth = 0; depth < 2; depth += 1) {
+    for (const toggle of await panel.locator("button[aria-expanded='false']").all()) await toggle.click();
+  }
+  return panel.locator("a[href^='/']").evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""));
+}
+
+/**
+ * Every menu screen the person is shown: the core panel (on the dashboard), then the panel of
+ * each app they have a screen in, entered at that app's first screen.
+ */
+async function menuPaths(page: Page, allowed: AppScreen[]): Promise<Set<string>> {
+  const known = new Set(MENU.map((s) => s.path));
+  const doors = new Map<string | null, string>([[null, "/dashboard"]]);
+  for (const s of allowed) if (s.brick && !doors.has(s.brick)) doors.set(s.brick, s.path);
+  const shown = new Set<string>();
+  for (const door of doors.values()) {
+    await visit(page, door);
+    for (const href of await panelPaths(page)) if (known.has(href)) shown.add(href);
+  }
+  return shown;
 }
 
 /** Move inside the app (as a user does) rather than reloading it per screen. */
@@ -83,11 +87,10 @@ for (const role of ROLES) {
     const off = new Set<string>(me.disabled_modules ?? []);
     const allowed = MENU.filter((m) => opens(m, granted, off));
     const expected = new Set(allowed.map((m) => m.path));
-    const parents = [...new Set(allowed.flatMap((m) => (m.parent ? [m.parent] : [])))];
 
     // The menu: exactly the screens the role opens.
     await page.goto("/dashboard");
-    const shown = await sidebarPaths(page, parents);
+    const shown = await menuPaths(page, allowed);
     const missing = [...expected].filter((p) => !shown.has(p));
     const extra = [...shown].filter((p) => !expected.has(p));
     expect({ missing, extra }, `${role}'s menu`).toEqual({ missing: [], extra: [] });
