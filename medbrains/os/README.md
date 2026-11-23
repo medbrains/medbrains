@@ -1061,6 +1061,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `update-keys/`: public keys that may sign updates. None yet.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
+- `mkosi.finalize.chroot`: runs after mkosi's preset pass and fails the build if a unit the postinst masked is not masked.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
@@ -1281,6 +1282,7 @@ How D1 was built, kept so nobody has to rediscover it.
 | `postgresql@17-main: Could not change user id` | Debian's unit starts as root and setuid()s down; the empty `CapabilityBoundingSet=` removes that | `User=postgres` in the drop-in |
 | PostgreSQL: `could not open .../conf.d/10-medbrains.conf: Permission denied` | the first-boot script runs under `UMask=0077` as root | `chown` the file to `postgres` |
 | `pg_receivewal@17-main` failed on every boot | mkosi applies presets to the image and Debian's enable anything not listed, so unwanted templates were on | `10-medbrains.preset` disables them |
+| Ctrl+Alt+Del restarted the machine although the postinst masks `ctrl-alt-del.target` (shipped in v3.35.6) | mkosi's preset pass runs after the postinst; Debian's preset enables `reboot.target`, whose `Alias=ctrl-alt-del.target` replaced the mask | `10-medbrains.preset` disables `reboot.target`; `mkosi.finalize.chroot` fails the build if any masked unit is not masked in the finished tree |
 | Black screen; `cage: Unable to open Wayland socket: Invalid argument`; `strace` showed `EACCES` on `/run/user/987/wayland-*.lock` | `ProtectHome=yes` hides `/run/user` too. Changing `ProtectSystem` made no difference, which pointed away from it | removed `ProtectHome` from the screen unit, added `ReadWritePaths=/run/user` |
 | `cage -D` exited 1 and sent the diagnosis the wrong way | cage 0.2.0 has no `-D`; `strace` showed the usage error | no flag |
 | `systemctl restart cage-console` hung for 90 seconds | the stop waited out the default timeout on a stuck cage | `TimeoutStopSec=5s` |
