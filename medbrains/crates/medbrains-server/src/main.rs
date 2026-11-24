@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // machine and wrong the moment the application stops being a superuser.
     let worker_pool = match std::env::var("WORKER_DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => {
-            let pool = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            let pool = medbrains_server::worker_pool::connect(&url, &pool_config).await?;
             tracing::info!("background workers have their own pool");
             pool
         }
@@ -474,7 +474,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_infra_settings::preflight::record(findings);
 
     if !bootstrap_pool.is_closed() && std::env::var("MIGRATION_DATABASE_URL").is_ok() {
-        bootstrap_pool.close().await;
+        // Not `close()` alone: that left the connection the checks above had just used open.
+        medbrains_db::pool::close_fully(&bootstrap_pool).await;
     }
 
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey

@@ -1,9 +1,10 @@
-# Chooses this machine's time sources by its role, before chrony reads them.
+# Writes what this machine's role changes for chrony and resolved, before either starts: its time
+# sources, and on a main machine, serving the LAN its time and announcing medbrains.local.
 [Unit]
-Description=MedBrains time source for this machine's role
+Description=MedBrains time and name settings for this machine's role
 DefaultDependencies=no
 After=local-fs.target systemd-tmpfiles-setup.service
-Before=chrony.service
+Before=chrony.service systemd-resolved.service
 RequiresMountsFor=/var/lib/medbrains
 
 [Service]
@@ -13,10 +14,10 @@ TimeoutStartSec=30
 ExecStart=/usr/lib/medbrains/time-role
 
 # Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
-# Reads the role marker and writes chrony's source list; no network, no devices. Root needs to pass
+# Reads the role markers and writes chrony's and resolved's role files; no network, no devices. Root needs to pass
 # /var/lib/medbrains (0750, the server's own) to see the marker: without it a node took internet time.
 ProtectSystem=strict
-ReadWritePaths=/run/medbrains-role
+ReadWritePaths=/run/medbrains-role /run/systemd/resolved.conf.d
 PrivateNetwork=yes
 PrivateDevices=yes
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH

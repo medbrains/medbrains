@@ -36,6 +36,7 @@ import {
   queueStatusShape,
   queueStatusTone,
 } from "./opd/shared";
+import { useRecordOpdVitals } from "./opd/use-record-opd-vitals";
 import { OpdVisitForm } from "./opd/visit-form";
 import {
   type OpdQueueRowActionId,
@@ -260,13 +261,7 @@ export function OpdVitalsPage() {
   const { queueEntryId } = useParams<{ queueEntryId: string }>();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
-  // The fallback endpoint when the nurse code is absent is createVital,
-  // which the server gates on opd.vitals.create — not on opd.visit.update.
-  // Asking for the wrong one let a doctor fill the whole vitals form and
-  // collect a 403 on save.
-  const canCreateOpdVitals = useHasPermission(P.OPD.VITALS_CREATE);
-  const canRecordVitals = canRecordNurseVitals || canCreateOpdVitals;
+  const { canRecord: canRecordVitals, recordVitals } = useRecordOpdVitals();
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedQueueEntryId = queueEntryId ?? "";
@@ -295,9 +290,7 @@ export function OpdVitalsPage() {
       if (!entry) {
         throw new Error(t("vitals.error.queueEntryNotLoaded"));
       }
-      return canRecordNurseVitals
-        ? opdService.createNurseVital({ ...data, encounter_id: entry.encounter_id })
-        : opdService.createVital(entry.encounter_id, data);
+      return recordVitals(entry.encounter_id, data);
     },
     onSuccess: (vital) => {
       if (!entry) return;
