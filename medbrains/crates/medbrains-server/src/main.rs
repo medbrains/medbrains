@@ -807,7 +807,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `DRAIN_DEADLINE`, so a stream held open by a browser tab cannot keep
     // the process up until the supervisor kills it.
     let deadline = medbrains_server_core::shutdown::DRAIN_DEADLINE;
-    medbrains_server_core::shutdown::serve_until(listener, app, shutdown_signal(), deadline).await?;
+    medbrains_server_core::shutdown::serve_until(listener, app, shutdown_signal(), deadline)
+        .await?;
     Ok(())
 }
 
