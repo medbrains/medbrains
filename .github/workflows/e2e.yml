@@ -82,6 +82,13 @@ jobs:
     name: Build the server
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      # Every tracked path under medbrains/ the server binary is compiled from. The step after
+      # the build fails if cargo names a file outside this list, so it cannot fall behind.
+      # pnpm-lock.yaml is here because medbrains-security-intel's build script reads it.
+      SERVER_INPUTS: >-
+        crates vendor Cargo.toml Cargo.lock rust-toolchain.toml .cargo .sqlx pnpm-lock.yaml
+        docs/openapi.json packages/privacy/dpdp-notice.json
     defaults:
       run:
         working-directory: medbrains
@@ -89,14 +96,34 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A pull request that changes none of the server's inputs uses the binary the base
+      # branch's push built from the same files, and skips the 8 to 11 minute build
+      # (docs/decisions/2026-11-23-e2e-reuses-the-base-branch-server.md). `git rev-parse
+      # HEAD:path` is git's own hash of a file or of a whole folder.
+      - name: What the server is built from
+        id: inputs
+        run: |
+          hash=$(for p in $SERVER_INPUTS; do git rev-parse "HEAD:medbrains/$p"; done | sha256sum | cut -c1-40)
+          echo "key=${{ runner.os }}-e2e-server-$hash" >> "$GITHUB_OUTPUT"
+      # Restore only, and only on a pull request: a push builds its own (ci-release.yml's
+      # rule), and only a push saves, so a pull request can never write what another reads.
+      - name: A server the base branch built from the same files
+        id: built
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: medbrains/target/debug/medbrains-server
+          key: ${{ steps.inputs.outputs.key }}
       - name: Free disk space
+        if: steps.built.outputs.cache-hit != 'true'
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Rust toolchain
+        if: steps.built.outputs.cache-hit != 'true'
         # rust-toolchain.toml pins the version.
         run: rustup toolchain install
       # Restore only: ci.yml's Rust tests job owns this cache and saves it. A release branch
       # push restores no cache another run wrote (ci-release.yml's rule).
-      - if: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
+      - if: ${{ steps.built.outputs.cache-hit != 'true' && !startsWith(github.ref, 'refs/heads/release/') }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -107,8 +134,37 @@ jobs:
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/rust-toolchain.toml') }}-${{ hashFiles('medbrains/Cargo.lock', 'medbrains/**/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/rust-toolchain.toml') }}-
       # medbrains-printing links against CUPS.
-      - run: sudo apt-get update && sudo apt-get install -y libcups2-dev
-      - run: cargo build --locked -p medbrains-server --bin medbrains-server
+      - if: steps.built.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y libcups2-dev
+      - if: steps.built.outputs.cache-hit != 'true'
+        run: cargo build --locked -p medbrains-server --bin medbrains-server
+      # cargo's own list of the files the binary was compiled from. One outside SERVER_INPUTS
+      # would let a pull request that changes it reuse a server built without the change.
+      - name: Every file the server was built from is in the key
+        if: steps.built.outputs.cache-hit != 'true'
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+
+          keyed = os.environ["SERVER_INPUTS"].split()
+          stray = set()
+          for line in open("target/debug/medbrains-server.d"):
+              for path in re.split(r"(?<!\\) ", line.split(": ", 1)[1].strip()):
+                  rel = os.path.relpath(os.path.normpath(path))
+                  if rel.startswith("target/") or any(rel == k or rel.startswith(k + "/") for k in keyed):
+                      continue
+                  stray.add(rel)
+          for rel in sorted(stray):
+              print(f"::error::The server is built from medbrains/{rel}. Add it to SERVER_INPUTS in e2e.yml.")
+          raise SystemExit(1 if stray else 0)
+          PY
+      - name: Keep this server for pull requests that change none of its inputs
+        if: github.event_name == 'push' && steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: medbrains/target/debug/medbrains-server
+          key: ${{ steps.inputs.outputs.key }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-server
