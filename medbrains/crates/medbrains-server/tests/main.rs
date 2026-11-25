@@ -83,6 +83,7 @@ mod authz_pharmacy_dispense_view_test;
 mod auto_charge_savepoint_test;
 mod bad_debt_write_off_test;
 mod bank_recon_test;
+mod billing_collections_widget_test;
 mod billing_concession_test;
 mod billing_payment_settings_test;
 mod blood_bank_safety_test;
