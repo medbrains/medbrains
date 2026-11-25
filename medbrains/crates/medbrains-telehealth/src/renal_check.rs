@@ -159,7 +159,7 @@ pub(crate) struct RenalHepatic {
 }
 
 /// One catalogue line's renal threshold, renal rule and hepatic caution.
-#[derive(sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow)]
 struct RuleRow {
     id: Uuid,
     renal_adjust_egfr_threshold: Option<f64>,
@@ -206,6 +206,11 @@ pub(crate) async fn renal_hepatic_alerts_for_items(
     Ok(found)
 }
 
+/// The trimmed text of a catalogue rule, or `None` when it is blank.
+fn text(value: Option<&String>) -> Option<&str> {
+    value.map(|v| v.trim()).filter(|t| !t.is_empty())
+}
+
 /// One line's findings: hepatic caution, then the renal rule against `egfr`.
 fn add_findings(
     found: &mut RenalHepatic,
@@ -213,8 +218,7 @@ fn add_findings(
     row: &RuleRow,
     egfr: Option<EgfrReading>,
 ) {
-    let text = |v: &Option<String>| v.as_deref().map(str::trim).filter(|t| !t.is_empty());
-    if let Some(caution) = text(&row.hepatic_caution) {
+    if let Some(caution) = text(row.hepatic_caution.as_ref()) {
         found.hepatic.push(HepaticAlert {
             drug_name: item.drug_name.clone(),
             caution: caution.to_owned(),
@@ -222,7 +226,7 @@ fn add_findings(
     }
     let (Some(threshold), Some(rule)) = (
         row.renal_adjust_egfr_threshold,
-        text(&row.renal_adjust_rule),
+        text(row.renal_adjust_rule.as_ref()),
     ) else {
         return;
     };
