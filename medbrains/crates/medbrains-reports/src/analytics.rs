@@ -108,6 +108,8 @@ pub async fn doctor_revenue(
 }
 
 // ── 3. IPD Census ──────────────────────────────────────────
+/// Per day of the range: admissions, discharges, deaths (discharge type
+/// `death`) and the stays open at the end of the day.
 pub async fn ipd_census(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -116,20 +118,7 @@ pub async fn ipd_census(
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "ipd_census").await?;
     let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
-    let rows = sqlx::query_as::<_, IpdCensusRow>(
-        "WITH dates AS ( \
-           SELECT d::date AS date FROM generate_series($1::date, $2::date, '1 day') d \
-         ) \
-         SELECT dates.date, \
-           COALESCE(SUM(CASE WHEN a.admitted_at::date = dates.date THEN 1 ELSE 0 END), 0)::bigint AS admissions, \
-           COALESCE(SUM(CASE WHEN a.discharged_at::date = dates.date THEN 1 ELSE 0 END), 0)::bigint AS discharges, \
-           COALESCE(SUM(CASE WHEN a.discharged_at::date = dates.date AND a.discharge_type = 'death' THEN 1 ELSE 0 END), 0)::bigint AS deaths, \
-           COALESCE(SUM(CASE WHEN a.admitted_at::date <= dates.date AND (a.discharged_at IS NULL OR a.discharged_at::date > dates.date) THEN 1 ELSE 0 END), 0)::bigint AS active \
-         FROM dates \
-         LEFT JOIN admissions a ON a.admitted_at::date <= dates.date AND (a.discharged_at IS NULL OR a.discharged_at::date >= dates.date) \
-         GROUP BY dates.date ORDER BY dates.date LIMIT 5000",
-    )
-    .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
+    let rows = crate::census::ipd_census_rows(&mut tx, &from, &to).await?;
     run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
