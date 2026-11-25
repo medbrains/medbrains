@@ -23,6 +23,7 @@ import { useConsentGate } from "@/hooks/useConsentGate";
 import { examOrderDefaults } from "@/lib/radiology-exams";
 import { modalityLoadError, toModalityOptions } from "@/lib/radiology-modalities";
 import { radiologyService } from "@/services/radiology.service";
+import { contrastScreeningTitle } from "./contrast-screening-title";
 
 export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const qc = useQueryClient();
@@ -255,9 +256,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
                   ? "warning"
                   : "success"
             }
-            title={`Pre-contrast screening — ${contrastScreen.clearance.replace(/_/g, " ")}${
-              contrastScreen.egfr != null ? ` · eGFR ${Math.round(contrastScreen.egfr)}` : ""
-            }`}
+            title={contrastScreeningTitle(contrastScreen)}
           >
             {contrastScreen.flags.length > 0
               ? contrastScreen.flags.join(" ")

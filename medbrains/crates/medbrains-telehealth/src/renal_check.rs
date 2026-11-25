@@ -35,11 +35,11 @@ const EGFR_LOINC: &[&str] = &[
 /// Days an eGFR may be dosed from. Proposed, not clinician-confirmed: renal
 /// function can fall within days (AKI), so this is an outer bound, not a
 /// statement that a 90-day value is safe. Owner/clinician to confirm.
-pub(crate) const EGFR_RECENCY_DAYS: i64 = 90;
+pub const EGFR_RECENCY_DAYS: i64 = 90;
 
 /// An eGFR the renal check may dose from, with when it was measured.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct EgfrReading {
+pub struct EgfrReading {
     pub value: f64,
     pub measured_at: DateTime<Utc>,
 }
@@ -93,7 +93,9 @@ pub(crate) fn latest_egfr(candidates: &[EgfrCandidate], now: DateTime<Utc>) -> O
 }
 
 /// The patient's latest qualifying eGFR (verified, recent, per 1.73 m²).
-pub(crate) async fn patient_latest_egfr(
+/// Shared with radiology's pre-contrast screening, so renal dosing and
+/// contrast kidney risk always read the same result.
+pub async fn patient_latest_egfr(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     patient_id: Uuid,

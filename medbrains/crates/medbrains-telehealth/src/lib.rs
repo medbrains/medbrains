@@ -10,7 +10,7 @@ use medbrains_server_core::state::AppState;
 pub mod cds;
 pub mod doctor_dashboard;
 pub mod doctor_profile;
-mod renal_check;
+pub mod renal_check;
 mod substitution_signoffs;
 pub mod telemedicine;
 
