@@ -75,6 +75,14 @@ const NUMBER_SETTINGS: NumberSettingDef[] = [
     fallback: 180,
   },
   {
+    key: "issue_min_shelf_life_days",
+    category: "operations",
+    label: "Minimum shelf life to issue (days)",
+    description:
+      "A pharmacy transfer or store indent takes only batches with this many days left, oldest first, and is refused if none has.",
+    fallback: 90,
+  },
+  {
     key: "grn_invoice_tolerance_inr",
     category: "operations",
     label: "Bill total tolerance (₹)",
