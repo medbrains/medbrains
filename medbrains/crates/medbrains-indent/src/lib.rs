@@ -1736,8 +1736,15 @@ pub async fn fsn_analysis(
 struct AbcRawRow {
     item_name: String,
     annual_value: Decimal,
+    cumulative_pct: f64,
 }
 
+/// GET /api/indent/analytics/abc — each active item's issue value over the
+/// last year, with its running share of the store's total and its class
+/// (A up to 70%, B to 90%, C the rest). The total and the running share are
+/// summed in SQL over every item; the list shows the top 5,000. Summing in
+/// Rust over the 5,000 the list returned made every share too large once a
+/// store had more items, and moved items into the wrong class.
 pub async fn abc_analysis(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1748,14 +1755,20 @@ pub async fn abc_analysis(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let raw = sqlx::query_as::<_, AbcRawRow>(
-        "SELECT sc.name AS item_name, \
-         COALESCE(SUM(ABS(m.quantity) * sc.base_price), 0) AS annual_value \
-         FROM store_catalog sc \
-         LEFT JOIN store_stock_movements m ON m.catalog_item_id = sc.id \
-           AND m.tenant_id = sc.tenant_id AND m.movement_type = 'issue' \
-           AND m.created_at >= now() - INTERVAL '1 year' \
-         WHERE sc.tenant_id = $1 AND sc.is_active = true \
-         GROUP BY sc.id, sc.name ORDER BY annual_value DESC LIMIT 5000",
+        "WITH v AS ( \
+           SELECT sc.id, sc.name AS item_name, \
+                  COALESCE(SUM(ABS(m.quantity) * sc.base_price), 0) AS annual_value \
+             FROM store_catalog sc \
+             LEFT JOIN store_stock_movements m ON m.catalog_item_id = sc.id \
+               AND m.tenant_id = sc.tenant_id AND m.movement_type = 'issue' \
+               AND m.created_at >= now() - INTERVAL '1 year' \
+            WHERE sc.tenant_id = $1 AND sc.is_active = true \
+            GROUP BY sc.id, sc.name) \
+         SELECT item_name, annual_value, \
+                COALESCE(SUM(annual_value) OVER (ORDER BY annual_value DESC, id \
+                           ROWS UNBOUNDED PRECEDING) * 100 \
+                         / NULLIF(SUM(annual_value) OVER (), 0), 0)::float8 AS cumulative_pct \
+           FROM v ORDER BY annual_value DESC, id LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1763,36 +1776,28 @@ pub async fn abc_analysis(
 
     tx.commit().await?;
 
-    let grand_total: Decimal = raw.iter().map(|r| r.annual_value).sum();
-    let mut cumulative = Decimal::ZERO;
-    let mut result = Vec::with_capacity(raw.len());
-
-    for r in raw {
-        cumulative += r.annual_value;
-        let pct = if grand_total > Decimal::ZERO {
-            (cumulative * Decimal::from(100) / grand_total)
-                .to_string()
-                .parse::<f64>()
-                .unwrap_or(0.0)
-        } else {
-            0.0
-        };
-        let class = if pct <= 70.0 {
-            "A"
-        } else if pct <= 90.0 {
-            "B"
-        } else {
-            "C"
-        };
-        result.push(AbcAnalysisRow {
+    let result = raw
+        .into_iter()
+        .map(|r| AbcAnalysisRow {
             item_name: r.item_name,
             annual_value: r.annual_value,
-            cumulative_pct: pct,
-            abc_class: class.to_owned(),
-        });
-    }
-
+            cumulative_pct: r.cumulative_pct,
+            abc_class: abc_class(r.cumulative_pct).to_owned(),
+        })
+        .collect();
     Ok(Json(result))
+}
+
+/// The ABC class of an item whose running share of the store's issue value
+/// is `pct`: A up to 70%, B up to 90%, C after.
+fn abc_class(pct: f64) -> &'static str {
+    if pct <= 70.0 {
+        "A"
+    } else if pct <= 90.0 {
+        "B"
+    } else {
+        "C"
+    }
 }
 
 // ══════════════════════════════════════════════════════════
