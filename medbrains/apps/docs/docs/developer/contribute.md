@@ -21,7 +21,7 @@ is wrong is the most valuable help of all. For code:
 5. **Define permissions first,** in Rust. See
    [permissions](/developer/reference/permissions/).
 6. **Document as you go:** every function gets a doc comment, and every
-   decision a row in `medbrains/docs/DECISIONS.md` in the same PR.
+   decision its own file in `medbrains/docs/decisions/` in the same PR.
 7. **Write docs to the style guide:**
    [`STYLE.md`](https://github.com/medbrains/medbrains/blob/main/medbrains/apps/docs/STYLE.md)
    covers page types, steps, callouts, terms and the review checklist.
