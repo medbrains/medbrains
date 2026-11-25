@@ -392,6 +392,7 @@ export function OpdVitalsPage() {
         ) : (
           <Card withBorder p="md">
             <VitalsRecorder
+              patientId={entry?.patient_id}
               onSubmit={(data) => vitalsMutation.mutate(data)}
               isSubmitting={vitalsMutation.isPending}
               onCancel={() => navigate("/opd")}

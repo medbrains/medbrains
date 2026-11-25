@@ -139,6 +139,7 @@ function CampScreeningCreatePageInner() {
     defaultValues: screeningDefaults,
   });
   const referredToHospital = watchScreening("referred_to_hospital");
+  const participant = registrationsById.get(watchScreening("registration_id"));
 
   const scrMut = useMutation({
     mutationFn: (data: CreateCampScreeningRequest) => campService.createCampScreening(data),
@@ -261,7 +262,7 @@ function CampScreeningCreatePageInner() {
               />
             )}
           />
-          <CampScreeningVitals onChange={setScreeningVitals} />
+          <CampScreeningVitals participant={participant} onChange={setScreeningVitals} />
           <Controller
             control={screeningControl}
             name="blood_sugar_random"

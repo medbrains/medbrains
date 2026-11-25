@@ -263,6 +263,7 @@ export function VitalsTab({
                   <Stack gap="md">
                     <EwsInputs value={ewsInputs} onChange={setEwsInputs} />
                     <VitalsRecorder
+                      patientId={patientId}
                       onSubmit={(data) => recordVitals.mutate(data)}
                       isSubmitting={recordVitals.isPending}
                     />

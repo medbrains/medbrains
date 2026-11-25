@@ -50,6 +50,7 @@ export function VitalsTab({
       )}
       <Modal opened={formOpened} onClose={formHandlers.close} title="Record Vitals" size="lg">
         <VitalsRecorder
+          patientId={patientId}
           onSubmit={handleSubmit}
           isSubmitting={unsyncedOps > 0}
           onCancel={formHandlers.close}
