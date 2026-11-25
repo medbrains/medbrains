@@ -48,6 +48,7 @@ mod expired;
 pub mod h1_register;
 pub mod nppa;
 pub mod pos_counter;
+mod pos_gst;
 pub mod pos_returns;
 mod pos_scheduled;
 pub mod quarantine;
@@ -7815,7 +7816,7 @@ pub async fn create_pos_sale(
         let item = line.item;
         let inclusive = Decimal::from(item.quantity) * line.price * keep;
         let line_gst = inclusive * line.gst_rate / (hundred + line.gst_rate);
-        let half_gst = (line_gst / Decimal::from(2)).round_dp(2);
+        let gst = pos_gst::split_gst(line_gst);
         let line_total = inclusive.round_dp(2);
 
         let batch_trace = if let Some(catalog_id) = item.catalog_item_id {
@@ -7941,8 +7942,8 @@ pub async fn create_pos_sale(
         .bind(line.mrp)
         .bind(line.price)
         .bind(line.gst_rate)
-        .bind(half_gst)
-        .bind(half_gst)
+        .bind(gst.cgst)
+        .bind(gst.sgst)
         .bind(line_total)
         .fetch_one(&mut *tx)
         .await?;
@@ -7959,7 +7960,7 @@ pub async fn create_pos_sale(
             selling_price: line.price,
             gst_rate: line.gst_rate,
             line_total,
-            half_gst,
+            gst,
         });
     }
 
@@ -8605,7 +8606,7 @@ struct PosSaleBillingLine {
     selling_price: Decimal,
     gst_rate: Decimal,
     line_total: Decimal,
-    half_gst: Decimal,
+    gst: pos_gst::GstSplit,
 }
 
 #[derive(Debug, Deserialize)]
@@ -8627,11 +8628,6 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         return Ok(None);
     };
 
-    #[derive(sqlx::FromRow)]
-    struct InvoiceId {
-        id: Uuid,
-    }
-
     let invoice_number =
         medbrains_server_services::billing::generate_invoice_number(tx, &tenant_id).await?;
     let admission_id = medbrains_server_services::billing::admission_id_for_encounter_in_tx(
@@ -8648,14 +8644,14 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         admission_id,
     )
     .await?;
-    let invoice = sqlx::query_as::<_, InvoiceId>(
+    let invoice_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO invoices \
          (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
           subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, issued_at, \
           created_by, lane, legal_entity_id) \
          VALUES ($1, $2, $3, $4, $5, $12::invoice_status, $6, $7, $8, $9, $13, $10, now(), $11, \
           $14, $15) \
-         RETURNING *",
+         RETURNING id",
     )
     .bind(tenant_id)
     .bind(invoice_number)
@@ -8691,10 +8687,10 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
               pharmacy_batch_id, batch_number, expiry_date) \
              VALUES ($1, $2, $3, $4, 'pharmacy'::charge_source, $5, $6, $7, $8, $9, $8, \
               CASE WHEN $8 > 0 THEN 'cgst_sgst'::gst_type ELSE 'exempt'::gst_type END, \
-              $10, $10, 0, $11, $12, 'pharmacy_pos', $13, $14, $15)",
+              $10, $11, 0, $12, $13, 'pharmacy_pos', $14, $15, $16)",
         )
         .bind(tenant_id)
-        .bind(invoice.id)
+        .bind(invoice_id)
         .bind(
             line.catalog_item_id
                 .map_or_else(|| "PH-POS".to_owned(), |id| format!("PH-{id}")),
@@ -8705,7 +8701,8 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         .bind(line.selling_price)
         .bind(line.gst_rate)
         .bind(line.line_total)
-        .bind(line.half_gst)
+        .bind(line.gst.cgst)
+        .bind(line.gst.sgst)
         .bind(&line.hsn_code)
         .bind(order.id)
         .bind(line.batch_id)
@@ -8725,7 +8722,7 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
              VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, now())",
         )
         .bind(tenant_id)
-        .bind(invoice.id)
+        .bind(invoice_id)
         .bind(tender.amount)
         .bind(tender.mode.as_str())
         .bind(&tender.reference)
@@ -8743,13 +8740,13 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
          SET billing_invoice_id = $1, billing_posted_at = now(), updated_at = now() \
          WHERE id = $2 AND tenant_id = $3",
     )
-    .bind(invoice.id)
+    .bind(invoice_id)
     .bind(sale.id)
     .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
 
-    Ok(Some(invoice.id))
+    Ok(Some(invoice_id))
 }
 
 #[derive(Debug, Deserialize)]
