@@ -36,9 +36,11 @@ async fn the_chain_head_is_read_from_an_index_without_a_sort() {
     .await
     .expect("explain");
     let plan = plan.join("\n");
-    assert!(!plan.contains("Sort"), "the head lookup sorts:\n{plan}");
+    // A Merge Append of per-month index scans reads in order; a Sort node
+    // reads every one of the hospital's rows first.
+    assert!(!plan.contains("Sort  ("), "the head lookup sorts:\n{plan}");
     assert!(
-        plan.contains("idx_audit_log_tenant_chain_head") || plan.contains("chain_head"),
+        plan.contains("tenant_id_created_at_id_idx"),
         "the head lookup does not use the chain-head index:\n{plan}"
     );
 }
