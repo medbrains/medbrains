@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { navigateTo } from "../helpers";
+import { getAuthContextFromCookies } from "../helpers/api";
+import { receiveStock } from "../journeys/support/pos-counter";
 
 /**
  * The batch count a storekeeper reads on the stock screen.
@@ -13,15 +15,23 @@ import { navigateTo } from "../helpers";
 test.describe("pharmacy stock — batch count on screen", () => {
   test("an item holding stock shows its count and FEFO date, and its batches open", async ({
     page,
+    request,
   }) => {
+    // Its own medicine and batch: a new hospital holds no stock, and another spec's may not be there.
+    const drug = await receiveStock(await getAuthContextFromCookies(request), {
+      generic: "Cetirizine",
+      schedule: "OTC",
+      price: 12,
+      quantity: 20,
+    });
     await navigateTo(page, "/pharmacy");
     await page.getByRole("tab", { name: /stock/i }).first().click();
 
-    // Most of the catalogue holds nothing; search down to an item that does.
-    await page.getByPlaceholder("Search stock").fill("FEFO");
+    // Most of the catalogue holds nothing; search down to the item that does.
+    await page.getByPlaceholder("Search stock").fill(drug.name);
 
     const counted = page
-      .getByRole("button", { name: /[1-9]\d* batch(es)? · FEFO \d{4}-\d{2}-\d{2}/ })
+      .getByRole("button", { name: /1 batch · FEFO \d{4}-\d{2}-\d{2}/ })
       .first();
     await expect(counted).toBeVisible();
 

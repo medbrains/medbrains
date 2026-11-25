@@ -134,6 +134,29 @@ pub async fn create_pool_with_config(
     Ok(pool)
 }
 
+/// Closes `pool` and every connection it holds, including one that was on its
+/// way back when the close began.
+///
+/// sqlx 0.8.6's `Pool::close` empties the idle queue, then waits for the
+/// connections still out to come back, and does not empty the queue again
+/// after the last wait. A connection dropped just before the close is handed
+/// back by a spawned task that first runs `after_release` (the reset chain
+/// above, then a ping). That task checks "is the pool closed?" before the close
+/// starts and puts the connection in the idle queue after the last drain, where
+/// it stays open for as long as any handle to the pool lives.
+///
+/// On the server's owner pool that was one idle connection able to alter the
+/// schema, for the whole life of the process. The first close returns only
+/// once every connection is back, so the second finds every straggler in the
+/// queue and closes it. `tests/tenant_conn.rs` pins it.
+///
+/// sqlx 0.9 waits first and drains after, so this goes when the workspace
+/// moves to it.
+pub async fn close_fully(pool: &PgPool) {
+    pool.close().await;
+    pool.close().await;
+}
+
 /// A pooled connection carrying this tenant's identity for as long as it is
 /// held.
 ///
