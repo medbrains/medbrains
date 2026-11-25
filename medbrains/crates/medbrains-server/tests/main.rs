@@ -318,6 +318,7 @@ mod radiation_safety_test;
 mod radiology_catalogue_seed_test;
 mod radiology_tat_report_test;
 mod readmission_report_test;
+mod register_complete_test;
 mod request_role_sweep_test;
 mod retrospective_encounter_test;
 mod rls_gap_tables_test;
