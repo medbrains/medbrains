@@ -252,21 +252,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // No endpoint (or a failed connection) falls back to the Postgres-native
     // AuthzPgBackend so dev environments without SpiceDB still boot. An
     // endpoint without a token refuses to boot outside development.
-    tracing::info!(
-        endpoint = ?std::env::var("SPICEDB_ENDPOINT").ok(),
-        "spicedb endpoint config"
-    );
+    let spicedb = config.spicedb()?;
+    tracing::info!(endpoint = ?spicedb.as_ref().map(|s| &s.endpoint), "spicedb endpoint config");
     // SpiceDB connect outcome — used to decide whether the Watch consumer
     // should also be spawned (a Postgres fallback has nothing to watch).
     let mut spicedb_live: Option<(String, String)> = None;
     let mut spicedb_outbox_client = None;
-    let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Ok(endpoint) =
-        std::env::var("SPICEDB_ENDPOINT")
-    {
-        let token = medbrains_authz_spicedb::preshared_key::preshared_key(
-            std::env::var("SPICEDB_TOKEN").ok(),
-            &config.environment,
-        )?;
+    let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Some(spicedb) = spicedb {
+        let (endpoint, token) = (spicedb.endpoint, spicedb.preshared_key);
         match medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token)
             .await
         {

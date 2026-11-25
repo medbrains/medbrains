@@ -1,15 +1,17 @@
 ---
 date: 2026-11-25
 title: SPICEDB_ENDPOINT without SPICEDB_TOKEN refuses to start outside development
-status: decided (security; owner to read)
+status: decided
 area: security
 ---
 
 ## What
 
-`medbrains_authz_spicedb::preshared_key` returns `SPICEDB_TOKEN`, or — only when
+`AppConfig::spicedb` (`medbrains-server-core/src/config/spicedb.rs`) returns `SPICEDB_TOKEN`, or — only when
 `MEDBRAINS_ENV=development` (the same rule the JWT pair follows) — the local key `devsecret`.
 Any other mode, including an unknown one, refuses to start with a message naming the fix.
+
+This is a security change: the owner reads it before merge.
 
 ## Why
 
