@@ -25,11 +25,11 @@ async fn overall_stay_is_weighted_by_admissions() {
     sqlx::query(
         "WITH u AS (SELECT id, tenant_id FROM users WHERE username = 'admin'), \
               dep AS (INSERT INTO departments (tenant_id, code, name, department_type) \
-                      SELECT u.tenant_id, $1 || d, $1 || d, 'clinical' FROM u, \
+                      SELECT u.tenant_id, upper($1 || d), $1 || d, 'clinical' FROM u, \
                              (VALUES ('A'), ('B')) AS v(d) RETURNING id, code), \
               stays AS (SELECT dep.id AS department_id, s.days \
                           FROM dep JOIN (VALUES ('A', 10), ('B', 2), ('B', 2), ('B', 2)) \
-                               AS s(d, days) ON dep.code = $1 || s.d), \
+                               AS s(d, days) ON dep.code = upper($1 || s.d)), \
               p AS (INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
                     SELECT u.tenant_id, $1 || '-' || gen_random_uuid(), 'Los', 'Patient', \
                            'other'::gender, '9000000002' FROM u, stays RETURNING id), \
