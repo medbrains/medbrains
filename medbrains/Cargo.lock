@@ -7334,6 +7334,7 @@ name = "medbrains-nabh"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "serde",
  "sqlx",

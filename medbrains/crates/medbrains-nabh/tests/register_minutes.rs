@@ -1,10 +1,11 @@
 //! Minutes written into the NABH registers are rounded to the nearest
 //! minute, not cut down: CPR that ran 10 min 50 s is 11 minutes, not 10.
 //!
-//!   DATABASE_URL=… cargo test -p medbrains-nabh --test register_minutes -- --ignored
+//! Runs on a fresh copy of the migrated test database (`make test-db`).
 
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
+use medbrains_db_migrations::testing::{add_patient, add_tenant, fresh_db};
 use medbrains_nabh::{mirror_code_blue_ended, mirror_code_blue_started};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -19,36 +20,18 @@ async fn id(db: &PgPool, sql: &str, tenant: Uuid) -> Uuid {
 }
 
 #[tokio::test]
-#[ignore = "needs DATABASE_URL"]
 async fn cpr_duration_is_rounded_to_the_nearest_minute() {
-    let db = PgPool::connect(&std::env::var("DATABASE_URL").expect("DATABASE_URL"))
-        .await
-        .unwrap();
-    let code = Uuid::new_v4().simple().to_string()[..10].to_uppercase();
-    let tenant: Uuid = sqlx::query_scalar(
-        "INSERT INTO tenants (code, name, hospital_type) \
-         VALUES ($1, 'NABH minutes test', 'multi_specialty') RETURNING id",
-    )
-    .bind(format!("NM{code}"))
-    .fetch_one(&db)
-    .await
-    .unwrap();
+    let test_db = fresh_db().await.expect("test database");
+    let db = test_db.owner().await.expect("owner");
+    let tenant = add_tenant(&db, "NABHMIN").await.expect("tenant");
     let user = id(
         &db,
         "INSERT INTO users (tenant_id, username, email, full_name, role) \
-         VALUES ($1, 'n' || substr(md5(random()::text), 1, 12), gen_random_uuid()::text || '@nabh.test', \
-                 'Nurse', 'nurse') RETURNING id",
+         VALUES ($1, 'nabh-nurse', 'nurse@nabh.test', 'Nurse', 'nurse') RETURNING id",
         tenant,
     )
     .await;
-    let patient = id(
-        &db,
-        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
-         VALUES ($1, gen_random_uuid()::text, 'Test', 'Patient', 'female', '9000000000') \
-         RETURNING id",
-        tenant,
-    )
-    .await;
+    let patient = add_patient(&db, tenant, "NABHMIN-1").await.expect("patient");
     let mut cases = Vec::new();
     for (seconds, minutes) in [(650, 11), (629, 10), (630, 11), (59, 1), (29, 0)] {
         let event: Uuid = sqlx::query_scalar(
