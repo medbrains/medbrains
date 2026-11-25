@@ -287,6 +287,7 @@ mod pharmacy_dispense_controls_test;
 mod pharmacy_expired_stock_test;
 mod pharmacy_schedule_gate_test;
 mod pharmacy_settlement_verify_test;
+mod pharmacy_stock_alerts_widget_test;
 mod pharmacy_storefront_customer_test;
 mod pharmacy_storefront_p2_refunds_test;
 mod pharmacy_storefront_p2_returns_test;
