@@ -4,10 +4,10 @@
 use rust_decimal::Decimal;
 
 /// One partial return's part of an invoice line.
-pub struct ReversalShare {
-    pub quantity: i32,
-    pub of: i32,
-    pub completes: bool,
+pub(crate) struct ReversalShare {
+    pub(crate) quantity: i32,
+    pub(crate) of: i32,
+    pub(crate) completes: bool,
 }
 
 impl ReversalShare {
@@ -16,7 +16,7 @@ impl ReversalShare {
     /// exact remainder, so any split of a line sums to the line; an earlier
     /// one takes q/Q of the line, rounded half away from zero when the
     /// numeric(…, 2) column stores it.
-    pub fn of_amount(&self, line: Decimal, prior: Decimal) -> Decimal {
+    pub(crate) fn of_amount(&self, line: Decimal, prior: Decimal) -> Decimal {
         if self.completes {
             line - prior
         } else {
