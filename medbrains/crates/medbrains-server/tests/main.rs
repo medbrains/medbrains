@@ -184,6 +184,7 @@ mod kpi_department_filter_test;
 mod lab_critical_escalation_test;
 mod lab_critical_value_report_test;
 mod lab_order_handoff_test;
+mod lab_phlebotomy_widget_test;
 mod lab_report_release_test;
 mod lab_tat_test;
 mod lab_unit_flag_test;
