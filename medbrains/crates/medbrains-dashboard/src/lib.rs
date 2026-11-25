@@ -2309,7 +2309,9 @@ async fn resolve_module_query(
         // ── Role-specific: Billing ──
         ("billing", "today_collections") => {
             let total = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
-                "SELECT SUM(amount) FROM payments WHERE payment_date >= CURRENT_DATE",
+                // `payments` records when money came in as `paid_at`; it has
+                // no `payment_date`, so this tile answered 500 on every read.
+                "SELECT SUM(amount) FROM payments WHERE paid_at >= CURRENT_DATE",
             )
             .fetch_one(&mut **tx)
             .await?
