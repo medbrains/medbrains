@@ -78,7 +78,8 @@ async fn lock(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, slot: &Slot) -> Re
     Ok(())
 }
 
-/// The refusal for the first live case that overlaps the slot in its room or
+/// The refusal for the first live case (not cancelled or postponed: a postponed
+/// case keeps its old times but no longer holds them) that overlaps the slot in its room or
 /// with one of its people, room clashes first; `None` when there is none.
 async fn first_clash(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -97,7 +98,7 @@ async fn first_clash(
                                     THEN b.assistant_surgeons ELSE '[]'::jsonb END) a \
                              WHERE a = ANY($6::text[]) LIMIT 1) END AS person \
            FROM ot_bookings b \
-           WHERE b.tenant_id = $1 AND b.status <> 'cancelled' AND b.deleted_at IS NULL \
+           WHERE b.tenant_id = $1 AND b.status NOT IN ('cancelled', 'postponed') AND b.deleted_at IS NULL \
              AND b.id IS DISTINCT FROM $7 \
              AND tstzrange(b.scheduled_start, b.scheduled_end) && tstzrange($3, $4) \
              AND (b.ot_room_id = $2 OR b.primary_surgeon_id = ANY($5::uuid[]) \

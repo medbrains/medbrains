@@ -8,7 +8,7 @@ area: clinical-safety
 ## What
 
 Creating or moving a theatre booking checks the room, the primary surgeon, the anaesthetist and
-any assistant surgeons recorded by user id against every other live (not cancelled, not deleted)
+any assistant surgeons recorded by user id against every other live (not cancelled, not postponed, not deleted)
 booking whose time overlaps, in any theatre. Times are compared as instants (half-open
 `timestamptz` ranges), never by `scheduled_date`, so a case running past midnight clashes with the
 next morning and back-to-back cases do not clash. The room and each person are locked in one
