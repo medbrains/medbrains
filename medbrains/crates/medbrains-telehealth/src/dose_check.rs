@@ -42,9 +42,11 @@ pub struct DoseCheck {
     pub not_checked: Vec<DoseNotCheckedAlert>,
 }
 
-/// Check each catalogued line against its maximum daily dose (catalogue
-/// value, else the CDS drug reference). Lines with no maximum on record are
-/// left out; every other line is either within, an alert, or not checked.
+/// Check each catalogued line against its maximum daily dose.
+///
+/// The maximum is the catalogue's, else the CDS drug reference's. Lines with
+/// no maximum on record are left out; every other line is either within, an
+/// alert, or not checked.
 pub async fn dose_alerts_for_items(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,

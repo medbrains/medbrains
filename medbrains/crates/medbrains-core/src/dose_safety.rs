@@ -180,7 +180,7 @@ fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
     if !words.all(allowed) {
         return None;
     }
-    let (dimension, factor) = unit_factor(&unit).unwrap_or((Dimension::Count(unit.clone()), 1.0));
+    let (dimension, factor) = unit_factor(&unit).unwrap_or_else(|| (Dimension::Count(unit.clone()), 1.0));
     Some(Quantity {
         base: amount * factor,
         dimension,
@@ -207,8 +207,9 @@ fn daily_doses(frequency: &str) -> Option<u32> {
     count.parse().ok().filter(|n| (1..=24).contains(n))
 }
 
-/// Compare a per-dose amount given at `frequency` against the catalogue's
-/// free-text `max_per_day`. As-needed and STAT lines are checked one dose
+/// Compare a per-dose amount at `frequency` with the catalogue maximum.
+///
+/// `max_per_day` is free text. As-needed and STAT lines are checked one dose
 /// against the daily maximum. Anything that cannot be compared is `NotChecked`.
 #[must_use]
 pub fn evaluate_max_dose(per_dose: &str, frequency: &str, max_per_day: &str) -> MaxDoseOutcome {
