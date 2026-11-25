@@ -263,6 +263,7 @@ mod password_reset_cap_test;
 mod patient_acquisition_test;
 mod patient_advance_test;
 mod patient_contact_consent_test;
+mod patient_list_authz_fault_test;
 mod patient_match_scoring_test;
 mod patient_portal_isolation_test;
 mod patient_refill_requests_test;
