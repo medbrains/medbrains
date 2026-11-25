@@ -1,7 +1,7 @@
 ---
 date: 2026-11-25
 title: The CDS rail's allergy screen uses the same matcher as the save-time backstops
-status: decided; class table needs a cited source (pharmacist)
+status: decided
 area: clinical-safety
 ---
 
@@ -10,6 +10,8 @@ area: clinical-safety
 `cds::check_drug_safety` matches drugs to allergies through `medbrains_core::allergy`, the matcher
 the OPD prescribe, pharmacy dispense and camp backstops already use: direct name match, or a shared
 cross-reactivity class. Conflicts carry `cross_reactive_class`, shown on the rail.
+
+Open: the cross-reactivity class table still needs a cited source, checked by a pharmacist.
 
 ## Why
 
