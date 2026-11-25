@@ -237,13 +237,7 @@ pub fn evaluate_max_dose(per_dose: &str, frequency: &str, max_per_day: &str) -> 
     };
     let total = dose.base * f64::from(doses);
     if total > max.base {
-        return Exceeded(DoseExceedance {
-            total_per_day: total / max.factor,
-            unit: max.unit,
-            max_per_day: max.base / max.factor,
-            ratio: total / max.base,
-            doses_per_day: doses,
-        });
+        return Exceeded(exceedance(total, &max, doses));
     }
     if as_needed {
         // ponytail: f64 floor of a small positive ratio; saturates, never panics.
@@ -252,6 +246,17 @@ pub fn evaluate_max_dose(per_dose: &str, frequency: &str, max_per_day: &str) -> 
         return NotChecked(DoseNotChecked::AsNeeded { max_doses });
     }
     Within
+}
+
+/// The overage of a daily `total` (base units) over `max`, in `max`'s unit.
+fn exceedance(total: f64, max: &Quantity, doses_per_day: u32) -> DoseExceedance {
+    DoseExceedance {
+        total_per_day: total / max.factor,
+        unit: max.unit.clone(),
+        max_per_day: max.base / max.factor,
+        ratio: total / max.base,
+        doses_per_day,
+    }
 }
 
 /// Parse a dose string like `"500 mg"`, `"5ml"`, `"2 puff"` into a numeric
