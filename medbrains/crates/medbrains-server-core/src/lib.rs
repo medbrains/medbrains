@@ -24,6 +24,7 @@ pub mod s3_presign;
 pub mod scrub;
 pub mod search;
 pub mod settings_guard;
+pub mod shutdown;
 pub mod state;
 pub mod step_up;
 pub mod tenant_config;

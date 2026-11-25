@@ -20,6 +20,11 @@ EnvironmentFile=/etc/medbrains/env
 ExecStart=/usr/local/bin/medbrains-server
 Restart=on-failure
 RestartSec=5s
+# The server drains requests in flight for 10s after SIGTERM and then exits
+# on its own (DRAIN_DEADLINE, crates/medbrains-server-core/src/shutdown.rs). This
+# is the backstop above that, not the wait: systemd's default of 90s was the
+# length of every restart while a browser tab held a stream open.
+TimeoutStopSec=15s
 StandardOutput=journal
 StandardError=journal
 

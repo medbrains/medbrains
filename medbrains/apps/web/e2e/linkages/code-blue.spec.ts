@@ -17,7 +17,7 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { routeApiDirect } from "../helpers";
+import { navigateTo, routeApiDirect } from "../helpers";
 import { expectAbsent, getAuthContextFromCookies, loginAsRoleApi, pollUntil } from "../helpers/api";
 import {
   createPatientApi,
@@ -76,7 +76,9 @@ test.describe("Code blue reaches the people who can answer it", () => {
 
     // The screen the page links to shows the arrest while it is live.
     await routeApiDirect(page);
-    await page.goto("/nurse?tab=code-blue");
+    // navigateTo signs the browser in again when its stored session has gone: the sign-ins above
+    // are from the same client, and a bare goto landed on the sign-in screen.
+    await navigateTo(page, "/nurse?tab=code-blue");
     await expect(page.getByText(location)).toBeVisible();
 
     // Stand-down: to exactly the people who were paged, and the page stays

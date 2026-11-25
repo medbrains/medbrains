@@ -1,0 +1,17 @@
+#!/bin/bash
+# Runs inside the image after mkosi has applied systemd's presets, which is after
+# mkosi.postinst.chroot. A preset pass can undo a mask made there: it replaces a mask on a name that
+# an enabled unit claims as an alias (ctrl-alt-del.target, in v3.35.6). So every unit the postinst
+# masks is checked here, on the finished tree, and the build fails if one is no longer masked.
+set -euo pipefail
+
+# The unit names after every `systemctl mask` in the postinst, following a line that ends in a backslash.
+masked="$(awk '/^systemctl mask/{on=1} on{print} on&&!/\\$/{on=0}' "$CHROOT_SRCDIR/mkosi.postinst.chroot" |
+    sed 's/^systemctl mask//; s/\\$//')"
+if [[ -z "${masked// }" ]]; then echo "FAIL: found no masked unit to check in mkosi.postinst.chroot" >&2; exit 1; fi
+for unit in $masked; do
+    if [[ "$(readlink "/etc/systemd/system/$unit" || true)" != /dev/null ]]; then
+        echo "FAIL: $unit is masked in mkosi.postinst.chroot but not in the built image" >&2
+        exit 1
+    fi
+done

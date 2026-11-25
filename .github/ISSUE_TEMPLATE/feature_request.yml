@@ -1,6 +1,6 @@
 name: 💡 Feature request / module proposal
 description: Suggest a feature, module, or improvement
-labels: ["enhancement", "needs-triage"]
+labels: ["enhancement", "needs-triage", "status:intake"]
 body:
   - type: markdown
     attributes:
@@ -20,6 +20,39 @@ body:
       description: What should happen? Screens, endpoints, rules, edge cases.
     validations:
       required: true
+  - type: textarea
+    id: scenarios
+    attributes:
+      label: Acceptance scenarios
+      description: Real situations as Given / When / Then. Cover the usual case, an error, a user without the permission, and any rule the law sets. Leave blank if you are not sure; triage will write them before work starts.
+      placeholder: |
+        Given a Schedule X medicine with no duplicate record
+        When the pharmacist dispenses it
+        Then the system blocks it and logs the attempt
+    validations:
+      required: false
+  - type: input
+    id: screen
+    attributes:
+      label: Screen and role
+      description: Which screen changes, and who uses it. Or "no screen", and the screen this unblocks.
+    validations:
+      required: false
+  - type: input
+    id: permission
+    attributes:
+      label: Permission
+      description: The permission that guards it, or "new" if none fits. Maintainers fill this in at triage.
+    validations:
+      required: false
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk class
+      description: Safety means medication, patient identity, money, who may see or do what, database changes, updates or security.
+      options: [Not sure, Safety, Standard, Low (docs, wording, tests)]
+    validations:
+      required: false
   - type: textarea
     id: regulatory
     attributes:
