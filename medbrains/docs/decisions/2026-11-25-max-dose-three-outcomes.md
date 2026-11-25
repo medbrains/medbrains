@@ -1,7 +1,7 @@
 ---
 date: 2026-11-25
 title: The max-dose check normalises units and says when a line was not checked
-status: proposed (clinician to confirm)
+status: proposed
 area: clinical-safety
 ---
 
