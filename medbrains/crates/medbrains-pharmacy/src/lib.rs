@@ -7523,7 +7523,10 @@ pub async fn select_fefo_batch(
 //  Phase 3: POS Counter Sales
 // ══════════════════════════════════════════════════════════
 
-/// POST /api/pharmacy/pos/sales
+/// POST /api/pharmacy/pos/sales — sell at the counter: price each line at
+/// or under MRP, split its GST into CGST and SGST that add up to its tax,
+/// take the stock FEFO, record the tenders, and post a patient's sale to
+/// billing.
 pub async fn create_pos_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -8615,6 +8618,10 @@ pub struct PosSalesQuery {
     pub date: Option<NaiveDate>,
 }
 
+/// Post a patient's POS sale to their billing account as an invoice with one
+/// line per item (CGST and SGST as split at the counter) and one payment per
+/// tender, so billing sees what the counter sold. A walk-in sale has no
+/// patient and posts nothing.
 async fn mirror_patient_pos_sale_to_billing_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
