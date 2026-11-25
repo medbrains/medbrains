@@ -38,43 +38,32 @@ pub(crate) async fn conn_and_today(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::today;
     use chrono::{Days, Utc};
-    use sqlx::PgPool;
-    use uuid::Uuid;
+    use medbrains_db_migrations::testing::{add_tenant, fresh_db};
 
     /// The hospital's date, not the UTC one, in a zone whose date differs
     /// from UTC's right now (UTC+14 or UTC−12; at any instant one of them
     /// does): the same gap 01:00 IST opens every night.
     #[tokio::test]
-    #[ignore = "needs DATABASE_URL"]
     async fn today_is_the_hospitals_date_not_the_utc_one() {
-        let db = PgPool::connect(&std::env::var("DATABASE_URL").expect("DATABASE_URL"))
-            .await
-            .expect("connect");
+        let test_db = fresh_db().await.expect("test database");
+        let db = test_db.owner().await.expect("owner");
         let utc = Utc::now();
         let (zone, local) = if chrono::Timelike::hour(&utc) >= 10 {
-            (
-                "Etc/GMT-14",
-                utc.date_naive().checked_add_days(Days::new(1)),
-            )
+            ("Etc/GMT-14", utc.date_naive().checked_add_days(Days::new(1)))
         } else {
-            (
-                "Etc/GMT+12",
-                utc.date_naive().checked_sub_days(Days::new(1)),
-            )
+            ("Etc/GMT+12", utc.date_naive().checked_sub_days(Days::new(1)))
         };
-        let code = Uuid::new_v4().simple().to_string()[..10].to_uppercase();
-        let tenant: Uuid = sqlx::query_scalar(
-            "INSERT INTO tenants (code, name, hospital_type, timezone) \
-             VALUES ($1, 'Date test', 'multi_specialty', $2) RETURNING id",
-        )
-        .bind(format!("TZ{code}"))
-        .bind(zone)
-        .fetch_one(&db)
-        .await
-        .expect("tenant");
+        let tenant = add_tenant(&db, "TVDATE").await.expect("tenant");
+        sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
+            .bind(tenant)
+            .bind(zone)
+            .execute(&db)
+            .await
+            .expect("timezone");
         let mut conn = db.acquire().await.expect("conn");
         let got = today(&mut conn, tenant, None).await.expect("today");
         assert_eq!(Some(got), local, "{zone}");

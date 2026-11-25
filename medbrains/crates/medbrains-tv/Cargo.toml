@@ -18,6 +18,7 @@ sqlx = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }
 tokio = { workspace = true }
 
 [lints]
