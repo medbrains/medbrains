@@ -375,19 +375,18 @@ describe("/audit endpoints", () => {
     expect(url).toBe("/api/audit/entity-types");
   });
 
+  // The old check read the first 5,000 rows, recomputed no hash, and said
+  // "valid". The nightly verifier's results (listAuditChainVerifications)
+  // are the only integrity answer the client may show.
+  it("has no first-5,000-rows integrity check", () => {
+    expect("verifyAuditIntegrity" in api).toBe(false);
+  });
+
   it("exportAuditLogUrl → builds /audit/export URL", () => {
     const url = api.exportAuditLogUrl({ module: "pharmacy", format: "csv" });
     expect(url).toContain("/audit/export");
     expect(url).toContain("module=pharmacy");
     expect(url).toContain("format=csv");
-  });
-
-  it("verifyAuditIntegrity → GET /audit/verify-integrity", async () => {
-    mockOk({ valid: true, total_checked: 100, broken_at: null });
-    await api.verifyAuditIntegrity();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/audit/verify-integrity");
   });
 
   it("getUserActivity → GET /audit/user/{param_1}/activity", async () => {

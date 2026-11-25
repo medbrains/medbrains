@@ -7067,25 +7067,6 @@
       "unbuilt": false
     },
     {
-      "method": "GET",
-      "path": "/api/audit/verify-integrity",
-      "permission": "audit.log.view",
-      "permission_label": "View Audit Log",
-      "grantable_in_ui": true,
-      "roles_with_it": [
-        "audit_officer"
-      ],
-      "entity": null,
-      "entity_action": null,
-      "entity_action_confidence": "none",
-      "ui_methods": [
-        "verifyAuditIntegrity"
-      ],
-      "ui_pages": [],
-      "unauthenticated": false,
-      "unbuilt": false
-    },
-    {
       "method": "POST",
       "path": "/api/auth/change-password",
       "permission": null,
