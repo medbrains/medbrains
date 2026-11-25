@@ -30,7 +30,7 @@ RETURNS SETOF uuid
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 SET pg_trgm.similarity_threshold = 0.3
 AS $fn$
 BEGIN
