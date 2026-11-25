@@ -1,13 +1,13 @@
-//! The key the server presents to SpiceDB (`SPICEDB_TOKEN`).
+//! The key the server presents to `SpiceDB` (`SPICEDB_TOKEN`).
 //!
-//! `devsecret` is the preshared key of the local SpiceDB in
+//! `devsecret` is the preshared key of the local `SpiceDB` in
 //! `docker-compose.yml` and the dev scripts: public, in this repository. A
-//! server that fell back to it outside development would reach a SpiceDB
+//! server that fell back to it outside development would reach a `SpiceDB`
 //! started with that key, or fail to reach a real one and quietly run on the
 //! Postgres backend. So outside development a missing token refuses the boot,
 //! the way a missing JWT pair does.
 
-/// The local SpiceDB's key (`docker-compose.yml`). Development only.
+/// The local `SpiceDB`'s key (`docker-compose.yml`). Development only.
 const DEV_PRESHARED_KEY: &str = "devsecret";
 
 /// `token` (the value of `SPICEDB_TOKEN`), or the local development key when
