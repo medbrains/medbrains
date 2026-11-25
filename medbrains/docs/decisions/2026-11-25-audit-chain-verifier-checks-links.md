@@ -22,6 +22,11 @@ A strict "previous row in created_at order" check is wrong for this trigger: `cr
 transaction start, so concurrent requests produce rows linked out of that order every day, and the
 strict check would page on healthy chains.
 
+What it cannot catch, measured: rows one transaction writes share `created_at`, and the trigger
+then links each to the greatest random `id` so far, so most are leaves (a new hospital's setup
+rows are). Deleting or forging a leaf leaves nothing dangling. Only a trigger that stamps rows in
+lock order makes the chain a line in which every deletion shows.
+
 ## Rejected
 
 - Strict order: false alarms on every concurrent write.

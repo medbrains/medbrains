@@ -19,11 +19,15 @@
 //! - a row still waiting when the walk ends points at a row that is not
 //!   there, or not where it should be: the chain is broken there.
 //!
-//! Ceiling: a forged row placed as a late writer (an older `created_at`, its
-//! parent ahead) is indistinguishable from a real one. Closing that needs
-//! the trigger to stamp rows in lock order (`clock_timestamp()` or a
-//! per-tenant counter) so no late writers exist; that is a migration and the
-//! owner's call, not done here.
+//! Ceiling, measured on a fresh hospital: rows written in one transaction
+//! share `created_at`, so the trigger links each to the one with the greatest
+//! random `id` so far, and most of them end up as leaves too. A leaf (late
+//! writer or same-transaction row) has no child whose `prev_hash` would dangle,
+//! so deleting one, or forging one in that position, cannot be seen by any
+//! walk of this chain. Deleting or inserting a main-line row is caught. Closing
+//! the gap needs the trigger to stamp rows in lock order (`clock_timestamp()`
+//! or a per-tenant counter) so the chain is a line; that is a migration on the
+//! busiest table and the owner's call, not done here.
 
 use std::collections::HashMap;
 
