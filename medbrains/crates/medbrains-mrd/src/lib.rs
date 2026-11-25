@@ -2655,9 +2655,10 @@ struct AdmDischRow {
     all_avg_los_days: Option<f64>,
 }
 
-/// GET /api/mrd/stats/admission-discharge — admissions, discharges, deaths
-/// and average length of stay per department for the period, and overall.
-/// The overall figures are summed in SQL over every admission: the overall
+/// GET /api/mrd/stats/admission-discharge — the period's stays by department.
+///
+/// Admissions, discharges, deaths and average length of stay per department
+/// for the period, and overall. The overall figures are summed in SQL over every admission: the overall
 /// stay is total days over total admissions, where it used to be the plain
 /// mean of the department means, so one patient in a small department
 /// weighed as much as a whole ward. Soft-deleted admissions are not counted.
