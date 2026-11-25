@@ -16,7 +16,7 @@ use medbrains_core::billing::{
     AuditAction, BadDebtWriteOff, CorporateClient, CorporateEnrollment, CreditPatient,
     CreditPatientStatus, Invoice,
 };
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -596,7 +596,7 @@ pub async fn approve_write_off(
         .await?
         // A write-off whose invoice is gone is a broken record, not "nothing outstanding".
         .ok_or(AppError::NotFound)?
-        .round_dp(2);
+        .to_paisa();
         if existing.amount > outstanding {
             return Err(AppError::BadRequest(format!(
                 "Write-off {} exceeds the invoice's outstanding balance {outstanding}",

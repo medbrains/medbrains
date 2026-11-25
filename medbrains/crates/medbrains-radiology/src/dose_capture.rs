@@ -64,6 +64,7 @@ impl CapturedDose {
     /// The figures as the dose table stores them, at its precision.
     #[must_use]
     pub fn decimals(&self) -> [Option<Decimal>; 5] {
+        // rounding: a radiation dose, not money
         let d = |v: Option<f64>| v.and_then(Decimal::from_f64).map(|d| d.round_dp(4));
         [
             d(self.dlp),

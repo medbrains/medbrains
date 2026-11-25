@@ -82,8 +82,8 @@ use medbrains_core::billing::{
     InvoiceStatus, PatientAdvance, Payment, PaymentMode, RatePlanItem, Receipt, Refund,
 };
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
-use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
+use medbrains_core::{form::FieldAccessLevel, money::RoundMoney};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -1542,7 +1542,7 @@ pub async fn record_payment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let payment_amount = body.amount.round_dp(2);
+    let payment_amount = body.amount.to_paisa();
     if payment_amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Payment amount must be greater than zero".to_owned(),
@@ -3088,7 +3088,7 @@ async fn create_installment(
     if count <= 0 {
         return Err(AppError::BadRequest("installment_count must be > 0".into()));
     }
-    let installment_amount = (total / Decimal::from(count)).round_dp(2).normalize();
+    let installment_amount = (total / Decimal::from(count)).to_paisa().normalize();
 
     let frequency = req.frequency.unwrap_or_else(|| "monthly".into());
     let interest_rate = req.interest_rate.unwrap_or_default();
@@ -3375,8 +3375,8 @@ async fn pay_installment_item(
         ));
     }
 
-    let amount = (item.amount + item.penalty_amount).round_dp(2);
-    let outstanding = (inv.total_amount - inv.paid_amount).round_dp(2);
+    let amount = (item.amount + item.penalty_amount).to_paisa();
+    let outstanding = (inv.total_amount - inv.paid_amount).to_paisa();
     if amount > outstanding {
         return Err(AppError::Conflict(format!(
             "This instalment ({amount}) is more than the bill's outstanding balance \

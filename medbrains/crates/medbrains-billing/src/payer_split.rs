@@ -5,7 +5,7 @@
 //! scheme or corporate, when it has one. The insurer's share then carries
 //! the policy's co-pay and deductible, which move to the patient.
 
-use rust_decimal::{Decimal, RoundingStrategy};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -116,7 +116,7 @@ fn matches(rule: &Rule, line: &Line) -> bool {
 }
 
 fn money(v: Decimal) -> Decimal {
-    v.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+    medbrains_core::money::to_paisa(v)
 }
 
 /// Split the bill. `terms` is `None` when nobody but the patient pays.

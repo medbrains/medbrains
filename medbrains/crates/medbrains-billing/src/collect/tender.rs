@@ -1,6 +1,7 @@
 //! The ways a collection is paid, and the gateway and card-machine money a
 //! collection takes over rather than posting again.
 
+use medbrains_core::money::RoundMoney;
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -66,7 +67,7 @@ fn manual(input: &TenderInput) -> Result<Tender, AppError> {
             "'{mode}' is not a way to pay at the desk"
         )));
     }
-    let amount = input.amount.unwrap_or_default().round_dp(2);
+    let amount = input.amount.unwrap_or_default().to_paisa();
     if amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Each payment must be more than zero".to_owned(),
@@ -160,7 +161,7 @@ async fn gateway(
             mode: mode_of(&row)
                 .ok_or_else(|| conflict("That payment's method has no payment mode"))?
                 .to_owned(),
-            amount: row.approved.round_dp(2),
+            amount: row.approved.to_paisa(),
             reference: row.gateway_payment_id,
             gateway_txn: Some(txn_id),
         }),

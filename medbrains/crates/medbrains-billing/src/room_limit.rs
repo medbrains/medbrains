@@ -13,7 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
@@ -37,7 +37,8 @@ pub struct RoomRentLimit {
 /// figure is in range once rounded: above zero, a percentage at most 100. A
 /// figure too small to survive rounding is refused here, not by the database.
 fn validated(body: &RoomRentLimitBody) -> Result<(Option<Decimal>, Option<Decimal>), AppError> {
-    let per_day = body.room_rent_limit_per_day.map(|v| v.round_dp(2));
+    let per_day = body.room_rent_limit_per_day.map(RoundMoney::to_paisa);
+    // rounding: a percentage, not money
     let percent = body.room_rent_limit_percent.map(|v| v.round_dp(2));
     let bad_amount = per_day.is_some_and(|v| v <= Decimal::ZERO);
     let bad_percent = percent.is_some_and(|v| v <= Decimal::ZERO || v > Decimal::ONE_HUNDRED);

@@ -424,6 +424,12 @@ check-lints-inheritance: ## Fail if a crate does not inherit the workspace lints
 	python3 scripts/check_lints_inheritance.py --self-test
 	python3 scripts/check_lints_inheritance.py
 
+.PHONY: check-money-rounding
+check-all: check-money-rounding
+check-money-rounding: ## Money is rounded only by medbrains_core::money (half away from zero)
+	python3 scripts/check_money_rounding.py --self-test
+	python3 scripts/check_money_rounding.py
+
 check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys and MEDBRAINS_ENV literals outside medbrains-crypto/src/keys*
 	python3 scripts/check_raw_key_bytes.py
 	bash deploy/standalone/test-jwt-keys.sh

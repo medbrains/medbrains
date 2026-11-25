@@ -168,6 +168,7 @@ async fn record_tds(
 ) -> Result<Uuid, AppError> {
     let (fy, quarter) = financial_year(on);
     let rate = if a.gross_amount > Decimal::ZERO {
+        // rounding: a percentage, not money
         (a.tds_amount * Decimal::ONE_HUNDRED / a.gross_amount).round_dp(2)
     } else {
         Decimal::ZERO

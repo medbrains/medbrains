@@ -15,7 +15,7 @@ use axum::{
 use chrono::NaiveDate;
 use medbrains_core::billing::{InsuranceClaim, Invoice, InvoiceStatus, TpaRateCard};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -251,13 +251,14 @@ pub async fn create_insurance_claim(
     .bind(insurance_provider)
     .bind(policy_number)
     .bind(claim_type)
-    .bind(body.pre_auth_amount.map(|amount| amount.round_dp(2)))
+    .bind(body.pre_auth_amount.map(RoundMoney::to_paisa))
     .bind(tpa_name)
     .bind(notes)
     .bind(claims.sub)
     .bind(scheme)
+    // rounding: a percentage, not money
     .bind(body.co_pay_percent.map(|percent| percent.round_dp(2)))
-    .bind(body.deductible_amount.map(|amount| amount.round_dp(2)))
+    .bind(body.deductible_amount.map(RoundMoney::to_paisa))
     .bind(member_id)
     .bind(scheme_card_number)
     .fetch_one(&mut *tx)

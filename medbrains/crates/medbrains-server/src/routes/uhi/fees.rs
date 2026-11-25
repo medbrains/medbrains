@@ -11,6 +11,7 @@
 //! With no fee anywhere the quote says the fee is paid at the hospital. It
 //! never names ₹0 as if that were the price.
 
+use medbrains_core::money::RoundMoney;
 use std::collections::HashMap;
 
 use rust_decimal::Decimal;
@@ -35,14 +36,14 @@ pub struct Fee {
 
 /// Rupees with two decimals, as UHI's prices are written.
 pub fn money(value: Decimal) -> String {
-    let mut v = value.round_dp(2);
+    let mut v = value.to_paisa();
     v.rescale(2);
     v.to_string()
 }
 
 impl Fee {
     pub fn tax(&self) -> Decimal {
-        (self.amount * self.tax_percent / Decimal::ONE_HUNDRED).round_dp(2)
+        (self.amount * self.tax_percent / Decimal::ONE_HUNDRED).to_paisa()
     }
 
     pub fn total(&self) -> Decimal {

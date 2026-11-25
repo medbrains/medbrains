@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use chrono::{Datelike, NaiveDate};
-use rust_decimal::{Decimal, RoundingStrategy};
+use rust_decimal::Decimal;
 use uuid::Uuid;
 
 /// When a doctor's share becomes earned.
@@ -115,7 +115,7 @@ pub struct Share {
 }
 
 pub fn money(d: Decimal) -> Decimal {
-    d.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+    medbrains_core::money::to_paisa(d)
 }
 
 fn opt_matches(want: Option<&str>, have: Option<&str>) -> Option<u32> {

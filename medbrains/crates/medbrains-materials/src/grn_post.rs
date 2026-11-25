@@ -8,8 +8,8 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use medbrains_core::permissions;
 use medbrains_core::procurement::{GoodsReceiptNote, GrnItem};
+use medbrains_core::{money::RoundMoney, permissions};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -47,7 +47,7 @@ fn effective_unit_cost(item: &GrnItem) -> Decimal {
     let discount_share = item.discount_amount * Decimal::from(item.quantity_accepted)
         / Decimal::from(item.quantity_received);
     let paid = Decimal::from(item.quantity_accepted) * item.unit_price - discount_share;
-    (paid / Decimal::from(units)).round_dp(2)
+    (paid / Decimal::from(units)).to_paisa()
 }
 
 async fn claim(

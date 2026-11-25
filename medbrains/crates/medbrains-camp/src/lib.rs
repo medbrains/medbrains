@@ -81,9 +81,9 @@ use medbrains_core::camp::{
     CampScreening, CampTeamMember,
 };
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
-use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
 use medbrains_core::privacy::{mask_identifier_keep_last, mask_name, mask_phone};
+use medbrains_core::{form::FieldAccessLevel, money::RoundMoney};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -1766,7 +1766,7 @@ fn planned_service_patient_collection(plan: &Value) -> Decimal {
                 let qty = json_decimal(item.get("planned_qty"));
                 let rate = json_decimal(item.get("patient_rate"));
                 let concession = json_decimal(item.get("concession_percentage"));
-                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).round_dp(2)
+                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).to_paisa()
             }
         })
         .sum()
@@ -1786,7 +1786,7 @@ fn planned_doctor_patient_collection(plan: &Value) -> Decimal {
                 let qty = json_decimal(item.get("expected_consults"));
                 let rate = json_decimal(item.get("consultation_fee"));
                 let concession = json_decimal(item.get("concession_percentage"));
-                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).round_dp(2)
+                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).to_paisa()
             }
         })
         .sum()
@@ -1812,7 +1812,7 @@ fn planned_medicine_patient_collection(plan: &Value) -> Decimal {
                 };
                 let rate = json_decimal(item.get("unit_price"));
                 let concession = json_decimal(item.get("concession_percentage"));
-                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).round_dp(2)
+                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).to_paisa()
             }
         })
         .sum()
@@ -2065,7 +2065,7 @@ async fn materialize_camp_plan_from_value(
 
     let sponsor_amount = (planned_sponsor_coverage(plan)
         + json_decimal(plan.get("sponsor_covered_amount")))
-    .round_dp(2);
+    .to_paisa();
     if sponsor_amount > Decimal::ZERO {
         let covered_services = json_array(plan, "service_lines")
             .iter()
@@ -2483,19 +2483,19 @@ async fn build_camp_planning_summary(
         Some(amount) if amount > budget_components => amount,
         _ => budget_components,
     }
-    .round_dp(2);
+    .to_paisa();
 
     let planned_patient_collection = (planned_component_sum(plan, "patient_pay_amount")
         + planned_service_patient_collection(plan)
         + planned_doctor_patient_collection(plan)
         + planned_medicine_patient_collection(plan))
-    .round_dp(2);
+    .to_paisa();
     let planned_cost = (planned_budget
         + planned_service_cost(plan)
         + planned_doctor_cost(plan)
         + planned_medicine_cost(plan))
-    .round_dp(2);
-    let planned_sponsor_coverage = planned_sponsor_coverage(plan).round_dp(2);
+    .to_paisa();
+    let planned_sponsor_coverage = planned_sponsor_coverage(plan).to_paisa();
 
     let checklist = sqlx::query_as::<_, CampRemoteChecklistItem>(
         "SELECT * FROM camp_remote_checklist_items \
@@ -2605,18 +2605,18 @@ async fn build_camp_planning_summary(
     .fetch_one(&mut **tx)
     .await?;
 
-    let actual_patient_collection = billing.patient_collected.unwrap_or_default().round_dp(2);
+    let actual_patient_collection = billing.patient_collected.unwrap_or_default().to_paisa();
     let sponsor_receivable = (billing.sponsor_receivable.unwrap_or_default()
         + structured.sponsor_receivable.unwrap_or_default())
-    .round_dp(2);
-    let sponsor_collected = structured.sponsor_collected.unwrap_or_default().round_dp(2);
+    .to_paisa();
+    let sponsor_collected = structured.sponsor_collected.unwrap_or_default().to_paisa();
     let actual_cost = (supply.actual_supply_cost.unwrap_or_default()
         + camp.budget_spent.unwrap_or_default())
-    .round_dp(2);
+    .to_paisa();
     let accrual_revenue = actual_patient_collection + sponsor_receivable;
-    let profit_loss = (accrual_revenue - actual_cost).round_dp(2);
-    let budget_variance = (actual_cost - planned_budget).round_dp(2);
-    let cash_surplus = (actual_patient_collection + sponsor_collected - actual_cost).round_dp(2);
+    let profit_loss = (accrual_revenue - actual_cost).to_paisa();
+    let budget_variance = (actual_cost - planned_budget).to_paisa();
+    let cash_surplus = (actual_patient_collection + sponsor_collected - actual_cost).to_paisa();
     let margin_pct = decimal_percent(profit_loss, accrual_revenue);
     let budget_variance_pct = decimal_percent(budget_variance, planned_budget);
 
@@ -2789,7 +2789,7 @@ async fn build_camp_planning_summary(
             "billing",
             format!(
                 "Sponsor receivable {}, {} free issue rows, {} paid rows, {} billed rows",
-                sponsor_receivable.round_dp(2),
+                sponsor_receivable.to_paisa(),
                 billing.free_items,
                 billing.paid_items,
                 billing.billed_items
@@ -2805,10 +2805,7 @@ async fn build_camp_planning_summary(
             "warning",
             "pending",
             "billing",
-            format!(
-                "Actual cost exceeds plan by {}",
-                budget_variance.round_dp(2)
-            ),
+            format!("Actual cost exceeds plan by {}", budget_variance.to_paisa()),
             false,
             true,
         ));
@@ -2909,7 +2906,7 @@ async fn build_camp_planning_summary(
     let closeout_blocked = action_items
         .iter()
         .any(|item| item.blocks_closeout && item.status != "ok");
-    let planned_supply_cost = supply.planned_supply_cost.unwrap_or_default().round_dp(2);
+    let planned_supply_cost = supply.planned_supply_cost.unwrap_or_default().to_paisa();
     let planned_cost = if planned_cost > planned_supply_cost {
         planned_cost
     } else {
@@ -2936,8 +2933,8 @@ async fn build_camp_planning_summary(
             cash_surplus,
             free_issue_value: (billing.free_issue_value.unwrap_or_default()
                 + supply.supply_free_issue_value.unwrap_or_default())
-            .round_dp(2),
-            paid_issue_value: billing.paid_issue_value.unwrap_or_default().round_dp(2),
+            .to_paisa(),
+            paid_issue_value: billing.paid_issue_value.unwrap_or_default().to_paisa(),
         },
         stock: CampPlanningStockSummary {
             total_items: supply.total_items,
@@ -7957,8 +7954,8 @@ pub async fn create_billing(
                 .to_owned(),
         ));
     }
-    let tax_amount = (body.charged_amount * tax_percent / Decimal::from(100)).round_dp(2);
-    let total_amount = (body.charged_amount + tax_amount).round_dp(2);
+    let tax_amount = (body.charged_amount * tax_percent / Decimal::from(100)).to_paisa();
+    let total_amount = (body.charged_amount + tax_amount).to_paisa();
     let payment_mode = body
         .payment_mode
         .as_deref()
@@ -8098,7 +8095,7 @@ async fn mirror_camp_billing_to_common_billing_in_tx(
     .execute(&mut **tx)
     .await?;
 
-    let concession_amount = (row.standard_amount - row.charged_amount).round_dp(2);
+    let concession_amount = (row.standard_amount - row.charged_amount).to_paisa();
     if !charge.skipped_duplicate && concession_amount > Decimal::ZERO {
         sqlx::query(
             "INSERT INTO billing_concessions \

@@ -2,6 +2,7 @@
 //! key `balance_link`, edited on Billing → Settings. Anything not set takes
 //! the default here.
 
+use medbrains_core::money::RoundMoney;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -51,7 +52,7 @@ impl LinkSettings {
     /// The least part, never below zero.
     #[must_use]
     pub fn min_part(&self) -> Decimal {
-        self.min_part_amount.max(Decimal::ZERO).round_dp(2)
+        self.min_part_amount.max(Decimal::ZERO).to_paisa()
     }
 }
 

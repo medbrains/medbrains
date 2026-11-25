@@ -20,7 +20,7 @@ use axum::{
     http::HeaderMap,
 };
 use medbrains_core::payment::PaymentGatewayTransaction;
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -244,8 +244,7 @@ pub(crate) fn amount_to_paise(amount: Decimal) -> Result<i64, AppError> {
             "Amount must be greater than zero".to_owned(),
         ));
     }
-    let rounded =
-        amount.round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero);
+    let rounded = amount.to_paisa();
     if rounded != amount {
         return Err(AppError::BadRequest(format!(
             "Amount {amount} is not a whole number of paise"

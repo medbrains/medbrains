@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use medbrains_core::hr::{PayrollRun, Payslip, SalaryStructure};
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -188,18 +188,18 @@ fn compute_payslip(s: &StructureCalcRow, working_days: Decimal, lop: Decimal) ->
     } else {
         paid_days / working_days
     };
-    let earned_basic = (s.basic * ratio).round_dp(2);
-    let earned_hra = (s.hra * ratio).round_dp(2);
-    let earned_allow = (s.other_allowances * ratio).round_dp(2);
-    let earned_gross = (earned_basic + earned_hra + earned_allow).round_dp(2);
+    let earned_basic = (s.basic * ratio).to_paisa();
+    let earned_hra = (s.hra * ratio).to_paisa();
+    let earned_allow = (s.other_allowances * ratio).to_paisa();
+    let earned_gross = (earned_basic + earned_hra + earned_allow).to_paisa();
 
     let pf = if s.pf_applicable {
-        (earned_basic * pf_rate()).round_dp(2).min(pf_cap())
+        (earned_basic * pf_rate()).to_paisa().min(pf_cap())
     } else {
         Decimal::ZERO
     };
     let esi = if s.esi_applicable && gross <= esi_ceiling() {
-        (earned_gross * esi_rate()).round_dp(2)
+        (earned_gross * esi_rate()).to_paisa()
     } else {
         Decimal::ZERO
     };

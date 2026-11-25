@@ -83,6 +83,7 @@ pub mod jwt_signer;
 pub mod lab;
 pub mod lms;
 pub mod mar_schedule;
+pub mod money;
 pub mod mrd;
 pub mod multi_hospital;
 pub mod news;

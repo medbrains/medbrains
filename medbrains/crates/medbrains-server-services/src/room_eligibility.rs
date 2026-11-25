@@ -13,6 +13,7 @@
 
 pub mod record;
 
+use medbrains_core::money::RoundMoney;
 use std::collections::HashMap;
 
 use rust_decimal::{Decimal, RoundingStrategy};
@@ -72,7 +73,7 @@ struct Policy {
 fn eligible_rate(p: &Policy) -> Result<Option<Decimal>, ()> {
     match (p.per_day, p.percent, p.sum_insured) {
         (Some(d), _, _) => Ok(Some(d)),
-        (None, Some(pct), Some(si)) => Ok(Some((si * pct / Decimal::ONE_HUNDRED).round_dp(2))),
+        (None, Some(pct), Some(si)) => Ok(Some((si * pct / Decimal::ONE_HUNDRED).to_paisa())),
         (None, Some(_), None) => Err(()),
         (None, None, _) => Ok(None),
     }
@@ -92,6 +93,7 @@ struct Room {
 pub fn payable_ratio(room: Decimal, eligible: Decimal) -> Option<Decimal> {
     (room > eligible && eligible > Decimal::ZERO).then(|| {
         (eligible / room)
+            // rounding: a ratio to six places, never up
             .round_dp_with_strategy(6, RoundingStrategy::ToZero)
             .max(Decimal::new(1, 6))
     })
@@ -103,8 +105,7 @@ pub fn payable_ratio(room: Decimal, eligible: Decimal) -> Option<Decimal> {
 /// inbox's live figure (computed in SQL) and the consent's agree.
 #[must_use]
 pub fn deduction(bill: Decimal, ratio: Decimal) -> Decimal {
-    (bill * (Decimal::ONE - ratio))
-        .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+    (bill * (Decimal::ONE - ratio)).to_paisa()
 }
 
 /// The active policy in force today, primary first.

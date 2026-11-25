@@ -258,6 +258,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_brick_tables.py --self-test
           python3 medbrains/scripts/check_brick_tables.py
+      # Money is rounded in one place, half away from zero; banker's rounding at
+      # ~80 sites made a bill disagree with its receipt by a paisa.
+      - name: Money is rounded only by medbrains_core::money
+        run: |
+          python3 medbrains/scripts/check_money_rounding.py --self-test
+          python3 medbrains/scripts/check_money_rounding.py
       # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
       - name: Rust functions and files only shrink
         run: |

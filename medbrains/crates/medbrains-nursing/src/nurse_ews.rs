@@ -43,6 +43,7 @@ pub struct ScoringInputs {
 
 /// Tenths, exactly: the vitals columns hold one decimal place.
 fn tenths(d: Option<Decimal>) -> Option<i32> {
+    // rounding: a vital sign to one place, not money
     d.and_then(|v| (v.round_dp(1) * Decimal::TEN).to_i32())
 }
 

@@ -9,7 +9,7 @@
 //! bears are not posted at all — they stay outstanding on the patient, which
 //! is what the claim-money trigger already reports as `patient_payable`.
 
-use medbrains_core::billing::AuditAction;
+use medbrains_core::{billing::AuditAction, money::RoundMoney};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
@@ -105,7 +105,7 @@ pub(crate) async fn record(
           WHERE id = $4 AND tenant_id = $5",
     )
     .bind(serde_json::to_value(&b.deductions).map_err(|e| AppError::Internal(e.to_string()))?)
-    .bind(total.round_dp(2))
+    .bind(total.to_paisa())
     .bind(b.notes.as_deref().map(str::trim).filter(|n| !n.is_empty()))
     .bind(id)
     .bind(claims.tenant_id)
@@ -248,7 +248,7 @@ async fn approve(
     }
     let lines: Vec<Deduction> = serde_json::from_value(p.deductions.clone())
         .map_err(|e| AppError::Internal(format!("settlement deductions: {e}")))?;
-    let write_off = deducted(&lines, "write_off").round_dp(2);
+    let write_off = deducted(&lines, "write_off").to_paisa();
     if write_off > open - pay {
         return Err(AppError::Conflict(format!(
             "The write-off {write_off} is more than the {} left on the bill after the settlement",

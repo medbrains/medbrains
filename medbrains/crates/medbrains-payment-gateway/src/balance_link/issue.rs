@@ -159,7 +159,7 @@ async fn plan(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<Plan, OnlineError> {
         return Err(AppError::BadRequest("Nothing is due on one of these bills".to_owned()).into());
     }
     let due: Decimal = bills.iter().map(|b| b.balance).sum();
-    let amount = spec.amount.map_or(due, |a| a.round_dp(2));
+    let amount = spec.amount.map_or(due, medbrains_core::money::to_paisa);
     check_amount(amount, due, settings.min_part())?;
     let to = message::recipient(&mut tx, spec.tenant_id, spec.patient_id, spec.channel).await?;
     // The counter's provider, if it has links; else 422 naming the provider.

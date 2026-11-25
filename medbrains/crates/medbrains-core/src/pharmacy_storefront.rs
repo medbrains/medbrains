@@ -13,6 +13,7 @@
 //! ordered remotely. H1 and habit-forming drugs are pickup only, a unit at a
 //! time. H1 sales record the prescriber and the patient.
 
+use crate::money::RoundMoney;
 use rust_decimal::{Decimal, RoundingStrategy};
 
 /// Shown on a Schedule X, NDPS or controlled item.
@@ -106,8 +107,7 @@ pub fn clamp_discount(percent: Decimal) -> Decimal {
 #[must_use]
 pub fn online_price(price: Decimal, discount_percent: Decimal, cap: Option<Decimal>) -> Decimal {
     let off = price * clamp_discount(discount_percent) / Decimal::ONE_HUNDRED;
-    let discounted =
-        (price - off).round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+    let discounted = (price - off).to_paisa();
     cap.map_or(discounted, |c| discounted.min(c))
 }
 
@@ -128,6 +128,7 @@ pub fn price_cap(mrp: Option<Decimal>, nppa_ceiling: Option<Decimal>) -> Option<
 #[must_use]
 pub fn taxable_unit_price(inclusive: Decimal, gst_percent: Decimal) -> Decimal {
     (inclusive * Decimal::ONE_HUNDRED / (Decimal::ONE_HUNDRED + gst_percent.max(Decimal::ZERO)))
+        // rounding: down, so the bill never goes above the tax-inclusive price
         .round_dp_with_strategy(2, RoundingStrategy::ToZero)
 }
 

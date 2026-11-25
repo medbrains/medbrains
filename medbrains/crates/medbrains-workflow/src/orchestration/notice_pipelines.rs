@@ -252,7 +252,7 @@ pub(super) async fn on_billing_claim_approved(
     let (Some(to), _) = patient_contact(&mut tx, tenant_id, patient_id).await? else {
         return Ok(());
     };
-    let amount = amount.map(|a| a.round_dp(2).to_string());
+    let amount = amount.map(|a| medbrains_core::money::to_paisa(a).to_string());
     let body = claim_approved_body(&insurer, amount.as_deref());
     let msg = json!({ "to": to, "body": body, "claim_id": claim_id, "patient_id": patient_id });
     let key = Some(format!("claimok:{claim_id}"));

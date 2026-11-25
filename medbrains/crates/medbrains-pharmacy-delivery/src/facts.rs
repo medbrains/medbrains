@@ -2,6 +2,7 @@
 //! and delivery record, the hospital's delivery settings, and what is still
 //! owed on the order's bill.
 
+use medbrains_core::money::RoundMoney;
 use medbrains_core::pharmacy_delivery::{DEFAULT_COD_MIN_DELIVERIES, History, LineFacts};
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
@@ -155,7 +156,7 @@ pub async fn settings(
         })
         .and_then(|f| Decimal::try_from(f).ok())
         .unwrap_or(Decimal::ZERO)
-        .round_dp(2);
+        .to_paisa();
     let min = setting(tx, tenant_id, "cod_min_deliveries")
         .await?
         .and_then(|v| v.as_i64())
