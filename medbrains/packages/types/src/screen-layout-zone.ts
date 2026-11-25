@@ -92,6 +92,8 @@ export interface DrugSafetyCheckResult {
   dose_alerts: DoseAlert[];
   weight_alerts: WeightDoseAlert[];
   renal_alerts: RenalDoseAlert[];
+  /** Lines with a renal rule and no recent eGFR to check them against. */
+  renal_not_checked: RenalNotChecked[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];
   pregnancy_alerts: PregnancyAlert[];
@@ -108,8 +110,15 @@ export interface ClinicalConclusion {
 export interface RenalDoseAlert {
   drug_name: string;
   egfr: number;
+  /** ISO date the eGFR sample was taken. */
+  egfr_measured_on: string;
   threshold: number;
   rule: string;
+}
+
+export interface RenalNotChecked {
+  drug_name: string;
+  reason: string;
 }
 
 export interface HepaticAlert {

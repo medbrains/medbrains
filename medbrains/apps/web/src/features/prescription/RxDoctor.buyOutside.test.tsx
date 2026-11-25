@@ -24,6 +24,7 @@ const SAFETY = {
   allergy_conflicts: [],
   weight_alerts: [],
   renal_alerts: [],
+  renal_not_checked: [],
   hepatic_alerts: [],
   ingredient_alerts: [],
   pregnancy_alerts: [],
