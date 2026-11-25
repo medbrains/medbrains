@@ -180,7 +180,8 @@ fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
     if !words.all(allowed) {
         return None;
     }
-    let (dimension, factor) = unit_factor(&unit).unwrap_or_else(|| (Dimension::Count(unit.clone()), 1.0));
+    let (dimension, factor) =
+        unit_factor(&unit).unwrap_or_else(|| (Dimension::Count(unit.clone()), 1.0));
     Some(Quantity {
         base: amount * factor,
         dimension,
