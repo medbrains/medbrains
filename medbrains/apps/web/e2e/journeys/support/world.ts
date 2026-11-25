@@ -56,6 +56,13 @@ export interface Hospital {
 
 const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
 
+/**
+ * A password the server's rule (#6070) accepts for an account named `<anything>_<suffix>`.
+ * It must not hold the username in any form, and the rule ignores case and punctuation, so
+ * the role must not lead the suffix: `Staff-<suffix>` was refused for the `staff` role.
+ */
+const staffPassword = (suffix: string) => `Ward-Round-${suffix}-7!`;
+
 async function openPage(browser: Browser, storageState?: string): Promise<Page> {
   const context = await browser.newContext(storageState ? { storageState } : {});
   const page = await context.newPage();
@@ -98,7 +105,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         const suffix = unique().toLowerCase();
         // Usernames are at most 30 characters; long role codes are cut.
         const username = `${role.slice(0, 20)}_${suffix}`;
-        const password = `Staff-${suffix}-Pass1!`;
+        const password = staffPassword(suffix);
         const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {
           username,
           email: `${username}@e2e.medbrains.localhost`,
@@ -137,8 +144,7 @@ export const test = base.extend<{ hospital: Hospital }>({
       colleague: async (department, fieldAccess) => {
         const suffix = unique().toLowerCase();
         const username = `colleague_${suffix}`;
-        // Not the username in any form: the password rule (#6070) refuses one that holds it.
-        const password = `Ward-Round-${suffix}-7!`;
+        const password = staffPassword(suffix);
         const person = freshPerson();
         const fullName = `${person.firstName} ${person.lastName}`;
         const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {

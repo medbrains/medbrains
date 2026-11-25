@@ -424,6 +424,12 @@ check-lints-inheritance: ## Fail if a crate does not inherit the workspace lints
 	python3 scripts/check_lints_inheritance.py --self-test
 	python3 scripts/check_lints_inheritance.py
 
+.PHONY: check-utc-today
+check-all: check-utc-today
+check-utc-today: ## "Today" is the hospital's date (hospital_time), never Utc::now().date_naive() or chrono::Local
+	python3 scripts/check_utc_today.py --self-test
+	python3 scripts/check_utc_today.py
+
 check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys and MEDBRAINS_ENV literals outside medbrains-crypto/src/keys*
 	python3 scripts/check_raw_key_bytes.py
 	bash deploy/standalone/test-jwt-keys.sh

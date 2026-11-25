@@ -65,11 +65,13 @@ async function expectSidebarEntry(page: Page, label: string) {
   await expect(sidebar.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 10_000 });
 }
 
+/** A screen typed by address that the role may not open lands on the refusal screen. */
 async function expectDirectRouteDenied(page: Page, path: string) {
   await page.goto(path);
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-  // A page the role may not open sends them home (useRequirePermission).
-  await expect(page).toHaveURL(/\/dashboard(?:[?#].*)?$/, { timeout: 10_000 });
+  // useRequirePermission sends a refused person to the /forbidden screen; it no longer sends
+  // them home to /dashboard.
+  await expect(page).toHaveURL(/\/forbidden(?:[?#].*)?$/, { timeout: 10_000 });
 }
 
 /**
