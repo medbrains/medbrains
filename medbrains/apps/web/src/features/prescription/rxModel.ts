@@ -158,28 +158,6 @@ export function stockStatus(drug: FormularyDrug): "out" | "low" | "ok" | null {
   return "ok";
 }
 
-/** Parse a "<number> <unit>" string → { value, unit } (unit lower-cased). */
-function parseAmount(s: string): { value: number; unit: string } | null {
-  const m = s.trim().match(/([\d.]+)\s*([a-z%]*)/i);
-  if (!m || !m[1]) return null;
-  const value = Number.parseFloat(m[1]);
-  if (!Number.isFinite(value)) return null;
-  return { value, unit: (m[2] ?? "").toLowerCase() };
-}
-
-/** Daily total exceeds the catalog max-dose? Only checks matching units (mg/mcg/g/ml). */
-export function maxDoseExceeded(item: RxItem, drug: FormularyDrug): { totalLabel: string } | null {
-  if (item.sos || !drug.maxDosePerDay) return null;
-  const dose = parseAmount(item.strength);
-  const max = parseAmount(drug.maxDosePerDay);
-  if (!dose || !max || !dose.unit || dose.unit !== max.unit) return null;
-  const perDay = item.doses.length;
-  if (perDay <= 0) return null;
-  const total = dose.value * perDay;
-  if (total <= max.value) return null;
-  return { totalLabel: `${total} ${dose.unit}/day > max ${max.value} ${max.unit}` };
-}
-
 /** Schedule badge label + whether it needs a written Rx / register. */
 export function scheduleInfo(s: DrugSchedule): { label: string; strict: boolean } | null {
   if (!s) return null;

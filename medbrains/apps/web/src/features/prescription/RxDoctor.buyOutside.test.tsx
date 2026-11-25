@@ -22,6 +22,8 @@ const { RxDoctor } = await import("./RxDoctor");
 const SAFETY = {
   interactions: [],
   allergy_conflicts: [],
+  dose_alerts: [],
+  dose_not_checked: [],
   weight_alerts: [],
   renal_alerts: [],
   hepatic_alerts: [],

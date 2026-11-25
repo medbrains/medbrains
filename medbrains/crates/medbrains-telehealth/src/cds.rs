@@ -16,6 +16,8 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::dose_check::{DoseAlert, DoseNotCheckedAlert, dose_alerts_for_items, trim_float};
+
 use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
@@ -45,15 +47,6 @@ pub struct DoseCheckItem {
     /// Frequency code, e.g. "TID" / "1-0-1".
     pub frequency: String,
     pub catalog_item_id: Option<Uuid>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DoseAlert {
-    pub drug_name: String,
-    pub per_dose: String,
-    pub doses_per_day: u32,
-    pub total_per_day_label: String,
-    pub max_per_day_label: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,12 +126,36 @@ pub struct DrugSafetyCheckResult {
     pub interactions: Vec<DrugInteractionAlert>,
     pub allergy_conflicts: Vec<AllergyConflict>,
     pub dose_alerts: Vec<DoseAlert>,
+    /// Lines with a catalogue maximum whose dose could not be compared with it.
+    pub dose_not_checked: Vec<DoseNotCheckedAlert>,
     pub weight_alerts: Vec<WeightDoseAlert>,
     pub renal_alerts: Vec<RenalDoseAlert>,
     pub hepatic_alerts: Vec<HepaticAlert>,
     pub ingredient_alerts: Vec<IngredientAlert>,
     pub pregnancy_alerts: Vec<PregnancyAlert>,
     pub conclusion: ClinicalConclusion,
+}
+
+/// The warning-rank dosing findings (max dose, paediatric weight, renal,
+/// hepatic), one message each, so the conclusion can rank them.
+fn dosing_advisories(result: &DrugSafetyCheckResult) -> Vec<String> {
+    let dose = result
+        .dose_alerts
+        .iter()
+        .map(|a| format!("over-max: {}", a.drug_name));
+    let unchecked =
+        (result.dose_not_checked.iter()).map(|a| format!("max dose not checked: {}", a.drug_name));
+    let weight = (result.weight_alerts.iter()).map(|a| format!("paeds dose: {}", a.drug_name));
+    let renal = result
+        .renal_alerts
+        .iter()
+        .map(|a| format!("renal: {}", a.drug_name));
+    let hepatic = (result.hepatic_alerts.iter()).map(|a| format!("hepatic: {}", a.drug_name));
+    dose.chain(unchecked)
+        .chain(weight)
+        .chain(renal)
+        .chain(hepatic)
+        .collect()
 }
 
 /// Reach a single clinical conclusion from all detector outputs. **This is the
@@ -162,18 +179,7 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
         let rank = if a.kind == "incompatible" { 2 } else { 1 };
         issues.push((rank, a.label.clone()));
     }
-    for a in &result.dose_alerts {
-        issues.push((1, format!("over-max: {}", a.drug_name)));
-    }
-    for a in &result.weight_alerts {
-        issues.push((1, format!("paeds dose: {}", a.drug_name)));
-    }
-    for a in &result.renal_alerts {
-        issues.push((1, format!("renal: {}", a.drug_name)));
-    }
-    for a in &result.hepatic_alerts {
-        issues.push((1, format!("hepatic: {}", a.drug_name)));
-    }
+    issues.extend(dosing_advisories(result).into_iter().map(|m| (1, m)));
     for a in &result.pregnancy_alerts {
         // Category X (contraindicated) is critical; category D is a warning.
         let rank = if a.severity == "contraindicated" {
@@ -393,7 +399,7 @@ pub async fn check_drug_safety(
         }
     }
 
-    let dose_alerts = dose_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
+    let dose_check = dose_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
 
     // Paediatric weight-based (mg/kg/day) advisory — only when the patient is a
     // child with a recorded weight. Advisory only; never gates prescribing.
@@ -438,7 +444,8 @@ pub async fn check_drug_safety(
     let mut result = DrugSafetyCheckResult {
         interactions,
         allergy_conflicts,
-        dose_alerts,
+        dose_alerts: dose_check.alerts,
+        dose_not_checked: dose_check.not_checked,
         weight_alerts,
         renal_alerts,
         hepatic_alerts,
@@ -901,72 +908,6 @@ pub async fn interaction_alerts_for_drugs(
         }
     }
     Ok(alerts)
-}
-
-pub async fn dose_alerts_for_items(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    items: &[DoseCheckItem],
-) -> Result<Vec<DoseAlert>, AppError> {
-    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
-    if catalog_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    #[derive(sqlx::FromRow)]
-    struct MaxDoseRow {
-        id: Uuid,
-        max_dose_per_day: Option<String>,
-    }
-    let rows = sqlx::query_as::<_, MaxDoseRow>(
-        "SELECT pc.id, COALESCE(pc.max_dose_per_day, ref.max_dose_per_day) AS max_dose_per_day \
-         FROM pharmacy_catalog pc \
-         LEFT JOIN cds_drug_reference ref ON lower(ref.generic_name) = \
-             lower(COALESCE(NULLIF(pc.inn_name, ''), pc.generic_name, pc.name)) \
-         WHERE pc.tenant_id = $1 AND pc.id = ANY($2)",
-    )
-    .bind(tenant_id)
-    .bind(&catalog_ids)
-    .fetch_all(&mut **tx)
-    .await?;
-
-    let mut alerts = Vec::new();
-    for item in items {
-        let Some(catalog_id) = item.catalog_item_id else {
-            continue;
-        };
-        let Some(max_raw) = rows
-            .iter()
-            .find(|r| r.id == catalog_id)
-            .and_then(|r| r.max_dose_per_day.as_deref())
-        else {
-            continue;
-        };
-        let Some(doses) = medbrains_core::mar_schedule::doses_per_day(&item.frequency) else {
-            continue;
-        };
-        if let Some(hit) =
-            medbrains_core::dose_safety::evaluate_max_dose(&item.dosage, doses, max_raw)
-        {
-            alerts.push(DoseAlert {
-                drug_name: item.drug_name.clone(),
-                per_dose: item.dosage.clone(),
-                doses_per_day: doses,
-                total_per_day_label: format!("{} {}", trim_float(hit.total_per_day), hit.unit),
-                max_per_day_label: format!("{} {}", trim_float(hit.max_per_day), hit.unit),
-            });
-        }
-    }
-    Ok(alerts)
-}
-
-/// Render a dose value without a trailing `.0` for whole numbers.
-fn trim_float(value: f64) -> String {
-    if (value.fract()).abs() < f64::EPSILON {
-        format!("{value:.0}")
-    } else {
-        format!("{value}")
-    }
 }
 
 /// GET /api/cds/drug-interactions — list all drug interactions

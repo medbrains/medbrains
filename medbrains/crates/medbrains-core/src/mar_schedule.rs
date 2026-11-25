@@ -112,8 +112,10 @@ pub fn doses_per_day(frequency: &str) -> Option<u32> {
     round_hours(frequency).map(|hours| hours.len() as u32)
 }
 
-/// True if the frequency means a single immediate dose.
-fn is_stat(frequency: &str) -> bool {
+/// True if the frequency means a single immediate dose. Public so dose
+/// safety can check a STAT line as one dose against the daily maximum.
+#[must_use]
+pub fn is_stat(frequency: &str) -> bool {
     let f: String = frequency
         .chars()
         .filter(|c| !c.is_whitespace())

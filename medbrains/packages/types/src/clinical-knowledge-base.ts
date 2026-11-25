@@ -219,6 +219,15 @@ export interface DoseAlert {
   max_per_day_label: string;
 }
 
+/** A line with a catalogue maximum whose dose could not be compared with it. */
+export interface DoseNotCheckedAlert {
+  drug_name: string;
+  per_dose: string;
+  frequency: string;
+  /** What stopped the check, written for the prescriber. */
+  reason: string;
+}
+
 export interface WeightDoseAlert {
   drug_name: string;
   direction: "over" | "under";

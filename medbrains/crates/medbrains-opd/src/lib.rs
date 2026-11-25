@@ -39,6 +39,7 @@ use medbrains_core::ipd::Admission;
 use medbrains_core::permissions;
 use medbrains_core::privacy::mask_free_text;
 use medbrains_kernel::Actor;
+use medbrains_telehealth::dose_check::dose_alerts_for_items;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -2796,12 +2797,11 @@ pub async fn create_prescription(
             catalog_item_id: i.catalog_item_id,
         })
         .collect();
-    let dose_alerts = medbrains_telehealth::cds::dose_alerts_for_items(
-        &mut tx,
-        claims.tenant_id,
-        &dose_check_items,
-    )
-    .await?;
+    // A line that could not be checked is shown on the CDS rail before save;
+    // only a confirmed overage needs the override reason here.
+    let dose_alerts = dose_alerts_for_items(&mut tx, claims.tenant_id, &dose_check_items)
+        .await?
+        .alerts;
     let override_reason = body
         .dose_override_reason
         .as_deref()

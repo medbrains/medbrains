@@ -2,17 +2,7 @@ import { Box, Group, Menu, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { BuyOutsideLineFormInput } from "@medbrains/schemas";
-import type {
-  AllergyConflict,
-  ClinicalConclusion,
-  DrugInteractionAlert,
-  HepaticAlert,
-  IngredientAlert,
-  PregnancyAlert,
-  PrescriptionTemplate,
-  RenalDoseAlert,
-  WeightDoseAlert,
-} from "@medbrains/types";
+import type { PrescriptionTemplate } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -31,35 +21,17 @@ import classes from "./prescription.module.scss";
 import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
 import { RxTable } from "./RxTable";
 import { buyOutsideItem } from "./rxBuyOutside";
-import {
-  type FormularyDrug,
-  maxDoseExceeded,
-  prescribingCautions,
-  quickRxDefaults,
-  type RxItem,
-} from "./rxModel";
+import { type FormularyDrug, prescribingCautions, quickRxDefaults, type RxItem } from "./rxModel";
+import { maxDoseRow, type RxSafety, type SafetyState } from "./rxSafety";
 import type { LastPrescription } from "./useLastPrescription";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
-
-type SafetyState = "ok" | "warn" | "flag";
 
 const SAFETY_ICON = {
   ok: IconCheck,
   warn: IconAlertTriangle,
   flag: IconExclamationCircle,
 } as const;
-
-export interface RxSafety {
-  interactions: DrugInteractionAlert[];
-  allergy_conflicts: AllergyConflict[];
-  weight_alerts: WeightDoseAlert[];
-  renal_alerts: RenalDoseAlert[];
-  hepatic_alerts: HepaticAlert[];
-  ingredient_alerts: IngredientAlert[];
-  pregnancy_alerts: PregnancyAlert[];
-  conclusion: ClinicalConclusion;
-}
 
 function SafetyRow({
   state,
@@ -265,13 +237,7 @@ export function RxDoctor({
     if (d.cls) classCount[d.cls] = (classCount[d.cls] || 0) + 1;
   }
   const dupes = Object.entries(classCount).filter(([, n]) => n > 1);
-  const overMax = items
-    .map((it) => {
-      const d = formularyById[it.id];
-      const hit = d ? maxDoseExceeded(it, d) : null;
-      return hit ? { name: it.name, label: hit.totalLabel } : null;
-    })
-    .filter(Boolean) as { name: string; label: string }[];
+  const doseRow = maxDoseRow(safety);
   const cautions = prescribingCautions(drugObjs);
   const seriousCautions = cautions.filter((c) => c.serious);
   const weightAlerts = safety.weight_alerts;
@@ -284,7 +250,7 @@ export function RxDoctor({
   const reviewCount =
     major.length +
     conflicts.length +
-    overMax.length +
+    doseRow.count +
     seriousCautions.length +
     weightAlerts.length +
     renalAlerts.length +
@@ -496,15 +462,7 @@ export function RxDoctor({
               : "No Schedule X / H1 / NDPS drugs in order"
           }
         />
-        <SafetyRow
-          state={overMax.length ? "flag" : "ok"}
-          label="Max dose · 24h"
-          detail={
-            overMax.length
-              ? overMax.map((m) => `${m.name}: ${m.label}`).join(", ")
-              : "Within catalog daily ceilings"
-          }
-        />
+        <SafetyRow state={doseRow.state} label="Max dose · 24h" detail={doseRow.detail} />
         <SafetyRow
           state={dupes.length ? "warn" : "ok"}
           label="Duplicate therapy"
