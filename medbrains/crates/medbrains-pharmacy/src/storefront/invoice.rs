@@ -48,3 +48,7 @@ pub(crate) async fn tax_lines(
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "invoice_tests.rs"]
+mod tests;
