@@ -2241,12 +2241,20 @@ pub async fn list_modules(
 #[derive(Debug, Deserialize)]
 pub struct UpdateModuleRequest {
     pub status: String,
+    /// Also switch what stands in the way: every brick that is on and needs this one when
+    /// switching off (set up or not), the off bricks it needs when switching on. The screen sends
+    /// it after one confirm.
+    #[serde(default)]
+    pub together: bool,
 }
 
 /// `PUT /api/setup/modules/{code}` — switch one app brick on or off.
 ///
-/// Refuses (409, naming them) to switch a brick off while bricks that need it are on, or on
-/// while a brick it needs is off. Forgets the tenant's cached module statuses on success.
+/// Refuses (409, naming them and why each is on) to switch a brick off while bricks that are on
+/// need it, or on while a brick it needs is off; with `together` it switches those too, in the
+/// same transaction, writing a row for a brick that had none (a missing row counts as on, so
+/// only an explicit `disabled` switches it off). Forgets the tenant's cached module statuses on
+/// success.
 pub async fn update_module(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2256,39 +2264,41 @@ pub async fn update_module(
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let by_code = entitlement::read_statuses(&state.db, claims.tenant_id).await?;
     let turning_on = body.status == "enabled";
-    let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
-    if !blockers.is_empty() {
-        let why = if turning_on {
-            "it needs"
-        } else {
-            "they need it"
-        };
-        return Err(AppError::Conflict(format!(
-            "{} cannot be switched {}: {why} — {}",
-            medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
-            if turning_on { "on" } else { "off" },
-            blockers.join(", ")
-        )));
-    }
+    let codes = entitlement::switch_plan(&code, turning_on, body.together, &by_code)
+        .map_err(AppError::Conflict)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // The bricks switched with it are upserted: one that was never set up has no row to update.
+    let others = codes.split_last().map_or(&[][..], |(_, rest)| rest);
+    let names = entitlement::brick_names(others);
     let row = sqlx::query_as::<_, ModuleConfig>(
-        "UPDATE module_config SET status = $1::module_status \
+        "WITH others AS ( \
+             INSERT INTO module_config (tenant_id, code, name, status) \
+             SELECT $2, other.code, other.name, $1::module_status \
+             FROM UNNEST($4::text[], $5::text[]) AS other(code, name) \
+             ON CONFLICT (tenant_id, code) \
+             DO UPDATE SET status = EXCLUDED.status, \
+                 deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
+         ) \
+         UPDATE module_config SET status = $1::module_status \
          WHERE tenant_id = $2 AND code = $3 \
          RETURNING *",
     )
     .bind(&body.status)
     .bind(claims.tenant_id)
     .bind(&code)
+    .bind(others)
+    .bind(&names)
     .fetch_optional(&mut *tx)
-    .await?;
+    .await?
+    // Nothing is committed when the brick itself has no row: the bricks switched with it stay.
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     entitlement::invalidate_modules(claims.tenant_id);
-
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    Ok(Json(row))
 }
 
 // ── Sequences ───────────────────────────────────────────────

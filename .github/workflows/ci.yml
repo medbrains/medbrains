@@ -161,6 +161,24 @@ jobs:
           persist-credentials: false
       - run: node medbrains/apps/docs/scripts/check-prose.mjs
 
+  decisions:
+    # A decision is one file in medbrains/docs/decisions (two PRs never edit the same lines);
+    # this checks each file's name and shape. A row added to DECISIONS.md, which is closed, is a
+    # warning until the pull requests opened before the change have moved theirs.
+    name: Decision files are well formed
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3 medbrains/scripts/check_decisions.py --self-test
+      - run: python3 medbrains/scripts/decision_row_to_file.py --self-test
+      - run: python3 medbrains/scripts/check_decisions.py ${BASE_REF:+--base "origin/$BASE_REF"}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
   support-dates:
     # A published end-of-support date may be extended, never cut, and a supported line never
     # vanishes from the table (COMPATIBILITY.md §4, #5499; the CentOS 8 lesson).
@@ -209,6 +227,12 @@ jobs:
           python3 medbrains/scripts/check_query_fallbacks.py
       - name: Pages build from the @/components/ui seam
         run: python3 medbrains/scripts/check_ui_seam.py
+      # A brick's pages and components import no other brick's (apps/web/brick-units.json);
+      # the imports that exist are counted per brick pair and each count only falls.
+      - name: No new web import from one brick into another
+        run: |
+          python3 medbrains/scripts/check_web_brick_imports.py --self-test
+          python3 medbrains/scripts/check_web_brick_imports.py
       - name: No raw interactive HTML in shipped JSX
         run: python3 medbrains/scripts/check_raw_html.py
       # A field marked redactable but never classified falls back to Routine and
@@ -231,6 +255,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_in_loop.py --self-test
           python3 medbrains/scripts/check_query_in_loop.py --check
+      # Report only: SQL in one brick's crates that reads or writes a table another brick
+      # owns. A rise in writes shows as a warning on the run; nothing here fails yet.
+      - name: Cross-brick table access (report)
+        run: |
+          python3 medbrains/scripts/check_brick_tables.py --self-test
+          python3 medbrains/scripts/check_brick_tables.py
       # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
       - name: Rust functions and files only shrink
         run: |
@@ -260,6 +290,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_size_budgets.py --self-test
           python3 medbrains/scripts/check_size_budgets.py
+      # The server is to end as a thin shell; code and routes move out to the crates
+      # that own them, so its line count and its own .route( calls have a ceiling.
+      - name: Server shell only shrinks
+        run: |
+          python3 medbrains/scripts/check_shell_size.py --self-test
+          python3 medbrains/scripts/check_shell_size.py
       # The converted apps' menu entries come from the one screen registry; a stale copy would
       # show the web screens screens.rs no longer lists, and a nav entry whose permission differs
       # from its screen's shows a menu item the screen then refuses.
