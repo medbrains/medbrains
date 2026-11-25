@@ -8,6 +8,8 @@
     "respiratoryRate": "Resp. Rate",
     "bloodPressure": "Blood pressure",
     "hypertensiveCrisis": "Hypertensive crisis",
+    "ageNeeded": "age needed to grade",
+    "systolicCritical": "Systolic critical for age",
     "weight": "Weight",
     "height": "Height",
     "bmi": "BMI",

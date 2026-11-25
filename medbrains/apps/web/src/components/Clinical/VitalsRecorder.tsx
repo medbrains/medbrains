@@ -22,6 +22,7 @@ import {
   TextArea,
   ThemeIcon,
 } from "@/components/ui";
+import { ADULT_FROM_YEARS } from "@/lib/paediatric-vital-bands";
 import {
   getHeightConfig,
   getTemperatureConfig,
@@ -30,8 +31,15 @@ import {
   weightToKg,
 } from "@/lib/vital-units";
 import { useClinicalSetting } from "./useClinicalSetting";
+import { usePatientAgeYears } from "./usePatientAgeYears";
 import { VitalsBpCard } from "./VitalsBpCard";
-import { rangeLabel, rangeLevel, rangeStatus, type VitalRanges } from "./vital-grading";
+import {
+  rangeLabel,
+  rangeLevel,
+  rangeStatus,
+  rangesForAge,
+  type VitalRanges,
+} from "./vital-grading";
 import styles from "./vitals-recorder.module.scss";
 
 interface VitalConfig {
@@ -43,6 +51,7 @@ interface VitalConfig {
   max: number;
   step: number;
   precision: number;
+  /** The adult ranges; age-dependent vitals are re-graded by `rangesForAge`. */
   ranges: VitalRanges & { critical: [number, number] };
 }
 
@@ -71,6 +80,10 @@ interface VitalsRecorderProps {
   onCancel?: () => void;
   showActions?: boolean;
   showNotes?: boolean;
+  /** The patient, so pulse, breathing and blood pressure are graded for their age. */
+  patientId?: string | null;
+  /** Age in completed years when the caller already has it (camp registration). */
+  ageYears?: number | null;
 }
 
 type VitalValues = Record<string, number | undefined>;
@@ -82,6 +95,8 @@ export function VitalsRecorder({
   onCancel,
   showActions = true,
   showNotes = true,
+  patientId,
+  ageYears: knownAgeYears,
 }: VitalsRecorderProps) {
   const { t } = useTranslation("clinical");
   const localeConfig = useLocaleConfig();
@@ -89,6 +104,7 @@ export function VitalsRecorder({
   const [notes, setNotes] = useState("");
   const [showBpErrors, setShowBpErrors] = useState(false);
   const idBase = useId();
+  const ageYears = usePatientAgeYears(patientId, knownAgeYears);
 
   // Load hospital-configurable vital fields (if customized in settings)
   const vitalParameters = useClinicalSetting("vital_parameters");
@@ -205,6 +221,7 @@ export function VitalsRecorder({
 
   const showBp =
     !enabledVitals || enabledVitals.has("systolic_bp") || enabledVitals.has("diastolic_bp");
+  const isChild = ageYears !== null && ageYears < ADULT_FROM_YEARS;
 
   // BMI calculation — convert display values to metric for computation
   const bmiValues = useMemo(() => {
@@ -293,11 +310,12 @@ export function VitalsRecorder({
             diastolic={values.diastolic_bp}
             onChange={(systolic_bp, diastolic_bp) => updateValues({ systolic_bp, diastolic_bp })}
             showErrors={showBpErrors}
+            ageYears={ageYears}
           />
         )}
         {filteredVitalConfigs.map((config) => {
           const val = values[config.key];
-          const ranges = config.ranges;
+          const ranges = rangesForAge(config.key, config.ranges, ageYears);
           const level = rangeLevel(ranges, val);
           const normalLabel = rangeLabel(ranges);
           const status = rangeStatus(ranges, val);
@@ -355,6 +373,11 @@ export function VitalsRecorder({
                       {`${name}: ${status.label}`}
                     </Badge>
                   )}
+                  {!ranges && val !== undefined && (
+                    <Badge size="xs" tone="neutral">
+                      {`${name}: ${t("vitals.ageNeeded", "age needed to grade")}`}
+                    </Badge>
+                  )}
                 </Box>
               </Group>
             </Box>
@@ -374,9 +397,12 @@ export function VitalsRecorder({
                 <Text size="sm" fw={700}>
                   {bmi.toFixed(1)}
                 </Text>
-                <Badge size="xs" tone={getBmiCategory(bmi).color}>
-                  {t(getBmiCategory(bmi).labelKey)}
-                </Badge>
+                {/* Adult cut-offs; a child's BMI is read on a BMI-for-age chart. */}
+                {ageYears !== null && !isChild && (
+                  <Badge size="xs" tone={getBmiCategory(bmi).color}>
+                    {t(getBmiCategory(bmi).labelKey)}
+                  </Badge>
+                )}
               </Group>
             </Box>
           )}

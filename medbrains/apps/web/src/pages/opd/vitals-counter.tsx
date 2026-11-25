@@ -180,6 +180,7 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
       >
         {active && (
           <VitalsRecorder
+            patientId={active.patient_id}
             isSubmitting={record.isPending}
             onCancel={() => setActive(null)}
             onSubmit={(vitals) => record.mutate({ encounterId: active.encounter_id, vitals })}
