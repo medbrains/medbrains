@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use medbrains_core::billing::{CreditNote, InvoiceDiscount, InvoiceStatus, Refund};
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -379,7 +379,7 @@ pub async fn create_credit_note(
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
-    let credit_amount = body.amount.round_dp(2);
+    let credit_amount = body.amount.to_paisa();
     if credit_amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Credit note amount must be greater than zero".to_owned(),
@@ -513,7 +513,7 @@ pub async fn apply_credit_note(
         ));
     }
 
-    let outstanding = (target_invoice.2 - target_invoice.3).round_dp(2);
+    let outstanding = (target_invoice.2 - target_invoice.3).to_paisa();
     if outstanding <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Target invoice has no outstanding balance".to_owned(),

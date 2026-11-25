@@ -258,6 +258,7 @@ pub async fn report_collection_efficiency(
     let overall_invoiced: Decimal = months.iter().map(|m| m.invoiced).sum();
     let overall_collected: Decimal = months.iter().map(|m| m.collected).sum();
     let overall_rate = if overall_invoiced > Decimal::ZERO {
+        // rounding: a percentage, not money
         (overall_collected * Decimal::from(100) / overall_invoiced).round_dp(2)
     } else {
         Decimal::ZERO

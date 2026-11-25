@@ -6,6 +6,7 @@
 //! (`patient_contact_consents`, DPDP Act 2023 and WhatsApp business policy).
 
 use chrono::{DateTime, Utc};
+use medbrains_core::money::RoundMoney;
 use medbrains_server_core::error::AppError;
 use medbrains_workflow::orchestration::default_pipelines::e164;
 use rust_decimal::Decimal;
@@ -134,7 +135,7 @@ pub fn sms_body(m: &LinkMessage<'_>) -> String {
     };
     format!(
         "Your hospital bill: pay Rs {} at {} (open till {till}).{rest}",
-        m.amount.round_dp(2),
+        m.amount.to_paisa(),
         m.url
     )
 }
@@ -161,7 +162,7 @@ pub async fn queue(
                 "to": to, "link_id": m.link_id, "patient_id": m.patient_id,
                 "template_name": WHATSAPP_TEMPLATE, "language": "en",
                 "components": [{ "type": "body", "parameters": [
-                    { "type": "text", "text": m.amount.round_dp(2).to_string() },
+                    { "type": "text", "text": m.amount.to_paisa().to_string() },
                     { "type": "text", "text": m.url },
                     { "type": "text", "text": m.expires_at.format("%d %b").to_string() },
                 ] }],

@@ -332,6 +332,7 @@ fn plan_rows(
             rows.base.push(base);
             rows.share.push(share);
             rows.fraction.push(if share > Decimal::ZERO {
+                // rounding: a ratio to six places, not money
                 (target / share).round_dp(6)
             } else {
                 Decimal::ZERO

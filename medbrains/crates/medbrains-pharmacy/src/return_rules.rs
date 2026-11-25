@@ -3,6 +3,7 @@
 //! worth, and which tenders the money goes back to.
 
 use chrono::{Days, NaiveDate};
+use medbrains_core::money::RoundMoney;
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -93,7 +94,7 @@ pub(crate) fn line_refund(
         return (Decimal::ZERO, Decimal::ZERO);
     }
     let sold = Decimal::from(quantity);
-    let share = |amount: Decimal, units: i32| (amount * Decimal::from(units) / sold).round_dp(2);
+    let share = |amount: Decimal, units: i32| (amount * Decimal::from(units) / sold).to_paisa();
     let after = already_returned + qty;
     (
         share(line_total, after) - share(line_total, already_returned),
@@ -143,7 +144,7 @@ pub(crate) fn allocate_refund(
         .map(|t| RefundPart {
             mode: t.mode.clone(),
             amount: (total * t.refundable() / pool)
-                .round_dp(2)
+                .to_paisa()
                 .min(t.refundable()),
             reference: None,
         })

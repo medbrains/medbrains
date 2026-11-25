@@ -392,6 +392,7 @@ pub async fn parse_result(
         .overall_confidence
         .map(|c| c.clamp(0.0, 1.0))
         .and_then(Decimal::from_f64_retain)
+        // rounding: a confidence score, not money
         .map(|d| d.round_dp(4));
     let scan = sqlx::query_as::<_, PurchaseBillScan>(
         "UPDATE purchase_bill_scans SET status = $3, extracted_json = $4, overall_confidence = $5, \

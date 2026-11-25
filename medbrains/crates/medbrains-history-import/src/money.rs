@@ -5,7 +5,7 @@
 //! dated before it. No receipt SMS or payment-link side effect fires.
 
 use chrono::{DateTime, Utc};
-use rust_decimal::{Decimal, RoundingStrategy};
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -108,7 +108,7 @@ pub(crate) struct ClaimRec {
 }
 
 fn money(d: Decimal) -> Decimal {
-    d.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+    medbrains_core::money::to_paisa(d)
 }
 
 /// Subtotal, tax, total — and a problem for any line that cannot be priced.

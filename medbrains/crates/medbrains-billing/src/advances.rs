@@ -14,7 +14,7 @@ use axum::{
 use medbrains_core::billing::{
     AdvanceAdjustment, AdvanceStatus, AuditAction, Invoice, InvoiceStatus, PatientAdvance,
 };
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -177,7 +177,7 @@ pub async fn create_advance(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let advance_amount = body.amount.round_dp(2);
+    let advance_amount = body.amount.to_paisa();
     if advance_amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Advance amount must be greater than zero".to_owned(),
@@ -269,7 +269,7 @@ pub async fn adjust_advance(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adjustment_amount = body.amount.round_dp(2);
+    let adjustment_amount = body.amount.to_paisa();
     if adjustment_amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Adjustment amount must be greater than zero".to_owned(),
@@ -336,7 +336,7 @@ pub async fn adjust_advance(
         ));
     }
 
-    let outstanding = (invoice.total_amount - invoice.paid_amount).round_dp(2);
+    let outstanding = (invoice.total_amount - invoice.paid_amount).to_paisa();
     if outstanding <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Invoice has no outstanding balance".to_owned(),
@@ -349,7 +349,7 @@ pub async fn adjust_advance(
     }
 
     // Deduct balance
-    let new_balance = (advance.balance - adjustment_amount).round_dp(2);
+    let new_balance = (advance.balance - adjustment_amount).to_paisa();
     let new_status = if new_balance == Decimal::ZERO {
         "fully_used"
     } else {
@@ -443,7 +443,7 @@ pub async fn refund_advance(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let refund_amount = body.amount.round_dp(2);
+    let refund_amount = body.amount.to_paisa();
     if refund_amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Refund amount must be greater than zero".to_owned(),
@@ -478,7 +478,7 @@ pub async fn refund_advance(
         ));
     }
 
-    let new_balance = (advance.balance - refund_amount).round_dp(2);
+    let new_balance = (advance.balance - refund_amount).to_paisa();
     let new_status = if new_balance == Decimal::ZERO {
         "refunded"
     } else if matches!(advance.status, AdvanceStatus::Active) {

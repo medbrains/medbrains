@@ -8,7 +8,6 @@ use chrono::NaiveDate;
 use medbrains_core::clinical_events::{
     ClinicalEventEnvelope, ClinicalEventName, ClinicalEventSourceModule,
 };
-use medbrains_core::permissions;
 use medbrains_core::pharmacy::{
     PharmacyCatalog, PharmacyOrder, PharmacyOrderItem, PharmacyStockTransaction,
 };
@@ -23,6 +22,7 @@ use medbrains_core::pharmacy_phase3::{
     PosDaySummary, RxQueueRow,
 };
 use medbrains_core::privacy::{mask_name, mask_phone};
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -7643,13 +7643,14 @@ pub async fn create_pos_sale(
     }
     let net = gross * keep;
     let total = pos_counter::round_up_to_paisa(net);
-    let discount = (gross - net).round_dp(2);
-    let gst_total = gst_total.round_dp(2);
+    let discount = (gross - net).to_paisa();
+    let gst_total = gst_total.to_paisa();
     // Stored so that subtotal - discount + GST is the total, as billing reads it.
     let subtotal = total + discount - gst_total;
 
     // Off MRP across the bill: price cuts and the bill discount together.
     let off_mrp_percent = if mrp_value > Decimal::ZERO {
+        // rounding: a percentage, not money
         ((mrp_value - net) * hundred / mrp_value).round_dp(2)
     } else {
         Decimal::ZERO
@@ -7815,8 +7816,8 @@ pub async fn create_pos_sale(
         let item = line.item;
         let inclusive = Decimal::from(item.quantity) * line.price * keep;
         let line_gst = inclusive * line.gst_rate / (hundred + line.gst_rate);
-        let half_gst = (line_gst / Decimal::from(2)).round_dp(2);
-        let line_total = inclusive.round_dp(2);
+        let half_gst = (line_gst / Decimal::from(2)).to_paisa();
+        let line_total = inclusive.to_paisa();
 
         let batch_trace = if let Some(catalog_id) = item.catalog_item_id {
             let stock = fetch_pharmacy_stock_gate_in_tx(
@@ -8009,7 +8010,7 @@ pub async fn create_pos_sale(
         .bind(claims.tenant_id)
         .bind(sale.id)
         .bind(off_mrp_percent.min(hundred))
-        .bind((mrp_value - net).round_dp(2))
+        .bind((mrp_value - net).to_paisa())
         .bind(discount_limit)
         .bind(reason)
         .bind(claims.sub)

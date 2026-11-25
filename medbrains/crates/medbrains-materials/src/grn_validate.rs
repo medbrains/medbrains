@@ -4,6 +4,7 @@
 //! screen.
 
 use chrono::NaiveDate;
+use medbrains_core::money::RoundMoney;
 use rust_decimal::Decimal;
 use serde::Serialize;
 
@@ -68,7 +69,7 @@ fn issue(field: String, severity: Severity, message: String) -> Issue {
 pub fn billed_value(line: &LineFacts) -> Decimal {
     let taxable = Decimal::from(line.received) * line.rate - line.discount;
     let gst = line.gst_rate.unwrap_or_default();
-    (taxable + taxable * gst / Decimal::ONE_HUNDRED).round_dp(2)
+    (taxable + taxable * gst / Decimal::ONE_HUNDRED).to_paisa()
 }
 
 /// Value of what was accepted: the discount shared pro rata, plus GST.
@@ -78,7 +79,7 @@ pub fn accepted_value(line: &LineFacts) -> Decimal {
         return Decimal::ZERO;
     }
     let share = Decimal::from(line.accepted) / Decimal::from(line.received);
-    (billed_value(line) * share).round_dp(2)
+    (billed_value(line) * share).to_paisa()
 }
 
 fn check_prices(at: &str, line: &LineFacts, out: &mut Vec<Issue>) {
@@ -306,5 +307,16 @@ mod tests {
         };
         // (200 − 20) × 1.05 = 189, half accepted.
         assert_eq!(accepted_value(&l), Decimal::new(9450, 2));
+    }
+
+    #[test]
+    fn billed_value_rounds_a_half_paisa_up_like_every_other_bill() {
+        // 0.10 + 5% GST = 0.105: banker's rounding billed 0.10, the money rule 0.11.
+        let l = LineFacts {
+            rate: Decimal::new(10, 2),
+            received: 1,
+            ..line()
+        };
+        assert_eq!(billed_value(&l), Decimal::new(11, 2));
     }
 }

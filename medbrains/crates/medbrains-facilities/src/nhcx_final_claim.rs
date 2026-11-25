@@ -5,6 +5,7 @@
 //! the claim — `nhcx_claim_documents`).
 
 use chrono::{DateTime, Utc};
+use medbrains_core::money::RoundMoney;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use sqlx::FromRow;
@@ -139,10 +140,10 @@ fn bill_note(money: &BillMoney, claimed: Decimal) -> String {
     format!(
         "Bill total INR {}; discount INR {}; patient's share INR {} \
          (co-pay, deductible and non-payable items); claimed from the payer INR {}.",
-        money.total_amount.round_dp(2),
-        money.discount_amount.round_dp(2),
-        patient.round_dp(2),
-        claimed.round_dp(2),
+        money.total_amount.to_paisa(),
+        money.discount_amount.to_paisa(),
+        patient.to_paisa(),
+        claimed.to_paisa(),
     )
 }
 

@@ -316,6 +316,7 @@ pub(crate) fn settle(total: Decimal, inputs: &[PosTenderInput]) -> Result<Settle
 /// A counter total, rounded up to the paisa: the counter never collects a
 /// fraction of a paisa less than the bill.
 pub(crate) fn round_up_to_paisa(value: Decimal) -> Decimal {
+    // rounding: up, so the counter never collects less than the bill
     value.round_dp_with_strategy(2, RoundingStrategy::AwayFromZero)
 }
 

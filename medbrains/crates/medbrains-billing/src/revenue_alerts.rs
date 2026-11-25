@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{
     error::AppError,
@@ -307,7 +307,7 @@ pub async fn request_enhancement(
             "billing.revenueAlerts.noApprovalToEnhance".to_owned(),
         ));
     }
-    let extra = body.additional_amount.round_dp(2);
+    let extra = body.additional_amount.to_paisa();
     let total = mark_enhancement(&mut tx, &claims, prior_auth, extra).await?;
     let what = serde_json::json!({ "enhancement": {
         "additional_amount": extra,

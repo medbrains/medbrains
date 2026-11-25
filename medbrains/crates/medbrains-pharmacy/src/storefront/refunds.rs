@@ -9,7 +9,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use medbrains_payment_gateway::online::OnlineError;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
@@ -70,7 +70,7 @@ pub(crate) async fn owe(
         (Some(_), Some(left)) => ("online", left),
         _ => ("cash", invoice_paid),
     };
-    let amount = owed.amount.min(cap).round_dp(2);
+    let amount = owed.amount.min(cap).to_paisa();
     if amount <= Decimal::ZERO {
         return Ok(None);
     }

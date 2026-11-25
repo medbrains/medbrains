@@ -24,7 +24,7 @@ use medbrains_core::billing::{
     AuditAction, BankTransaction, ErpExportLog, GlAccount, GstReturnSummary, JournalEntry,
     JournalEntryLine, TdsDeduction,
 };
-use medbrains_core::permissions;
+use medbrains_core::{money::RoundMoney, permissions};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -965,7 +965,7 @@ pub async fn create_tds_deduction(
     let pan = body.deductee_pan.trim().to_ascii_uppercase();
     validate_tds_request(&body, &pan)?;
 
-    let tds_amount = (body.base_amount * body.tds_rate / Decimal::from(100)).round_dp(2);
+    let tds_amount = (body.base_amount * body.tds_rate / Decimal::from(100)).to_paisa();
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

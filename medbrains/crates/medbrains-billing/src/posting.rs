@@ -11,6 +11,7 @@
 //! already moved).
 
 use medbrains_core::billing::{InvoiceStatus, Payment, Refund};
+use medbrains_core::money::RoundMoney;
 use medbrains_server_core::error::AppError;
 use medbrains_server_services::billing::SeqResult;
 use rust_decimal::Decimal;
@@ -83,7 +84,7 @@ fn payment_refusal(bill: &Balance, amount: Decimal) -> Option<String> {
     ) {
         return Some("The bill is cancelled or refunded and takes no payment".to_owned());
     }
-    let outstanding = (bill.total_amount - bill.paid_amount).round_dp(2);
+    let outstanding = (bill.total_amount - bill.paid_amount).to_paisa();
     if outstanding <= Decimal::ZERO {
         return Some("Invoice has no outstanding balance".to_owned());
     }
@@ -98,7 +99,7 @@ pub async fn post_payment(
     tx: &mut Tx<'_>,
     p: &PostPayment<'_>,
 ) -> Result<Posted<Payment>, AppError> {
-    let amount = p.amount.round_dp(2);
+    let amount = p.amount.to_paisa();
     let bill = lock_balance(tx, p.tenant_id, p.invoice_id).await?;
     if let Some(why) = payment_refusal(&bill, amount) {
         return Ok(Posted::Refused(why));
@@ -205,7 +206,7 @@ async fn next_refund_number(tx: &mut Tx<'_>, tenant_id: Uuid) -> Result<String, 
 /// # Errors
 /// A database fault, or no such bill.
 pub async fn post_refund(tx: &mut Tx<'_>, r: &PostRefund<'_>) -> Result<Posted<Refund>, AppError> {
-    let amount = r.amount.round_dp(2);
+    let amount = r.amount.to_paisa();
     let bill = lock_balance(tx, r.tenant_id, r.invoice_id).await?;
     if let Some(why) = refund_refusal(&bill, amount) {
         return Ok(Posted::Refused(why));

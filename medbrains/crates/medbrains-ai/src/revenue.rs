@@ -11,6 +11,7 @@
 
 use chrono::NaiveDate;
 use medbrains_authz_gate::visible_patient_ids;
+use medbrains_core::money::RoundMoney;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::{error::AppError, state::AppState};
 use rust_decimal::Decimal;
@@ -119,8 +120,8 @@ fn shape(
             invoices += *n;
             let mut row = serde_json::Map::new();
             row.insert(grain.to_owned(), json!(label(p)));
-            row.insert("billed".to_owned(), json!(b.round_dp(2).to_string()));
-            row.insert("collected".to_owned(), json!(c.round_dp(2).to_string()));
+            row.insert("billed".to_owned(), json!(b.to_paisa().to_string()));
+            row.insert("collected".to_owned(), json!(c.to_paisa().to_string()));
             row.insert("invoices".to_owned(), json!(n));
             Value::Object(row)
         })
@@ -133,8 +134,8 @@ fn shape(
         "rows": periods,
         "periods_with_invoices": with_data,
         "total": {
-            "billed": billed.round_dp(2).to_string(),
-            "collected": collected.round_dp(2).to_string(),
+            "billed": billed.to_paisa().to_string(),
+            "collected": collected.to_paisa().to_string(),
             "invoices": invoices,
         },
     })
