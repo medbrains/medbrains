@@ -41,9 +41,8 @@ use axum::{
     response::IntoResponse,
 };
 use medbrains_core::audit::{
-    AccessLogEntry, AccessLogQuery, ActionCount, AuditLogEntry, AuditLogQuery,
-    AuditLogSummary, AuditStats, DistinctValue, LogAccessRequest, ModuleCount,
-    UserActionCount,
+    AccessLogEntry, AccessLogQuery, ActionCount, AuditLogEntry, AuditLogQuery, AuditLogSummary,
+    AuditStats, DistinctValue, LogAccessRequest, ModuleCount, UserActionCount,
 };
 use medbrains_core::permissions;
 use uuid::Uuid;
