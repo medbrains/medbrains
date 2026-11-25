@@ -1,7 +1,7 @@
 ---
 date: 2026-11-25
 title: Research runs federated, on each hospital's box, and the hospital earns from it
-status: decided
+status: proposed
 area: research
 ---
 
