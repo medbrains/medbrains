@@ -5,7 +5,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type { CreateVitalRequest, EwsScoringInputs, EwsView, ScoredVital } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconDeviceHeartMonitor } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { VitalsRecorder } from "@/components";
 import { EwsInputs } from "@/components/EarlyWarning/EwsInputs";
@@ -30,6 +30,7 @@ import {
   statusBadgeTone,
   toNumber,
 } from "./shared";
+import { useNurseVitals } from "./use-nurse-vitals";
 
 function VitalsTimeline({ vitals, isLoading }: { vitals: ScoredVital[]; isLoading: boolean }) {
   if (isLoading) {
@@ -117,14 +118,6 @@ function VitalsTimeline({ vitals, isLoading }: { vitals: ScoredVital[]; isLoadin
   );
 }
 
-interface VitalsScheduleRow {
-  id: string;
-  encounter_id: string;
-  frequency_minutes: number;
-  next_due_at: string;
-  last_captured_at?: string | null;
-}
-
 function scheduleDueStatus(nextDueAt: string): ClinicalStatus {
   const minutes = Math.round((new Date(nextDueAt).getTime() - Date.now()) / 60_000);
   if (minutes <= 0) {
@@ -160,19 +153,9 @@ export function VitalsTab({
   const [ewsInputs, setEwsInputs] = useState<EwsScoringInputs>({});
   const [lastScore, setLastScore] = useState<EwsView | null>(null);
 
-  const { data: schedules, isLoading } = useQuery({
-    queryKey: ["nurse-vitals-schedules", encounterId],
-    queryFn: () =>
-      nurseActivitiesService.listVitalsSchedules({ encounter_id: encounterId }) as Promise<
-        VitalsScheduleRow[]
-      >,
-    enabled: canView && encounterId.length > 0,
-  });
-  const { data: vitals = [], isLoading: vitalsLoading } = useQuery({
-    queryKey: ["nurse-vitals", encounterId],
-    queryFn: () => nurseActivitiesService.listNurseVitals(encounterId),
-    enabled: canView && encounterId.length > 0,
-  });
+  const nurseVitals = useNurseVitals(encounterId, canView);
+  const { data: schedules, isLoading } = nurseVitals.schedules;
+  const { data: vitals = [], isLoading: vitalsLoading } = nurseVitals.vitals;
 
   const createSchedule = useMutation({
     mutationFn: () =>

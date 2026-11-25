@@ -1,5 +1,5 @@
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { isBloodPressureValid, isHypertensiveCrisis } from "@medbrains/schemas";
+import { isBloodPressureValid } from "@medbrains/schemas";
 import { useLocaleConfig } from "@medbrains/stores";
 import type { CreateVitalRequest } from "@medbrains/types";
 import {
@@ -29,12 +29,10 @@ import {
   heightToCm,
   weightToKg,
 } from "@/lib/vital-units";
-import { bloodPressureSeverity } from "@/pages/opd/vitals-thresholds";
-import { BloodPressureInput } from "./BloodPressureInput";
 import { useClinicalSetting } from "./useClinicalSetting";
+import { VitalsBpCard } from "./VitalsBpCard";
+import { rangeLabel, rangeLevel, rangeStatus, type VitalRanges } from "./vital-grading";
 import styles from "./vitals-recorder.module.scss";
-
-type RangeLevel = "normal" | "borderline" | "critical";
 
 interface VitalConfig {
   key: string;
@@ -45,41 +43,7 @@ interface VitalConfig {
   max: number;
   step: number;
   precision: number;
-  ranges: { normal: [number, number]; borderline: [number, number]; critical: [number, number] };
-}
-
-function getRangeLevel(config: VitalConfig, value: number | undefined): RangeLevel | null {
-  if (value === undefined) return null;
-  const { normal, borderline } = config.ranges;
-  if (value >= normal[0] && value <= normal[1]) return "normal";
-  if (value >= borderline[0] && value <= borderline[1]) return "borderline";
-  return "critical";
-}
-
-function getRangeLabel(config: VitalConfig): string {
-  const { normal } = config.ranges;
-  if (normal[0] === 0 && normal[1] >= 999) return "";
-  return `${normal[0]}–${normal[1]}`;
-}
-
-function getRangeStatus(
-  config: VitalConfig,
-  value: number | undefined,
-): { label: string; color: BadgeTone } | null {
-  if (value === undefined) return null;
-  const [normalLow, normalHigh] = config.ranges.normal;
-  const [borderlineLow, borderlineHigh] = config.ranges.borderline;
-  if (value >= normalLow && value <= normalHigh) return { label: "Normal", color: "success" };
-  if (value < normalLow) {
-    return {
-      label: value >= borderlineLow ? "Low" : "Critical low",
-      color: value >= borderlineLow ? "warning" : "danger",
-    };
-  }
-  return {
-    label: value <= borderlineHigh ? "High" : "Critical high",
-    color: value <= borderlineHigh ? "warning" : "danger",
-  };
+  ranges: VitalRanges & { critical: [number, number] };
 }
 
 function computeBmi(weightKg: number | undefined, heightCm: number | undefined): number | null {
@@ -93,12 +57,6 @@ function getBmiCategory(bmi: number): { labelKey: string; color: BadgeTone } {
   if (bmi < 25) return { labelKey: "vitals.normal", color: "success" };
   if (bmi < 30) return { labelKey: "vitals.overweight", color: "warning" };
   return { labelKey: "vitals.obese", color: "danger" };
-}
-
-function bloodPressureLevel(systolic?: number, diastolic?: number): RangeLevel | null {
-  if (systolic === undefined || diastolic === undefined) return null;
-  if (isHypertensiveCrisis(systolic, diastolic)) return "critical";
-  return bloodPressureSeverity(systolic, diastolic) === "normal" ? "normal" : "borderline";
 }
 
 function computeMap(systolic: number | undefined, diastolic: number | undefined): number | null {
@@ -247,7 +205,6 @@ export function VitalsRecorder({
 
   const showBp =
     !enabledVitals || enabledVitals.has("systolic_bp") || enabledVitals.has("diastolic_bp");
-  const bpLevel = bloodPressureLevel(values.systolic_bp, values.diastolic_bp);
 
   // BMI calculation — convert display values to metric for computation
   const bmiValues = useMemo(() => {
@@ -331,29 +288,19 @@ export function VitalsRecorder({
       />
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
         {showBp && (
-          <Box className={`${styles.vitalCard} ${styles.bpCard}`} data-level={bpLevel}>
-            <BloodPressureInput
-              label={t("vitals.bloodPressure", "Blood pressure")}
-              value={{ systolic: values.systolic_bp, diastolic: values.diastolic_bp }}
-              onChange={(bp) =>
-                updateValues({ systolic_bp: bp.systolic, diastolic_bp: bp.diastolic })
-              }
-              showErrors={showBpErrors}
-            />
-            <Box role="status" aria-live="polite">
-              {bpLevel === "critical" && (
-                <Badge size="xs" tone="danger" mt={4}>
-                  {t("vitals.hypertensiveCrisis", "Hypertensive crisis")}
-                </Badge>
-              )}
-            </Box>
-          </Box>
+          <VitalsBpCard
+            systolic={values.systolic_bp}
+            diastolic={values.diastolic_bp}
+            onChange={(systolic_bp, diastolic_bp) => updateValues({ systolic_bp, diastolic_bp })}
+            showErrors={showBpErrors}
+          />
         )}
         {filteredVitalConfigs.map((config) => {
           const val = values[config.key];
-          const level = getRangeLevel(config, val);
-          const rangeLabel = getRangeLabel(config);
-          const status = getRangeStatus(config, val);
+          const ranges = config.ranges;
+          const level = rangeLevel(ranges, val);
+          const normalLabel = rangeLabel(ranges);
+          const status = rangeStatus(ranges, val);
 
           const labelId = `${idBase}-${config.key}-label`;
           const name = t(config.labelKey);
@@ -384,8 +331,8 @@ export function VitalsRecorder({
               <NumberField
                 aria-labelledby={labelId}
                 description={
-                  rangeLabel
-                    ? `${t("vitals.normalRange", "Normal")} ${rangeLabel} ${config.unit}`
+                  normalLabel
+                    ? `${t("vitals.normalRange", "Normal")} ${normalLabel} ${config.unit}`
                     : undefined
                 }
                 inputWrapperOrder={["input", "description"]}
