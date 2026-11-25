@@ -347,8 +347,7 @@ pub async fn check_drug_safety(
         interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &body.drug_names).await?;
 
     // Check allergy conflicts
-    let mut allergy_conflicts = Vec::new();
-    if let Some(patient_id) = body.patient_id {
+    let allergy_conflicts = if let Some(patient_id) = body.patient_id {
         let allergies = sqlx::query_as::<_, AllergyRow>(
             "SELECT allergen_name, allergy_type::text, severity::text, reaction \
              FROM patient_allergies \
@@ -359,8 +358,10 @@ pub async fn check_drug_safety(
         .bind(patient_id)
         .fetch_all(&mut *tx)
         .await?;
-        allergy_conflicts = allergy_conflicts_for(&body.drug_names, &allergies);
-    }
+        allergy_conflicts_for(&body.drug_names, &allergies)
+    } else {
+        Vec::new()
+    };
 
     let dose_alerts = dose_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
 
