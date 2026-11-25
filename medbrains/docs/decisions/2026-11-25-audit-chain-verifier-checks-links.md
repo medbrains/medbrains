@@ -1,7 +1,7 @@
 ---
 date: 2026-11-25
 title: The audit chain verifier checks prev_hash links, allowing the trigger's late writers
-status: decided; trigger change for strict linearity is the owner's call
+status: decided
 area: audit
 ---
 
@@ -12,6 +12,8 @@ own hash (`medbrains-db/src/audit_chain.rs`). Walking in `(created_at, id)` orde
 `prev_hash` is the current head is on the main line; any other row must be a "late writer" — a
 transaction that began before its parent but wrote after it — and waits for its parent later in
 the walk. A row still waiting at the end, or a hash that does not recompute, breaks the chain.
+
+Open: changing the trigger so the chain is strictly linear is the owner's call.
 
 ## Why
 
