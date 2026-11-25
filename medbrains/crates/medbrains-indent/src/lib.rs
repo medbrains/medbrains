@@ -1739,9 +1739,10 @@ struct AbcRawRow {
     cumulative_pct: f64,
 }
 
-/// GET /api/indent/analytics/abc — each active item's issue value over the
-/// last year, with its running share of the store's total and its class
-/// (A up to 70%, B to 90%, C the rest). The total and the running share are
+/// GET /api/indent/analytics/abc — ABC classes by a year's issue value.
+///
+/// Each active item's issue value over the last year, with its running share
+/// of the store's total and its class (A up to 70%, B to 90%, C the rest). The total and the running share are
 /// summed in SQL over every item; the list shows the top 5,000. Summing in
 /// Rust over the 5,000 the list returned made every share too large once a
 /// store had more items, and moved items into the wrong class.
