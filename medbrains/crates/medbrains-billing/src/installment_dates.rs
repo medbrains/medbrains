@@ -11,7 +11,7 @@ use chrono::{Days, Months, NaiveDate};
 /// (`weekly`, `biweekly`, `quarterly`, else monthly). A month that has no
 /// such day lands on its last day. `None` only past the end of the calendar.
 #[must_use]
-pub fn due_date(start: NaiveDate, frequency: &str, n: u32) -> Option<NaiveDate> {
+pub(crate) fn due_date(start: NaiveDate, frequency: &str, n: u32) -> Option<NaiveDate> {
     match frequency {
         "weekly" => start.checked_add_days(Days::new(7 * u64::from(n))),
         "biweekly" => start.checked_add_days(Days::new(14 * u64::from(n))),
