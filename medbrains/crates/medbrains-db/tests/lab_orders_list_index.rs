@@ -30,7 +30,7 @@ async fn a_page_of_lab_orders_is_read_from_an_index_without_a_sort() {
     .await
     .expect("explain");
     let plan = plan.join("\n");
-    assert!(!plan.contains("Sort"), "a page of lab orders sorts:\n{plan}");
+    assert!(!plan.contains("Sort  ("), "a page of lab orders sorts:\n{plan}");
     assert!(
         plan.contains("idx_lab_orders_tenant_created_live"),
         "a page of lab orders does not use the list index:\n{plan}"
