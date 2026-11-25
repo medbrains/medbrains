@@ -42,7 +42,6 @@ pub struct VendorLedgerResponse {
 }
 
 /// One listed entry with the whole ledger's figures beside it.
-#[allow(dead_code)] // unused by the moved code; the next commit reads it
 #[derive(Debug, sqlx::FromRow)]
 struct Row {
     #[sqlx(flatten)]
@@ -109,57 +108,30 @@ pub async fn ledger_listing(
     vendor_id: Uuid,
     limit: i64,
 ) -> Result<VendorLedgerResponse, AppError> {
-    // The base behaviour, moved verbatim: the first `limit` rows, summed in Rust.
-    #[derive(sqlx::FromRow)]
-    struct LedgerRow {
-        txn_date: chrono::DateTime<chrono::Utc>,
-        txn_type: String,
-        reference_number: Option<String>,
-        debit: Decimal,
-        credit: Decimal,
-        note: Option<String>,
-    }
-    let sql = LEDGER_SQL
-        .split(" w AS (")
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches(", ");
-    let sql = format!(
-        "{} SELECT * FROM t ORDER BY txn_date ASC LIMIT $3",
-        sql.trim_end().trim_end_matches(',')
-    );
-    let rows: Vec<LedgerRow> = sqlx::query_as(&sql)
+    let rows: Vec<Row> = sqlx::query_as(LEDGER_SQL)
         .bind(vendor_id)
         .bind(tenant_id)
         .bind(limit)
         .fetch_all(&mut **tx)
         .await?;
-    let mut out = empty(vendor_id);
-    let mut running = Decimal::ZERO;
-    for r in rows {
-        running += r.credit - r.debit;
-        match r.txn_type.as_str() {
-            "grn" => out.total_purchases += r.credit,
-            "payment" => out.total_payments += r.debit,
-            "return" => out.total_returns += r.debit,
-            _ => {}
-        }
-        out.entries.push(VendorLedgerEntry {
-            txn_date: r.txn_date,
-            txn_type: r.txn_type,
-            reference_number: r.reference_number,
-            debit: r.debit,
-            credit: r.credit,
-            running_balance: running,
-            note: r.note,
-        });
-    }
-    out.closing_balance = running;
-    Ok(out)
+    let Some(first) = rows.first() else {
+        return Ok(empty(vendor_id));
+    };
+    let shown = i64::try_from(rows.len()).unwrap_or(i64::MAX);
+    Ok(VendorLedgerResponse {
+        vendor_id,
+        opening_balance: first.entry.running_balance - (first.entry.credit - first.entry.debit),
+        closing_balance: first.closing,
+        total_purchases: first.total_purchases,
+        total_payments: first.total_payments,
+        total_returns: first.total_returns,
+        earlier_entries: first.total_count - shown,
+        entries: rows.into_iter().map(|r| r.entry).collect(),
+    })
 }
 
 /// A ledger with nothing in it.
-fn empty(vendor_id: Uuid) -> VendorLedgerResponse {
+const fn empty(vendor_id: Uuid) -> VendorLedgerResponse {
     VendorLedgerResponse {
         vendor_id,
         opening_balance: Decimal::ZERO,
