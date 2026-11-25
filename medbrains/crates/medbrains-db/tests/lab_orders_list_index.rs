@@ -17,7 +17,10 @@ async fn a_page_of_lab_orders_is_read_from_an_index_without_a_sort() {
     // Too few rows for the planner to prefer an index by cost alone; with
     // sorting and sequential scans priced out, a plan that still sorts has
     // no index to read the order from.
-    for off in ["SET LOCAL enable_seqscan = off", "SET LOCAL enable_sort = off"] {
+    for off in [
+        "SET LOCAL enable_seqscan = off",
+        "SET LOCAL enable_sort = off",
+    ] {
         sqlx::query(off).execute(&mut *tx).await.expect(off);
     }
     // list_orders' query with no filters, as the lab worklist opens.
@@ -30,7 +33,10 @@ async fn a_page_of_lab_orders_is_read_from_an_index_without_a_sort() {
     .await
     .expect("explain");
     let plan = plan.join("\n");
-    assert!(!plan.contains("Sort  ("), "a page of lab orders sorts:\n{plan}");
+    assert!(
+        !plan.contains("Sort  ("),
+        "a page of lab orders sorts:\n{plan}"
+    );
     assert!(
         plan.contains("idx_lab_orders_tenant_created_live"),
         "a page of lab orders does not use the list index:\n{plan}"
