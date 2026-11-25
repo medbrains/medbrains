@@ -7523,10 +7523,11 @@ pub async fn select_fefo_batch(
 //  Phase 3: POS Counter Sales
 // ══════════════════════════════════════════════════════════
 
-/// POST /api/pharmacy/pos/sales — sell at the counter: price each line at
-/// or under MRP, split its GST into CGST and SGST that add up to its tax,
-/// take the stock FEFO, record the tenders, and post a patient's sale to
-/// billing.
+/// POST /api/pharmacy/pos/sales — a counter sale.
+///
+/// Prices each line at or under MRP, splits its GST into CGST and SGST that
+/// add up to its tax, takes the stock FEFO, records the tenders, and posts a
+/// patient's sale to billing.
 pub async fn create_pos_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
