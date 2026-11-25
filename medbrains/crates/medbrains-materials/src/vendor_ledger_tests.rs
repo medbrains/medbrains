@@ -55,11 +55,11 @@ async fn a_long_ledger_keeps_every_rupee_in_its_balance() {
     .await
     .unwrap();
 
-    let mut tx = db.begin().await.unwrap();
-    let got = super::ledger_listing(&mut tx, tenant, vendor, 3)
+    let mut conn = db.acquire().await.unwrap();
+    let got = super::ledger_listing(&mut conn, tenant, vendor, 3)
         .await
         .unwrap();
-    tx.rollback().await.unwrap();
+    drop(conn);
 
     let amounts: Vec<Decimal> = got.entries.iter().map(|e| e.debit).collect();
     assert_eq!(
