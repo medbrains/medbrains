@@ -1,7 +1,7 @@
 ---
 date: 2026-11-25
 title: Renal dosing uses only a recent eGFR per 1.73 m², and says when there is none
-status: proposed (clinician to confirm the 90-day window)
+status: proposed
 area: clinical-safety
 ---
 
