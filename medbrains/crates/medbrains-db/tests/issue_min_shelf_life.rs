@@ -47,16 +47,23 @@ async fn store_with_two_batches(owner: &PgPool, code: &str) -> (Uuid, Uuid, Uuid
 }
 
 /// Issue `quantity` of `item` in a transaction that is rolled back.
-async fn issue(owner: &PgPool, ids: (Uuid, Uuid, Uuid), quantity: i32) -> Result<Vec<String>, StockError> {
+async fn issue(
+    owner: &PgPool,
+    ids: (Uuid, Uuid, Uuid),
+    quantity: i32,
+) -> Result<Vec<String>, StockError> {
     let (tenant, store, item) = ids;
     let mut tx = owner.begin().await.expect("tx");
-    let request = StockRequest { catalog_item_id: item, quantity };
+    let request = StockRequest {
+        catalog_item_id: item,
+        quantity,
+    };
     let lines = issue_fefo(&mut tx, tenant, store, &[request]).await?;
     Ok(lines.into_iter().map(|l| l.batch_number).collect())
 }
 
 #[tokio::test]
-async fn a_short_dated_batch_is_passed_over_then_refused_by_name() {
+async fn a_short_dated_batch_is_passed_over() {
     let db = fresh_db().await.expect("test database");
     let owner = db.owner().await.expect("owner pool");
     let ids = store_with_two_batches(&owner, "SHELF").await;
@@ -74,10 +81,22 @@ async fn a_short_dated_batch_is_passed_over_then_refused_by_name() {
 
     // Oldest first would take SHORT-20; with 90 days it must take LONG-200.
     assert_eq!(issue(&owner, ids, 5).await.expect("issued"), ["LONG-200"]);
+}
+
+#[tokio::test]
+async fn short_dated_stock_is_refused_by_name_unless_the_hospital_allows_it() {
+    let db = fresh_db().await.expect("test database");
+    let owner = db.owner().await.expect("owner pool");
+    let ids = store_with_two_batches(&owner, "SHELFNO").await;
 
     // More than the long batch holds: refused, naming the 20-day batch.
     let err = issue(&owner, ids, 15).await.expect_err("must refuse");
-    let StockError::ShortDated { batch_number, min_days, .. } = &err else {
+    let StockError::ShortDated {
+        batch_number,
+        min_days,
+        ..
+    } = &err
+    else {
         panic!("expected ShortDated, got {err:?}");
     };
     assert_eq!((batch_number.as_str(), *min_days), ("SHORT-20", 90));
