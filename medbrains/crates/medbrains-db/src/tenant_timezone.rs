@@ -19,6 +19,8 @@ const DEFAULT_TIMEZONE: &str = "Asia/Kolkata";
 static VALID_TIMEZONES: tokio::sync::OnceCell<std::collections::HashSet<String>> =
     tokio::sync::OnceCell::const_new();
 
+/// The process-wide set of timezone names, read from `pg_timezone_names` on
+/// first use and served from [`VALID_TIMEZONES`] after that.
 async fn valid_timezones(
     tx: &mut PgConnection,
 ) -> Result<&'static std::collections::HashSet<String>, DbError> {
@@ -70,6 +72,7 @@ mod timezone_tests {
     use super::{DEFAULT_TIMEZONE, resolve_timezone};
     use std::collections::HashSet;
 
+    /// A small stand-in for `pg_timezone_names`: three zones the tests name.
     fn zones() -> HashSet<String> {
         ["Asia/Kolkata", "Asia/Dubai", "UTC"]
             .iter()
