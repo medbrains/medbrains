@@ -1,0 +1,26 @@
+-- ====================================================================
+-- Migration: 1492_audit_chain_head_index.sql
+-- RLS-Posture: not-applicable
+-- Tenant-Column: N/A
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- Every audited write runs audit_log_hash_chain, which holds the hospital's
+-- chain lock until commit and, under it, reads the hospital's newest row:
+--
+--   SELECT hash FROM audit_log WHERE tenant_id = $1
+--    ORDER BY created_at DESC, id DESC LIMIT 1
+--
+-- No index matched (the nearest leads with action), so each write sorted the
+-- hospital's audit rows while every other audited write of that hospital
+-- waited on the lock. This index answers it from the newest entry.
+--
+-- Created on the partitioned parent, so every existing month and the default
+-- (legacy) partition get it now and every month ensure_partitions() makes
+-- later gets it too. CONCURRENTLY cannot build on a partitioned table, so this
+-- takes a SHARE lock on each partition while it builds: audit inserts wait for
+-- the build. Migrations run at startup before the server serves, so on a large
+-- audit history this lengthens that one startup rather than blocking users.
+-- The chain itself (what is hashed, in what order) is unchanged.
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_chain_head
+    ON public.audit_log (tenant_id, created_at DESC, id DESC);
