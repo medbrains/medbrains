@@ -22,7 +22,7 @@ async fn twelve_slots_answer_with_the_same_counts_in_one_query() {
               s AS (INSERT INTO tenant_settings (tenant_id, category, key, value) \
                     SELECT id, 'appointments', 'public_booking_enabled', 'true'::jsonb FROM t), \
               u AS (INSERT INTO users (tenant_id, username, email, full_name, role, password_hash) \
-                    SELECT t.id, $1 || '-dr', $1 || '@slots.example.org', 'Slot Doctor', 'doctor', \
+                    SELECT t.id, lower($1) || '_dr', $1 || '@slots.example.org', 'Slot Doctor', 'doctor', \
                            a.password_hash FROM t, users a WHERE a.username = 'admin' \
                     RETURNING id, tenant_id), \
               d AS (INSERT INTO departments (tenant_id, code, name, department_type) \
