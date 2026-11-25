@@ -1,0 +1,18 @@
+-- no-transaction
+-- ====================================================================
+-- Migration: 1494_lab_orders_list_index.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- The lab order list (GET /api/lab/orders, medbrains_lab::list_orders) reads a
+-- hospital's live orders newest first, a page at a time:
+--   WHERE tenant_id = $1 AND ... AND deleted_at IS NULL ORDER BY created_at DESC
+-- No index led with (tenant_id, created_at), so every page sorted all of the
+-- hospital's orders first. Built CONCURRENTLY so ordering and resulting are
+-- not blocked, which needs its own migration outside a transaction (one
+-- statement per file). If a build fails, drop the INVALID index by hand and
+-- rerun; IF NOT EXISTS would otherwise skip it. The predicate is IS NULL, never
+-- now(), as ENGINEERING.md requires.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_lab_orders_tenant_created_live ON public.lab_orders (tenant_id, created_at DESC) WHERE deleted_at IS NULL;
