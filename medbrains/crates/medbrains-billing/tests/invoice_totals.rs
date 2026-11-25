@@ -10,7 +10,9 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
-use medbrains_server_services::billing::{AutoChargeInput, auto_charge};
+use medbrains_server_services::billing::{
+    AutoChargeInput, auto_charge, reverse_invoice_item_by_id_in_tx,
+};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
@@ -87,4 +89,56 @@ async fn subtotal_plus_tax_is_the_total_on_every_invoice() {
         rows.len(),
         off.first()
     );
+}
+
+/// ₹1.11 × 3 at 5%, returned one unit at a time: each return's tax rounds to
+/// 0.06, and three of those took 0.18 off a line whose tax was 0.17, leaving
+/// a zero bill with a paisa of tax. The header now rounds once per original
+/// line, over what is left of it.
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_line_returned_one_unit_at_a_time_leaves_a_zero_bill() {
+    let db = pool().await;
+    let (claims, _) = fixture(&db).await;
+    let mut tx = scoped(&db, claims.tenant_id).await;
+    let patient = insert_patient(&mut tx, claims.tenant_id).await;
+    let charged = auto_charge(
+        &mut tx,
+        &claims.tenant_id,
+        AutoChargeInput {
+            patient_id: patient,
+            charge_code: "MISC".to_owned(),
+            source: "manual".to_owned(),
+            source_id: Uuid::new_v4(),
+            quantity: 3,
+            unit_price_override: Some(Decimal::new(111, 2)),
+            tax_percent_override: Some(Decimal::from(5)),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("charge");
+    for _ in 0..3 {
+        reverse_invoice_item_by_id_in_tx(
+            &mut tx,
+            &claims.tenant_id,
+            charged.item_id,
+            Some(1),
+            claims.sub,
+            "returned",
+            "manual",
+            Uuid::new_v4(),
+        )
+        .await
+        .expect("return")
+        .expect("a unit was left to return");
+    }
+    let header: (Decimal, Decimal, Decimal) = sqlx::query_as(
+        "SELECT subtotal, tax_amount, total_amount FROM invoices WHERE id = $1",
+    )
+    .bind(charged.invoice_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    assert_eq!(header, (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
 }

@@ -502,10 +502,12 @@ pub async fn generate_invoice_number(
 /// Write the invoice header from its stored lines, so it always adds up.
 ///
 /// The total is the sum of the lines' stored totals and the tax the sum of
-/// each line's tax rounded to the paisa once; the subtotal is what is left,
-/// so subtotal + tax = total on every invoice. Summing unrounded tax beside
-/// rounded totals left about a third of invoices a paisa out. Deleted lines
-/// do not count.
+/// each original line's tax rounded to the paisa once, over the quantity left
+/// after its returns (a return row is grouped with the line it reverses); the
+/// subtotal is what is left, so subtotal + tax = total on every invoice.
+/// Summing unrounded tax beside rounded totals left about a third of invoices
+/// a paisa out, and rounding each return on its own left a paisa of tax on a
+/// fully returned line. Deleted lines do not count.
 pub async fn recalculate_invoice_totals(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     invoice_id: Uuid,
@@ -515,10 +517,12 @@ pub async fn recalculate_invoice_totals(
         "UPDATE invoices i SET \
          subtotal = s.total - s.tax, tax_amount = s.tax, total_amount = s.total, \
          updated_at = now() \
-         FROM (SELECT COALESCE(SUM(round(unit_price * quantity * tax_percent / 100, 2)), 0) AS tax, \
-                      COALESCE(SUM(total_price), 0) AS total \
-                 FROM invoice_items \
-                WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) s \
+         FROM (SELECT COALESCE(SUM(line.tax), 0) AS tax, COALESCE(SUM(line.total), 0) AS total \
+                 FROM (SELECT round(unit_price * SUM(quantity) * tax_percent / 100, 2) AS tax, \
+                              SUM(total_price) AS total \
+                         FROM invoice_items \
+                        WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+                        GROUP BY COALESCE(reversal_of_id, id), unit_price, tax_percent) line) s \
          WHERE i.id = $1 AND i.tenant_id = $2",
         invoice_id,
         tenant_id,
