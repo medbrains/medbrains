@@ -296,6 +296,7 @@ mod pharmacy_storefront_p2_stock_test;
 mod pharmacy_storefront_p2_substitution_test;
 mod pharmacy_storefront_test;
 mod pharmacy_transfer_stock_test;
+mod polypharmacy_one_query_test;
 mod portal_export_test;
 mod portal_health_data_test;
 mod portal_sign_in_limit_test;
