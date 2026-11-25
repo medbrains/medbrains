@@ -308,6 +308,7 @@ mod privacy_requests_test;
 mod psychiatry_mhca_test;
 mod psychiatry_privacy_test;
 mod public_booking_otp_test;
+mod public_slots_one_count_test;
 mod public_token_status_test;
 mod qa_test_cycles_test;
 mod query_budget_test;
