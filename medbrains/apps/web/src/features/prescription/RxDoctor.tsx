@@ -22,7 +22,7 @@ import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
 import { RxTable } from "./RxTable";
 import { buyOutsideItem } from "./rxBuyOutside";
 import { type FormularyDrug, prescribingCautions, quickRxDefaults, type RxItem } from "./rxModel";
-import { maxDoseRow, type RxSafety, type SafetyState } from "./rxSafety";
+import { maxDoseRow, type RxSafety, type SafetyState, weightDoseRow } from "./rxSafety";
 import type { LastPrescription } from "./useLastPrescription";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
@@ -240,7 +240,7 @@ export function RxDoctor({
   const doseRow = maxDoseRow(safety);
   const cautions = prescribingCautions(drugObjs);
   const seriousCautions = cautions.filter((c) => c.serious);
-  const weightAlerts = safety.weight_alerts;
+  const weightRow = weightDoseRow(safety);
   const renalAlerts = safety.renal_alerts;
   const hepaticAlerts = safety.hepatic_alerts;
   const ingredientAlerts = safety.ingredient_alerts;
@@ -252,7 +252,7 @@ export function RxDoctor({
     conflicts.length +
     doseRow.count +
     seriousCautions.length +
-    weightAlerts.length +
+    weightRow.count +
     renalAlerts.length +
     hepaticAlerts.length +
     ingredientAlerts.length +
@@ -482,24 +482,9 @@ export function RxDoctor({
           }
         />
         <SafetyRow
-          state={
-            weightAlerts.some((w) => w.direction === "over")
-              ? "flag"
-              : weightAlerts.length
-                ? "warn"
-                : "ok"
-          }
-          label="Paediatric dose · mg/kg"
-          detail={
-            weightAlerts.length
-              ? weightAlerts
-                  .map(
-                    (w) =>
-                      `${w.drug_name}: ${w.prescribed_per_day_label}/day is ${w.direction} the ~${w.recommended_per_day_label}/day for ${w.weight_kg} kg`,
-                  )
-                  .join(" · ")
-              : "Within weight-based range (or not a paediatric patient)"
-          }
+          state={weightRow.state}
+          label="Paediatric dose · per kg"
+          detail={weightRow.detail}
         />
         <SafetyRow
           state={renalAlerts.length ? "flag" : "ok"}

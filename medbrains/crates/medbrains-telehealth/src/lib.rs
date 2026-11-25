@@ -13,6 +13,7 @@ pub mod doctor_profile;
 pub mod dose_check;
 mod substitution_signoffs;
 pub mod telemedicine;
+pub mod weight_check;
 
 pub fn router() -> Router<AppState> {
     Router::new()

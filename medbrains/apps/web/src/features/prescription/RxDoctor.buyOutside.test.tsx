@@ -25,6 +25,7 @@ const SAFETY = {
   dose_alerts: [],
   dose_not_checked: [],
   weight_alerts: [],
+  weight_not_checked: [],
   renal_alerts: [],
   hepatic_alerts: [],
   ingredient_alerts: [],

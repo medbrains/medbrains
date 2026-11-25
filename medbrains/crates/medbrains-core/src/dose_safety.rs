@@ -79,7 +79,7 @@ pub enum MaxDoseOutcome {
 
 /// What an amount measures, so only like is compared with like.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Dimension {
+pub(crate) enum Dimension {
     /// Normalised to micrograms.
     Mass,
     /// Normalised to millilitres.
@@ -91,11 +91,11 @@ enum Dimension {
 /// A parsed amount: its value in the base unit of its dimension, plus how
 /// to turn it back into the unit it was written in.
 #[derive(Debug, Clone, PartialEq)]
-struct Quantity {
-    base: f64,
-    dimension: Dimension,
-    unit: String,
-    factor: f64,
+pub(crate) struct Quantity {
+    pub(crate) base: f64,
+    pub(crate) dimension: Dimension,
+    pub(crate) unit: String,
+    pub(crate) factor: f64,
 }
 
 /// Words that may follow the unit of a per-dose amount without changing it.
@@ -164,7 +164,7 @@ fn leading_number(text: &str) -> Option<(f64, &str)> {
 /// Parse "500 mg", "1,000 mg tab", "3 g/day" into a normalised quantity.
 /// `daily` allows a per-day suffix (the catalogue maximum); any other
 /// trailing word or denominator ("mg/kg", "mg/5ml") makes it unreadable.
-fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
+pub(crate) fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
     let lower = value.trim().to_lowercase();
     let (amount, rest) = leading_number(&lower)?;
     let (unit_part, per) = match rest.split_once('/') {
@@ -192,7 +192,7 @@ fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
 
 /// Doses per day for a frequency: the eMAR codes ("TDS", "1-0-1", "Q6H")
 /// plus the "N×/day" form the prescription writer sends for 5+ doses.
-fn daily_doses(frequency: &str) -> Option<u32> {
+pub(crate) fn daily_doses(frequency: &str) -> Option<u32> {
     if let Some(doses) = mar_schedule::doses_per_day(frequency) {
         return Some(doses);
     }
@@ -258,138 +258,6 @@ fn exceedance(total: f64, max: &Quantity, doses_per_day: u32) -> DoseExceedance 
         max_per_day: max.base / max.factor,
         ratio: total / max.base,
         doses_per_day,
-    }
-}
-
-/// Parse a dose string like `"500 mg"`, `"5ml"`, `"2 puff"` into a numeric
-/// amount and a lowercased unit. Returns `None` when no number is present.
-#[must_use]
-pub fn parse_amount(value: &str) -> Option<(f64, String)> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    // The numeric prefix: digits, one decimal point, leading sign.
-    let mut split = 0;
-    for (idx, ch) in trimmed.char_indices() {
-        if ch.is_ascii_digit() || ch == '.' || (idx == 0 && (ch == '+' || ch == '-')) {
-            split = idx + ch.len_utf8();
-        } else {
-            break;
-        }
-    }
-    if split == 0 {
-        return None;
-    }
-
-    let amount: f64 = trimmed[..split].parse().ok()?;
-    let unit = trimmed[split..].trim().to_lowercase();
-    Some((amount, unit))
-}
-
-/// Direction of a weight-based dose deviation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DoseDirection {
-    Over,
-    Under,
-}
-
-/// A paediatric weight-based (mg/kg/day) dose advisory.
-#[derive(Debug, Clone, PartialEq)]
-pub struct WeightDoseAdvice {
-    pub prescribed_per_day: f64,
-    pub recommended_per_day: f64,
-    pub unit: String,
-    pub direction: DoseDirection,
-    /// `prescribed / recommended`.
-    pub ratio: f64,
-}
-
-/// Deviation beyond ±25% of the weight-based recommendation is advised.
-const WEIGHT_DOSE_TOLERANCE: f64 = 0.25;
-
-/// Compare a prescribed daily dose against the weight-based recommendation
-/// (`weight_kg × dose_per_kg`). Advisory only — over **and** under dosing both
-/// matter in paediatrics. Returns `None` when inputs are missing, units differ,
-/// or the prescribed dose is within tolerance of the recommendation.
-#[must_use]
-pub fn evaluate_weight_dose(
-    per_dose: &str,
-    doses_per_day: u32,
-    weight_kg: f64,
-    dose_per_kg: &str,
-) -> Option<WeightDoseAdvice> {
-    if doses_per_day == 0 || weight_kg <= 0.0 {
-        return None;
-    }
-    let (dose_amount, dose_unit) = parse_amount(per_dose)?;
-    let (per_kg_amount, per_kg_unit) = parse_amount(dose_per_kg)?;
-    if dose_unit != per_kg_unit || dose_unit.is_empty() || per_kg_amount <= 0.0 {
-        return None;
-    }
-
-    let recommended = weight_kg * per_kg_amount;
-    if recommended <= 0.0 {
-        return None;
-    }
-    let prescribed = dose_amount * f64::from(doses_per_day);
-    let ratio = prescribed / recommended;
-    if (ratio - 1.0).abs() <= WEIGHT_DOSE_TOLERANCE {
-        return None;
-    }
-    Some(WeightDoseAdvice {
-        prescribed_per_day: prescribed,
-        recommended_per_day: recommended,
-        unit: dose_unit,
-        direction: if ratio > 1.0 {
-            DoseDirection::Over
-        } else {
-            DoseDirection::Under
-        },
-        ratio,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{DoseDirection, evaluate_weight_dose, parse_amount};
-
-    #[test]
-    fn parses_amount_and_unit() {
-        assert_eq!(parse_amount("500 mg"), Some((500.0, "mg".to_owned())));
-        assert_eq!(parse_amount("5ml"), Some((5.0, "ml".to_owned())));
-        assert_eq!(parse_amount("2.5 mg"), Some((2.5, "mg".to_owned())));
-        assert_eq!(parse_amount("1 tab"), Some((1.0, "tab".to_owned())));
-        assert_eq!(parse_amount("  "), None);
-        assert_eq!(parse_amount("mg"), None);
-    }
-
-    #[test]
-    fn weight_dose_within_tolerance_is_silent() {
-        // 20 kg × 15 mg/kg = 300 mg/day recommended; 100 mg TID = 300 → on target.
-        assert!(evaluate_weight_dose("100 mg", 3, 20.0, "15 mg").is_none());
-        // 110 mg TID = 330 → within +25%.
-        assert!(evaluate_weight_dose("110 mg", 3, 20.0, "15 mg").is_none());
-    }
-
-    #[test]
-    fn weight_dose_over_and_under_flag() {
-        // 20 kg × 15 = 300; 250 mg BD = 500 → over (+67%).
-        let over = evaluate_weight_dose("250 mg", 2, 20.0, "15 mg").expect("over");
-        assert_eq!(over.direction, DoseDirection::Over);
-        assert!((over.recommended_per_day - 300.0).abs() < f64::EPSILON);
-        assert!((over.prescribed_per_day - 500.0).abs() < f64::EPSILON);
-        // 50 mg OD = 50 → well under 300.
-        let under = evaluate_weight_dose("50 mg", 1, 20.0, "15 mg").expect("under");
-        assert_eq!(under.direction, DoseDirection::Under);
-    }
-
-    #[test]
-    fn weight_dose_missing_inputs_silent() {
-        assert!(evaluate_weight_dose("100 mg", 3, 0.0, "15 mg").is_none());
-        assert!(evaluate_weight_dose("100 mg", 3, 20.0, "").is_none());
-        assert!(evaluate_weight_dose("5 ml", 3, 20.0, "15 mg").is_none());
     }
 }
 
