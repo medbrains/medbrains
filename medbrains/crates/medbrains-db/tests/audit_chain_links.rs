@@ -7,7 +7,12 @@
 //! Tampering is done the way an attacker with the owner login would: with
 //! triggers off (`session_replication_role = replica`).
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::cast_possible_wrap
+)]
 
 use medbrains_db::audit::{AuditEntry, AuditLogger};
 use medbrains_db_migrations::testing::{add_tenant, fresh_db};
@@ -32,19 +37,19 @@ async fn write(owner: &PgPool, tenant: Uuid, action: &str) {
     tx.commit().await.expect("commit");
 }
 
-/// A tenant with `n` chained rows; returns the tenant and the rows' ids in order.
+/// A tenant with `n` chained rows after the ones its setup writes; returns the
+/// tenant and every row's id in chain order (the test's rows are the last `n`).
 async fn chain_of(owner: &PgPool, code: &str, n: usize) -> (Uuid, Vec<Uuid>) {
     let tenant = add_tenant(owner, code).await.expect("tenant");
     for i in 0..n {
         write(owner, tenant, &format!("step_{i}")).await;
     }
-    let ids = sqlx::query_scalar(
-        "SELECT id FROM audit_log WHERE tenant_id = $1 ORDER BY created_at, id",
-    )
-    .bind(tenant)
-    .fetch_all(owner)
-    .await
-    .expect("ids");
+    let ids =
+        sqlx::query_scalar("SELECT id FROM audit_log WHERE tenant_id = $1 ORDER BY created_at, id")
+            .bind(tenant)
+            .fetch_all(owner)
+            .await
+            .expect("ids");
     (tenant, ids)
 }
 
@@ -70,10 +75,12 @@ async fn tamper(owner: &PgPool, sql: &str, binds: &[&str]) {
 async fn an_intact_chain_verifies() {
     let db = fresh_db().await.expect("test database");
     let owner = db.owner().await.expect("owner pool");
-    let (tenant, _) = chain_of(&owner, "CHAINOK", 5).await;
-    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant).await.expect("verify");
+    let (tenant, ids) = chain_of(&owner, "CHAINOK", 5).await;
+    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant)
+        .await
+        .expect("verify");
     assert!(v.valid, "{v:?}");
-    assert_eq!(v.rows_checked, 5);
+    assert_eq!(v.rows_checked, ids.len() as i64);
 }
 
 #[tokio::test]
@@ -81,11 +88,23 @@ async fn a_deleted_middle_row_fails() {
     let db = fresh_db().await.expect("test database");
     let owner = db.owner().await.expect("owner pool");
     let (tenant, ids) = chain_of(&owner, "CHAINDEL", 5).await;
-    let victim = ids[2].to_string();
-    tamper(&owner, "DELETE FROM audit_log WHERE id = $1::uuid", &[&victim]).await;
-    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant).await.expect("verify");
+    let at = ids.len() - 3;
+    let victim = ids[at].to_string();
+    tamper(
+        &owner,
+        "DELETE FROM audit_log WHERE id = $1::uuid",
+        &[&victim],
+    )
+    .await;
+    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant)
+        .await
+        .expect("verify");
     assert!(!v.valid, "a deleted row went unnoticed: {v:?}");
-    assert_eq!(v.broken_at, Some(ids[3]), "break reported at the row after the gap");
+    assert_eq!(
+        v.broken_at,
+        Some(ids[at + 1]),
+        "break reported at the row after the gap"
+    );
 }
 
 #[tokio::test]
@@ -93,11 +112,11 @@ async fn a_forged_row_with_a_self_consistent_hash_fails() {
     let db = fresh_db().await.expect("test database");
     let owner = db.owner().await.expect("owner pool");
     let (tenant, ids) = chain_of(&owner, "CHAINFRG", 5).await;
-    // Slot a row between rows 1 and 2, linked to row 1, hashed honestly.
+    // Slot a row between two of the test's rows, linked to the first, hashed honestly.
     let (prev, at): (String, String) = sqlx::query_as(
         "SELECT hash, (created_at + interval '1 microsecond')::text FROM audit_log WHERE id = $1",
     )
-    .bind(ids[1])
+    .bind(ids[ids.len() - 4])
     .fetch_one(&owner)
     .await
     .expect("row 1");
@@ -111,7 +130,9 @@ async fn a_forged_row_with_a_self_consistent_hash_fails() {
         &[&tenant.to_string(), &prev, &hash, &canonical, &at],
     )
     .await;
-    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant).await.expect("verify");
+    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant)
+        .await
+        .expect("verify");
     assert!(!v.valid, "a forged row went unnoticed: {v:?}");
 }
 
@@ -121,9 +142,12 @@ async fn a_forged_row_with_a_self_consistent_hash_fails() {
 async fn a_late_writer_is_not_a_break() {
     let db = fresh_db().await.expect("test database");
     let owner = db.owner().await.expect("owner pool");
-    let (tenant, _) = chain_of(&owner, "CHAINLATE", 2).await;
+    let (tenant, ids) = chain_of(&owner, "CHAINLATE", 2).await;
     let mut early = owner.begin().await.expect("early tx");
-    sqlx::query("SELECT now()").execute(&mut *early).await.expect("pin start time");
+    sqlx::query("SELECT now()")
+        .execute(&mut *early)
+        .await
+        .expect("pin start time");
     write(&owner, tenant, "meanwhile").await;
     let entry = AuditEntry {
         tenant_id: tenant,
@@ -135,10 +159,14 @@ async fn a_late_writer_is_not_a_break() {
         new_values: None,
         ip_address: None,
     };
-    AuditLogger::log(&mut early, &entry).await.expect("late row");
+    AuditLogger::log(&mut early, &entry)
+        .await
+        .expect("late row");
     early.commit().await.expect("commit late");
     write(&owner, tenant, "after").await;
-    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant).await.expect("verify");
+    let v = AuditLogger::verify_chain_for_tenant(&owner, tenant)
+        .await
+        .expect("verify");
     assert!(v.valid, "a late writer was reported as a break: {v:?}");
-    assert_eq!(v.rows_checked, 5);
+    assert_eq!(v.rows_checked, ids.len() as i64 + 3);
 }
