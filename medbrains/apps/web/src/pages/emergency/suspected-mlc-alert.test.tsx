@@ -37,4 +37,14 @@ describe("a possible MLC on the ER visit", () => {
     render(<SuspectedMlcAlert visit={visit({ mlc_suspicion: null })} />);
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
+
+  it("says nothing once an MLC case is registered, even over an earlier dismissal", () => {
+    render(
+      <SuspectedMlcAlert
+        visit={visit({ is_mlc: true, mlc_suspicion: "dismissed", mlc_suspicion_reason: "Fell" })}
+      />,
+    );
+    expect(screen.queryByText("Reviewed: not a medico-legal case")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

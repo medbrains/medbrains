@@ -92,12 +92,14 @@ function DecisionModal({
  * On the ER visit: a possible medico-legal case the desk saved from the
  * complaint, for a doctor to confirm or dismiss. Each button is gated on the
  * permission its call needs; everyone else reads who decides. A dismissal
- * stays on the page with its reason.
+ * stays on the page with its reason, until an MLC case is registered on the
+ * visit: then the case is the answer and the old dismissal would contradict it.
  */
 export function SuspectedMlcAlert({ visit }: { visit: ErVisit }) {
   const canReview = useHasPermission(P.EMERGENCY.MLC_REVIEW_SUSPECTED);
   const canRegister = useHasPermission(P.EMERGENCY.MLC_CREATE);
   const [decision, setDecision] = useState<Decision | null>(null);
+  if (visit.is_mlc) return null;
   if (visit.mlc_suspicion === "dismissed") {
     return (
       <Alert
