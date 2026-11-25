@@ -113,7 +113,7 @@ pub(crate) async fn release(
     .await?;
     let items = insert_items(tx, tenant_id, order.id, &lines).await?;
     crate::bill_order_items_in_tx(tx, &tenant_id, &order, &items).await?;
-    super::invoice::tax_lines(tx, tenant_id, order.id).await?;
+    super::invoice::tax_lines(&mut **tx, tenant_id, order.id).await?;
     log_substitutions(tx, tenant_id, &lines, &items).await?;
     super::holds::release(tx, tenant_id, store_order_id, "released").await?;
     sqlx::query(

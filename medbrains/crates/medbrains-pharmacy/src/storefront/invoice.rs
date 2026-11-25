@@ -7,14 +7,14 @@
 //! the two always add up to the tax (rounding each half on its own did not).
 
 use medbrains_server_core::error::AppError;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 /// Fill the GST columns of `order_id`'s invoice lines from the catalogue,
 /// CGST + SGST adding up to each line's tax, and say on the invoice that it
-/// was ordered online.
+/// was ordered online. Takes the caller's connection, inside its transaction.
 pub(crate) async fn tax_lines(
-    tx: &mut Transaction<'_, Postgres>,
+    conn: &mut PgConnection,
     tenant_id: Uuid,
     order_id: Uuid,
 ) -> Result<(), AppError> {
@@ -38,7 +38,7 @@ pub(crate) async fn tax_lines(
     )
     .bind(tenant_id)
     .bind(order_id)
-    .execute(&mut **tx)
+    .execute(&mut *conn)
     .await?;
     sqlx::query(
         "UPDATE invoices i SET notes = concat_ws(' · ', NULLIF(i.notes, ''), 'Ordered online') \
@@ -48,7 +48,7 @@ pub(crate) async fn tax_lines(
     )
     .bind(tenant_id)
     .bind(order_id)
-    .execute(&mut **tx)
+    .execute(&mut *conn)
     .await?;
     Ok(())
 }
