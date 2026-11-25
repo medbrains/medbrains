@@ -56,6 +56,7 @@ pub mod diagnosis_coding;
 pub mod diet;
 pub mod document;
 pub mod dose_safety;
+pub mod weight_dose;
 pub mod emergency;
 pub mod encounter;
 pub mod facilities_mgmt;

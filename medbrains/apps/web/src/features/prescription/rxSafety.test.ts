@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_SAFETY, maxDoseRow } from "./rxSafety";
+import { EMPTY_SAFETY, maxDoseRow, weightDoseRow } from "./rxSafety";
 
 describe("maxDoseRow", () => {
   it("flags a line over its maximum", () => {
@@ -38,5 +38,37 @@ describe("maxDoseRow", () => {
 
   it("is ok only when nothing was over or unchecked", () => {
     expect(maxDoseRow(EMPTY_SAFETY).state).toBe("ok");
+  });
+});
+
+describe("weightDoseRow", () => {
+  it("warns, never passes, when a child's weight is missing or stale", () => {
+    const row = weightDoseRow({
+      ...EMPTY_SAFETY,
+      weight_not_checked: [
+        { drug_name: "Paracetamol", reason: "No weight recorded for this child" },
+      ],
+    });
+    expect(row.state).toBe("warn");
+    expect(row.detail).toContain("Not checked — Paracetamol: No weight recorded");
+    expect(row.count).toBe(1);
+  });
+
+  it("flags an overdose and labels a per-dose rule per dose", () => {
+    const row = weightDoseRow({
+      ...EMPTY_SAFETY,
+      weight_alerts: [
+        {
+          drug_name: "Gentamicin",
+          direction: "over",
+          prescribed_per_day_label: "12 mg",
+          recommended_per_day_label: "6 mg",
+          basis: "dose",
+          weight_kg: 1.2,
+        },
+      ],
+    });
+    expect(row.state).toBe("flag");
+    expect(row.detail).toBe("Gentamicin: 12 mg/dose is over the ~6 mg/dose for 1.2 kg");
   });
 });

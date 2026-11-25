@@ -1,5 +1,10 @@
 // Screen layout zone types — split from index.ts, barrel-re-exported.
-import type { DoseAlert, DoseNotCheckedAlert, WeightDoseAlert } from "./clinical-knowledge-base";
+import type {
+  DoseAlert,
+  DoseNotCheckedAlert,
+  WeightDoseAlert,
+  WeightNotCheckedAlert,
+} from "./clinical-knowledge-base";
 
 // ── Screen Layout Zone Types ────────────────────────────────
 
@@ -92,6 +97,7 @@ export interface DrugSafetyCheckResult {
   dose_alerts: DoseAlert[];
   dose_not_checked: DoseNotCheckedAlert[];
   weight_alerts: WeightDoseAlert[];
+  weight_not_checked: WeightNotCheckedAlert[];
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];

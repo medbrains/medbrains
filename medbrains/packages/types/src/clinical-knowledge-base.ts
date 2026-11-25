@@ -231,9 +231,18 @@ export interface DoseNotCheckedAlert {
 export interface WeightDoseAlert {
   drug_name: string;
   direction: "over" | "under";
+  /** Prescribed amount per `basis` (named per day for history; may be per dose). */
   prescribed_per_day_label: string;
   recommended_per_day_label: string;
+  /** What the two labels are per: the day's total or one dose. */
+  basis: "day" | "dose";
   weight_kg: number;
+}
+
+/** A child's line with a dose per kg that could not be checked, and why. */
+export interface WeightNotCheckedAlert {
+  drug_name: string;
+  reason: string;
 }
 
 export interface DoseCheckItem {
