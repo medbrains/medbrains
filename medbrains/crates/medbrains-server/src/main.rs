@@ -249,9 +249,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ── ReBAC backend (SpiceDB sidecar; falls back to Postgres-native) ──
     //
     // SPICEDB_ENDPOINT and SPICEDB_TOKEN come from .env / k8s config.
-    // If unset (or connection fails), we silently fall back to the
-    // Postgres-native AuthzPgBackend so dev environments without
-    // SpiceDB running still boot. Production deploys always set these.
+    // No endpoint (or a failed connection) falls back to the Postgres-native
+    // AuthzPgBackend so dev environments without SpiceDB still boot. An
+    // endpoint without a token refuses to boot outside development.
     tracing::info!(
         endpoint = ?std::env::var("SPICEDB_ENDPOINT").ok(),
         "spicedb endpoint config"
@@ -263,7 +263,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Ok(endpoint) =
         std::env::var("SPICEDB_ENDPOINT")
     {
-        let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
+        let token = medbrains_authz_spicedb::preshared_key::preshared_key(
+            std::env::var("SPICEDB_TOKEN").ok(),
+            &config.environment,
+        )?;
         match medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token)
             .await
         {
