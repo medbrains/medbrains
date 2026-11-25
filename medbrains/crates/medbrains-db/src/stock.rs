@@ -28,9 +28,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-/// Hospital setting (`tenant_settings`, category `operations`): days of shelf
-/// life a batch must still have to leave a store. Seeded for every hospital by
-/// migration 1491; unset or unreadable falls back to
+/// Days of shelf life a batch must still have to leave a store.
+///
+/// A hospital setting (`tenant_settings`, category `operations`), seeded for
+/// every hospital by migration 1491; unset or unreadable falls back to
 /// [`DEFAULT_MIN_ISSUE_SHELF_LIFE_DAYS`].
 pub const MIN_ISSUE_SHELF_LIFE_KEY: &str = "issue_min_shelf_life_days";
 /// The storefront's floor for an online order
