@@ -3,7 +3,6 @@
   "crates/medbrains-auth/src/lib.rs": {"clippy::expect_used": 5},
   "crates/medbrains-authz-spicedb/tests/spicedb_smoke.rs": {"clippy::print_stderr": 3},
   "crates/medbrains-authz/src/registry.rs": {"clippy::expect_used": 1, "clippy::panic": 1, "clippy::unwrap_used": 1},
-  "crates/medbrains-billing/src/collect/allocate.rs": {"clippy::expect_used": 1},
   "crates/medbrains-blood-bank/src/lib.rs": {"clippy::items_after_test_module": 1},
   "crates/medbrains-clinical-scores/src/child_pugh.rs": {"clippy::unwrap_used": 6},
   "crates/medbrains-clinical-scores/src/ews/tests.rs": {"clippy::field_reassign_with_default": 2},

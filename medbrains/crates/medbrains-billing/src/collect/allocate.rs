@@ -52,6 +52,7 @@ pub fn allocate(balances: &[Decimal], tenders: &[Decimal]) -> Result<Vec<Slice>,
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
