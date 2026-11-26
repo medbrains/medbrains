@@ -31,7 +31,7 @@
   "crates/medbrains-print/examples/render_samples.rs": {"clippy::print_stdout": 1},
   "crates/medbrains-print/src/codes.rs": {"clippy::expect_used": 2},
   "crates/medbrains-print/src/engine.rs": {"clippy::expect_used": 4},
-  "crates/medbrains-print/src/templates.rs": {"clippy::expect_used": 4, "clippy::panic": 2},
+  "crates/medbrains-print/src/templates.rs": {"clippy::panic": 2},
   "crates/medbrains-radiology/src/dose.rs": {"clippy::unwrap_used": 1},
   "crates/medbrains-radiology/src/dose_capture.rs": {"clippy::needless_pass_by_value": 1},
   "crates/medbrains-regulatory/src/dpdp_dashboard.rs": {"clippy::expect_used": 1},

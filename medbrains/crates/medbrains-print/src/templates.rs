@@ -1209,6 +1209,7 @@ const CASHLESS_CLAIM_SAMPLE: &str = r#"{
 }"#;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
