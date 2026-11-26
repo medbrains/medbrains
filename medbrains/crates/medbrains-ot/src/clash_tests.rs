@@ -195,17 +195,24 @@ async fn a_case_that_ends_before_it_starts_is_refused() {
     assert!(matches!(r, Err(AppError::BadRequest(_))), "{r:?}");
 }
 
+/// Set the seeded case to `status`, then book Dr Varma over its old slot.
+async fn book_over_a_case_now(w: &World, status: &str) -> Result<(), AppError> {
+    sqlx::query("UPDATE ot_bookings SET status = $2::ot_booking_status WHERE tenant_id = $1")
+        .bind(w.tenant)
+        .bind(status)
+        .execute(&w.owner)
+        .await
+        .expect("status");
+    check(w, w.theatre_2, vec![w.varma], ("01T11:00", "01T12:00")).await
+}
+
 #[tokio::test]
 async fn a_postponed_or_cancelled_case_frees_its_slot() {
     let w = world().await;
-    for status in ["postponed", "cancelled"] {
-        sqlx::query("UPDATE ot_bookings SET status = $2::ot_booking_status WHERE tenant_id = $1")
-            .bind(w.tenant)
-            .bind(status)
-            .execute(&w.owner)
-            .await
-            .expect("status");
-        let r = check(&w, w.theatre_2, vec![w.varma], ("01T11:00", "01T12:00")).await;
-        assert!(r.is_ok(), "{status}: {r:?}");
-    }
+    let postponed = book_over_a_case_now(&w, "postponed").await;
+    let cancelled = book_over_a_case_now(&w, "cancelled").await;
+    assert!(
+        postponed.is_ok() && cancelled.is_ok(),
+        "{postponed:?} {cancelled:?}"
+    );
 }
