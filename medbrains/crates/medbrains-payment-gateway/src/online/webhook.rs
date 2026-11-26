@@ -78,24 +78,34 @@ async fn verified(
     Ok(notice)
 }
 
+/// The largest body taken as a notice. Real ones are a few KB; the cap bounds
+/// what an unsigned caller can file under an order nobody made. Inferred, not
+/// from a provider's spec.
+const NOTICE_MAX_BYTES: usize = 64 * 1024;
+
 /// `POST /api/webhooks/{provider}` for every online provider.
 ///
+/// Nothing is written before the notice is verified, except a bounded record
+/// of one for an order no hospital made (no hospital's secret can verify it).
+/// A notice that names no order is logged only: nothing could ever act on it.
+///
 /// # Errors
-/// 400 for a bad signature, a database fault.
+/// 400 for an empty or oversized body or a bad signature; a database fault.
 pub async fn receive(
     state: &AppState,
     provider: &'static dyn OnlineProvider,
     headers: &HeaderMap,
     body: &str,
 ) -> Result<Json<Value>, AppError> {
+    if body.trim().is_empty() || body.len() > NOTICE_MAX_BYTES {
+        return Err(AppError::BadRequest("not a payment notice".to_owned()));
+    }
     let code = provider.code();
     let order_ref = match provider.locate(headers, body) {
         Located::Order(r) => r,
         Located::NotOurs => return Ok(Json(json!({ "status": "ignored" }))),
         Located::Unreadable => {
-            tracing::warn!(provider = code, "webhook names no order");
-            crate::log_webhook_exception(&state.db, code, None, "unknown_order", &as_json(body))
-                .await?;
+            tracing::warn!(provider = code, "webhook names no order; not stored");
             return Ok(Json(json!({ "status": "ignored" })));
         }
     };
