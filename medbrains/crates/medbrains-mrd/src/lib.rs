@@ -2683,7 +2683,7 @@ pub async fn stats_admission_discharge(
              COUNT(*) FILTER (WHERE a.discharge_type = 'deceased'::discharge_type)::bigint \
                AS total_deaths, \
              SUM(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) \
-               / 86400) AS los_days \
+               / 86400)::float8 AS los_days \
            FROM admissions a \
            JOIN encounters enc ON enc.id = a.encounter_id \
            LEFT JOIN departments dep ON dep.id = enc.department_id \
