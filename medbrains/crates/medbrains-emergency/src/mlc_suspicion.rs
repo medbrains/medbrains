@@ -167,8 +167,10 @@ async fn case_on_visit(
 
 /// The ER visit a new MLC case belongs to: the one the caller named, or, when
 /// none was named (the MLC tab names none), the patient's newest open ER
-/// visit that has no case yet. Marks it as MLC and settles a pending
-/// suspicion as confirmed by `decided_by`.
+/// visit that has no case yet. Marks it as MLC and settles the suspicion as
+/// confirmed by `decided_by`, now: a pending one, and a dismissed one too, since
+/// a registered case overrules the dismissal (its reason stays, and the audit
+/// log keeps the dismissal).
 pub(crate) async fn link_case_to_visit(
     tx: &mut Transaction<'_, Postgres>,
     (tenant_id, decided_by): (Uuid, Uuid),
@@ -191,11 +193,11 @@ pub(crate) async fn link_case_to_visit(
     sqlx::query!(
         "UPDATE er_visits
             SET is_mlc = true, updated_at = now(),
-                mlc_suspicion_decided_by = CASE WHEN mlc_suspicion = 'suspected' THEN $3
+                mlc_suspicion_decided_by = CASE WHEN mlc_suspicion IN ('suspected', 'dismissed') THEN $3
                                                 ELSE mlc_suspicion_decided_by END,
-                mlc_suspicion_decided_at = CASE WHEN mlc_suspicion = 'suspected' THEN now()
+                mlc_suspicion_decided_at = CASE WHEN mlc_suspicion IN ('suspected', 'dismissed') THEN now()
                                                 ELSE mlc_suspicion_decided_at END,
-                mlc_suspicion = CASE WHEN mlc_suspicion = 'suspected' THEN 'confirmed'
+                mlc_suspicion = CASE WHEN mlc_suspicion IN ('suspected', 'dismissed') THEN 'confirmed'
                                      ELSE mlc_suspicion END
           WHERE id = $1 AND tenant_id = $2",
         visit_id,

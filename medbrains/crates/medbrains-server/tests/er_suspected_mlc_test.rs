@@ -165,3 +165,45 @@ async fn a_trauma_complaint_saves_and_waits_for_a_doctor() {
     assert_eq!(seen["is_mlc"], true, "{seen}");
     assert_eq!(seen["mlc_suspicion"], "confirmed");
 }
+
+/// Given a possible MLC a doctor dismissed, When an MLC case is later
+/// registered on that visit from the MLC tab, Then the visit reads confirmed,
+/// decided by whoever registered it, never "dismissed" beside a live case.
+#[tokio::test]
+async fn a_case_registered_after_a_dismissal_confirms_the_visit() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
+    let desk = common::provision_staff(&app, &csrf, "receptionist", &[]).await;
+    let patient = patient_of(&app, &csrf, doctor.user_id).await;
+    let visits = app.url("/api/emergency/visits");
+    let (status, arrival) = send(
+        &desk.csrf,
+        desk.client.post(&visits).json(&json!({
+            "patient_id": patient, "chief_complaint": "Road traffic accident, cut on arm",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{arrival}");
+    let id = arrival["id"].as_str().expect("id");
+    let dismiss = json!({ "decision": "dismiss", "reason": "Fell from own bicycle at home" });
+    let decide = format!("{visits}/{id}/mlc-suspicion");
+    let (status, _) = send(&doctor.csrf, doctor.client.put(&decide).json(&dismiss)).await;
+    assert_eq!(status, StatusCode::OK, "the doctor dismisses");
+
+    let (status, case) = send(
+        &doctor.csrf,
+        doctor
+            .client
+            .post(app.url("/api/emergency/mlc"))
+            .json(&json!({
+                "patient_id": patient, "er_visit_id": id, "case_type": "assault",
+            })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{case}");
+    let seen = visit(&app, &doctor, &arrival["id"]).await;
+    assert_eq!(seen["is_mlc"], true, "{seen}");
+    assert_eq!(seen["mlc_suspicion"], "confirmed", "{seen}");
+    assert_eq!(seen["mlc_suspicion_decided_by"], json!(doctor.user_id));
+}
