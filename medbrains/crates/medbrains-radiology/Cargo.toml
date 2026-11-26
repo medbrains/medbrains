@@ -15,6 +15,7 @@ medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }
+medbrains-health-services = { path = "../medbrains-health-services" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -29,3 +30,7 @@ getrandom = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

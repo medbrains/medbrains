@@ -1076,7 +1076,10 @@ export interface ContrastScreeningRequest {
 }
 
 export interface ContrastScreeningResult {
+  /** Latest verified eGFR per 1.73 m² from the last 90 days; null = not checked. */
   egfr: number | null;
+  /** The day that eGFR sample was taken (YYYY-MM-DD). */
+  egfr_measured_on: string | null;
   cin_risk: string;
   reaction_risk: string;
   metformin_action: string;
