@@ -348,6 +348,7 @@ mod soft_delete_lists_test;
 mod soft_deleted_lists_test;
 mod sso_link_guard_test;
 mod sso_mapping_guard_test;
+mod sso_resend_errors_test;
 mod step_up_coverage_test;
 mod step_up_token_test;
 mod sticky_notes_test;

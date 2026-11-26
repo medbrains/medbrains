@@ -1594,8 +1594,10 @@ pub fn public_router() -> axum::Router<AppState> {
 /// authenticated callers both got 500 on `/api/onboarding/progress`.
 ///
 /// So the wizard could register a tenant and then not take a single step.
+/// Resending the email-verification link starts the router: it reads the
+/// signed-in user and was mounted public the same way.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
+    email_verification::protected_router()
         .route(
             "/api/onboarding/progress",
             get(get_progress).put(update_progress),

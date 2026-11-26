@@ -224,7 +224,7 @@ INTENTIONALLY_OPEN = {
     "/api/auth/password-reset/request": "the OTP sent is the credential",
     "/api/auth/password-reset/confirm": "the OTP is the credential being exchanged",
     "/api/auth/verify-email": "the emailed token is the credential",
-    "/api/auth/resend-verification": "identifies the account by the address itself",
+    "/api/auth/resend-verification": "own verification email, account from claims.sub",
     "/api/auth/sso/{provider_id}/authorize": "redirect to the IdP, tied to sso_auth_state",
     "/api/device-pairing/pair": "one-time device_pairing_tokens row, expiring and single-use",
     "/api/device-pairing/device-code": "device-code flow: the code is the credential",

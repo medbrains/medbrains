@@ -118,9 +118,13 @@ struct LoginProvider {
 /// reached and which client `MedBrains` is are pinned by the server (`os_identity`), so an edited row cannot send
 /// a sign-in elsewhere.
 async fn load_provider(state: &AppState, id: Uuid) -> Result<LoginProvider, AppError> {
+    // `sso_provider_for_login` returns one row, not a set: for an unknown or
+    // inactive id that row is all NULLs, which failed to decode into a 500.
+    // `id IS NOT NULL` makes it no row, which is the 404 below.
     let mut provider = sqlx::query_as::<_, LoginProvider>(
         "SELECT id, tenant_id, protocol, discovery_url, client_id, client_secret_enc, \
-         group_claim, default_role, jit_enabled, code, link_by_email FROM sso_provider_for_login($1)",
+         group_claim, default_role, jit_enabled, code, link_by_email \
+         FROM sso_provider_for_login($1) WHERE id IS NOT NULL",
     )
     .bind(id)
     .fetch_optional(&state.db)
