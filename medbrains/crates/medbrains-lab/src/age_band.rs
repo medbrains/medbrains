@@ -27,6 +27,7 @@ pub(crate) fn band(dob: Option<NaiveDate>, sex: Option<&str>, today: NaiveDate) 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::band;
     use chrono::{FixedOffset, NaiveDate, TimeZone, Utc};
