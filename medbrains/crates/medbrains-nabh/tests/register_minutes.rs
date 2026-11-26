@@ -27,11 +27,13 @@ async fn cpr_duration_is_rounded_to_the_nearest_minute() {
     let user = id(
         &db,
         "INSERT INTO users (tenant_id, username, email, full_name, role) \
-         VALUES ($1, 'nabh-nurse', 'nurse@nabh.test', 'Nurse', 'nurse') RETURNING id",
+         VALUES ($1, 'nabhnurse', 'nurse@nabh.test', 'Nurse', 'nurse') RETURNING id",
         tenant,
     )
     .await;
-    let patient = add_patient(&db, tenant, "NABHMIN-1").await.expect("patient");
+    let patient = add_patient(&db, tenant, "NABHMIN-1")
+        .await
+        .expect("patient");
     let mut cases = Vec::new();
     for (seconds, minutes) in [(650, 11), (629, 10), (630, 11), (59, 1), (29, 0)] {
         let event: Uuid = sqlx::query_scalar(
