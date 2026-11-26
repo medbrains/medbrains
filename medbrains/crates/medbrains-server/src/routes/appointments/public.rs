@@ -4,6 +4,7 @@ use axum::{
 };
 use chrono::{Datelike, Duration, NaiveTime, Utc};
 use medbrains_core::appointment::{Appointment, AppointmentStatus, AvailableSlot, DoctorSchedule};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{error::AppError, event_tokens, state::AppState};
@@ -21,7 +22,7 @@ use super::{
 /// replayed next week.
 const STATUS_LINK_HOURS: i64 = 16;
 
-/// POST /api/public/appointments/book
+/// POST /api/public/appointments/book — book a slot from the public page.
 pub async fn public_book_appointment(
     State(state): State<AppState>,
     Json(body): Json<PublicBookingRequest>,
@@ -67,16 +68,15 @@ pub async fn public_book_appointment(
     )
     .await?;
 
-    let doctor_name: String = sqlx::query_scalar("SELECT full_name FROM users WHERE id = $1") // allow-raw-sql: public appointment booking resolves display names
-        .bind(body.doctor_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .unwrap_or_else(|| "Doctor".to_owned());
-    let department_name: String = sqlx::query_scalar("SELECT name FROM departments WHERE id = $1") // allow-raw-sql: public appointment booking resolves display names
-        .bind(body.department_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .unwrap_or_else(|| "Dept".to_owned());
+    let (doctor_name, department_name): (Option<String>, Option<String>) = sqlx::query_as(
+        // allow-raw-sql: public booking resolves both display names in one query
+        "SELECT (SELECT full_name FROM users WHERE id = $1), \
+                (SELECT name FROM departments WHERE id = $2)",
+    )
+    .bind(body.doctor_id)
+    .bind(body.department_id)
+    .fetch_one(&mut *tx)
+    .await?;
     let end_of_day = NaiveTime::from_hms_opt(23, 59, 59)
         .ok_or_else(|| AppError::Internal("invalid appointment QR expiry".to_owned()))?;
     let qr_expires_at = appointment.appointment_date.and_time(end_of_day).and_utc();
@@ -96,8 +96,8 @@ pub async fn public_book_appointment(
         appointment_id: appointment.id,
         appointment_date: appointment.appointment_date,
         slot_start: appointment.slot_start,
-        doctor_name,
-        department_name,
+        doctor_name: doctor_name.unwrap_or_else(|| "Doctor".to_owned()),
+        department_name: department_name.unwrap_or_else(|| "Dept".to_owned()),
         qr_code_data,
         status: "confirmed".to_owned(),
         message: "Appointment booked. Show QR code at kiosk on arrival.".to_owned(),
@@ -160,7 +160,7 @@ pub async fn public_bookable_doctors(
     }))
 }
 
-/// GET /api/public/appointments/slots
+/// GET /api/public/appointments/slots — a doctor's free slots on a day.
 pub async fn public_available_slots(
     State(state): State<AppState>,
     Query(params): Query<PublicSlotsQuery>,
@@ -189,6 +189,18 @@ pub async fn public_available_slots(
     .fetch_all(&mut *tx)
     .await?;
 
+    let booked_at: HashMap<NaiveTime, i64> = sqlx::query_as::<_, (NaiveTime, i64)>(
+        // allow-raw-sql: public slot occupancy for the doctor's day
+        "SELECT slot_start, COUNT(*) FROM appointments \
+         WHERE doctor_id = $1 AND appointment_date = $2 \
+         AND status NOT IN ('cancelled', 'no_show') GROUP BY slot_start",
+    )
+    .bind(params.doctor_id)
+    .bind(params.date)
+    .fetch_all(&mut *tx)
+    .await?
+    .into_iter()
+    .collect();
     let mut slots = Vec::new();
     for schedule in &schedules {
         let mut current = schedule.start_time;
@@ -198,18 +210,7 @@ pub async fn public_available_slots(
                 break;
             }
 
-            let booked: i64 = sqlx::query_scalar(
-                // allow-raw-sql: public slot occupancy check
-                "SELECT COUNT(*) FROM appointments \
-                 WHERE doctor_id = $1 AND appointment_date = $2 AND slot_start = $3 \
-                 AND status NOT IN ('cancelled', 'no_show')",
-            )
-            .bind(params.doctor_id)
-            .bind(params.date)
-            .bind(current)
-            .fetch_one(&mut *tx)
-            .await?;
-
+            let booked = booked_at.get(&current).copied().unwrap_or(0);
             if booked < i64::from(schedule.max_patients) {
                 slots.push(AvailableSlot {
                     start_time: current,
