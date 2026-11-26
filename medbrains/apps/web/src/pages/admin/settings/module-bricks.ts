@@ -28,25 +28,6 @@ export function neededBy(code: string, modules: readonly ModuleConfig[]): Module
 }
 
 /**
- * Bricks that are on and need `code`, directly or through another brick — what switching it off
- * would break. Bounded: each brick is visited once.
- */
-export function onDependents(code: string, modules: readonly ModuleConfig[]): ModuleConfig[] {
-  const seen = new Set<string>([code]);
-  const queue = [code];
-  const found: ModuleConfig[] = [];
-  for (let at = 0; at < queue.length; at++) {
-    for (const dependent of neededBy(queue[at] ?? "", modules)) {
-      if (seen.has(dependent.code)) continue;
-      seen.add(dependent.code);
-      queue.push(dependent.code);
-      if (isOn(dependent)) found.push(dependent);
-    }
-  }
-  return found;
-}
-
-/**
  * Bricks that `code` needs, directly or through another, that are off — in the order to switch
  * them on (what they need first). Bounded: each brick is visited once.
  */

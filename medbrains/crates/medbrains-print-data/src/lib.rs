@@ -4,6 +4,7 @@
 
 pub mod academic;
 pub mod admin;
+mod amount_words;
 pub mod billing;
 pub mod bme;
 pub mod clinical;

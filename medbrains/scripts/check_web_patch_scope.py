@@ -89,6 +89,7 @@ def self_test() -> int:
         "medbrains/apps/web/public/locales/hi/common.json",
         "medbrains/apps/web/src/lib/chunk-reload.test.ts",
         "medbrains/docs/DECISIONS.md",
+        "medbrains/docs/decisions/2026-11-22-one-file-per-decision.md",
     ]
     bad = [
         "medbrains/apps/web/src/lib/print/print-registry.generated.ts",
