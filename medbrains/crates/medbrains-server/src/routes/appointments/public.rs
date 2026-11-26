@@ -252,7 +252,7 @@ pub async fn kiosk_checkin(
         return Err(AppError::BadRequest("Invalid QR code".to_owned()));
     }
 
-    let today = Utc::now().date_naive();
+    let today = crate::hospital_time::tenant_local_today(&state.db, qr_token.tenant_id).await?;
     if appointment.appointment_date != today {
         return Err(AppError::BadRequest(format!(
             "Appointment is for {}",
