@@ -11,7 +11,7 @@ use medbrains_core::permissions;
 use medbrains_core::radiology::{
     RadiationDoseRecord, RadiologyModality, RadiologyOrder, RadiologyReport,
 };
-use medbrains_telehealth::renal_check::{EGFR_RECENCY_DAYS, EgfrReading, patient_latest_egfr};
+use medbrains_health_services::egfr::{EGFR_RECENCY_DAYS, EgfrReading, patient_latest_egfr};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

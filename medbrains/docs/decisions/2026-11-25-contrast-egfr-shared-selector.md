@@ -8,7 +8,7 @@ area: clinical-safety
 ## What
 
 Radiology's pre-contrast screening no longer has its own eGFR query. It calls
-`medbrains_telehealth::renal_check::patient_latest_egfr`, the selector renal dosing uses: newest
+`medbrains_health_services::egfr::patient_latest_egfr`, the shared selector renal dosing uses: newest
 verified result that is an eGFR (eGFR LOINC on the test, or named as one, never a clearance), per
 1.73 m², from the last 90 days. With none, the screening says "Contrast kidney risk not checked"
 (`cin_risk = not_checked`) and the clearance is "proceed with caution", never "proceed". The result
@@ -24,8 +24,9 @@ contrast as "low" risk.
 
 - A second copy of the selector in radiology: two selectors drift, and the same patient would get
   one kidney answer for dosing and another for contrast.
-- Moving the selector to `medbrains-core`: it needs a database read and `AppError`; core has
-  neither. Radiology depending on telehealth follows the existing pattern (OPD, pharmacy and the
-  order basket already do).
+- Moving the selector to `medbrains-core`: it needs a database read; core has none.
+- Radiology depending on telehealth (the OPD brick): a brick-to-brick crate edge, which the brick
+  edge ratchet refuses. The selector lives in `medbrains-health-services`, a shared health crate
+  both bricks may depend on.
 - A different window for contrast: the 90 days is #6257's proposed outer bound; one window, for the
   clinician to confirm or lower, in one place.

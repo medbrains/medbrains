@@ -6835,6 +6835,7 @@ dependencies = [
 name = "medbrains-health-services"
 version = "3.35.6"
 dependencies = [
+ "chrono",
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-kernel",
@@ -8079,11 +8080,11 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-db-migrations",
+ "medbrains-health-services",
  "medbrains-notifications",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-server-services",
- "medbrains-telehealth",
  "medbrains-workflow",
  "rust_decimal",
  "serde",
@@ -8691,6 +8692,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-db-migrations",
+ "medbrains-health-services",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-server-services",
