@@ -6187,7 +6187,6 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-server-core",
- "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
