@@ -9,9 +9,10 @@ use chrono::{DateTime, Duration, Utc};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-/// LOINC codes for an estimated GFR per 1.73 m², any equation. Source: the
-/// LOINC long common names, as served by the NLM Clinical Tables LOINC API
-/// (clinicaltables.nlm.nih.gov/api/loinc_items/v3), read 2026-11-25. All are
+/// LOINC codes for an estimated GFR per 1.73 m², any equation.
+///
+/// Source: the LOINC long common names, as served by the NLM Clinical Tables
+/// LOINC API (`clinicaltables.nlm.nih.gov/api/loinc_items/v3`), read 2026-11-25. All are
 /// "Glomerular filtration rate [Volume Rate/Area] ... /1.73 sq M".
 /// Creatinine clearance (e.g. 33558-8) is deliberately absent.
 const EGFR_LOINC: &[&str] = &[
@@ -29,7 +30,9 @@ const EGFR_LOINC: &[&str] = &[
     "69405-9", // based on 1.73 sq M, equation unstated
 ];
 
-/// Days an eGFR may be dosed from. Proposed, not clinician-confirmed: renal
+/// Days an eGFR may be dosed from.
+///
+/// Proposed, not clinician-confirmed: renal
 /// function can fall within days (AKI), so this is an outer bound, not a
 /// statement that a 90-day value is safe. Owner/clinician to confirm.
 pub const EGFR_RECENCY_DAYS: i64 = 90;
@@ -90,6 +93,7 @@ fn latest_egfr(candidates: &[EgfrCandidate], now: DateTime<Utc>) -> Option<EgfrR
 }
 
 /// The patient's latest qualifying eGFR (verified, recent, per 1.73 m²).
+///
 /// One selector for every brick that reads kidney function (renal dosing,
 /// contrast screening), so they never disagree on which result counts.
 ///
