@@ -32,6 +32,8 @@ export const emergencyService = {
     emergencyApi.listErVisits(...args),
   getErVisit: (id: string) => emergencyApi.getErVisit(id),
   createErVisit: (data: CreateErVisitInput) => emergencyApi.createErVisit(data),
+  decideSuspectedMlc: (...args: Parameters<typeof emergencyApi.decideSuspectedMlc>) =>
+    emergencyApi.decideSuspectedMlc(...args),
   admitFromEr: (visitId: string, data: AdmitFromErInput) => emergencyApi.admitFromEr(visitId, data),
   getErDischargeSummary: (visitId: string) => emergencyApi.getErDischargeSummary(visitId),
   createErDischargeSummary: (...args: Parameters<typeof emergencyApi.createErDischargeSummary>) =>
