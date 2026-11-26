@@ -30,6 +30,7 @@ function brick(code: string, name: string, depends_on: string[] = []): ModuleCon
     created_at: "",
     updated_at: "",
     background_jobs: [],
+    on: true,
   };
 }
 
@@ -98,5 +99,18 @@ describe("ModulesSettings: switching a brick off", () => {
       ),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows a brick the hospital never set up as on, and switches it off", async () => {
+    // No row for Dental: the server lists it as `available` and on, because it answers its API.
+    const dental = { ...brick("dental", "Dental", ["registration", "opd"]), status: "available" };
+    service.listModules.mockResolvedValue([...SMALL, dental]);
+    render(<ModulesSettings />);
+    const toggle = await screen.findByRole("switch", { name: "Dental: on" });
+    expect(screen.getAllByText("On (never set up)").length).toBeGreaterThan(0);
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(service.updateModule).toHaveBeenCalledWith("dental", { status: "disabled" }),
+    );
   });
 });

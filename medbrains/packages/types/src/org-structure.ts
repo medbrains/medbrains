@@ -60,6 +60,8 @@ export interface ModuleConfig {
   updated_at: string;
   /** This brick's background jobs and whether this server runs them. */
   background_jobs: BackgroundJobStatus[];
+  /** Whether the server answers for it now; on with a status other than `enabled` is "never set up". */
+  on: boolean;
 }
 
 /** One brick background job on the Modules screen. */
