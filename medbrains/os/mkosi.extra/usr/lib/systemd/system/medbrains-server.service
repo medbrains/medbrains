@@ -25,7 +25,11 @@ TimeoutStartSec=15min
 # standalone unit.
 TimeoutStopSec=15s
 LimitNOFILE=65536
-MemoryMax=3G
+# A share of this machine's RAM (the image runs on 4 GB and on 64 GB): at MemoryMax only the
+# server is killed, and Restart=on-failure brings it back. No MemoryHigh: past a soft limit the
+# kernel slows the server instead of killing it, so a leak would crawl for good and never restart.
+# PostgreSQL carries no limit: a slow database beats a killed one.
+MemoryMax=40%
 # Clinical work goes first when the screen or a report competes for the machine (D4).
 CPUWeight=200
 IOWeight=200
