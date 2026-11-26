@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useDictatedRxStore } from "@/components/Clinical/dictation/dictated-rx-store";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
-import { Alert, Card, Checkbox, SegmentedControl } from "@/components/ui";
+import { Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { ckbService } from "@/services/ckb.service";
@@ -32,6 +32,7 @@ import { NO_REFILLS, type RefillTerms, refillRequest } from "./rxRefills";
 import { doseOverageLabel, EMPTY_SAFETY, type RxSafety } from "./rxSafety";
 import { stewardshipCovers } from "./rxStewardship";
 import { type SafetyAnswers, type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
+import { SafetyUnavailableAlert } from "./SafetyUnavailableAlert";
 import { useLastPrescription } from "./useLastPrescription";
 
 interface Props {
@@ -432,13 +433,7 @@ export function RxSuiteWriter({
           </Stack>
         </Card>
       )}
-      {safetyUnavailable && (
-        <Alert tone="warning" title="Interaction check unavailable">
-          The drug-safety service could not be reached, so these drugs have not been screened for
-          interactions. Documented allergies and dose limits are still checked, and the server
-          re-checks both at save.
-        </Alert>
-      )}
+      {safetyUnavailable && <SafetyUnavailableAlert />}
       {askRefills && (
         <RxRefillTerms
           value={refillTerms}
@@ -472,6 +467,7 @@ export function RxSuiteWriter({
         saving={Boolean(isSaving)}
         editing={false}
         safety={safety}
+        safetyUnavailable={safetyUnavailable}
         signer={signer}
         templates={templates}
         templateToItems={templateToItems}

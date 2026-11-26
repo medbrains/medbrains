@@ -76,6 +76,8 @@ interface Props {
   saving: boolean;
   editing: boolean;
   safety: RxSafety;
+  /** The last safety check failed: `safety` is empty, not clear. */
+  safetyUnavailable: boolean;
   signer: { name: string; reg: string; nurseName: string; nurseReg: string };
   templates: PrescriptionTemplate[];
   /** Convert a saved set into rx-suite rows (uses the live formulary). */
@@ -111,6 +113,7 @@ export function RxDoctor({
   saving,
   editing,
   safety,
+  safetyUnavailable,
   signer,
   templates,
   templateToItems,
@@ -237,7 +240,7 @@ export function RxDoctor({
     if (d.cls) classCount[d.cls] = (classCount[d.cls] || 0) + 1;
   }
   const dupes = Object.entries(classCount).filter(([, n]) => n > 1);
-  const doseRow = maxDoseRow(safety);
+  const doseRow = maxDoseRow(safety, safetyUnavailable);
   const cautions = prescribingCautions(drugObjs);
   const seriousCautions = cautions.filter((c) => c.serious);
   const weightAlerts = safety.weight_alerts;

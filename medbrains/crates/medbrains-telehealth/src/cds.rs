@@ -832,7 +832,7 @@ async fn weight_alerts_for_items(
         else {
             continue;
         };
-        let Some(doses) = medbrains_core::mar_schedule::doses_per_day(&item.frequency) else {
+        let Some(doses) = medbrains_core::dose_safety::daily_doses(&item.frequency) else {
             continue;
         };
         if let Some(advice) = medbrains_core::dose_safety::evaluate_weight_dose(

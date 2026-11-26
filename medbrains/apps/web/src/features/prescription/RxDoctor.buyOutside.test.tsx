@@ -49,6 +49,7 @@ function renderWriter(prescriber: "doctor" | "nurse") {
       saving={false}
       editing={false}
       safety={{ ...SAFETY, conclusion: { ...SAFETY.conclusion } }}
+      safetyUnavailable={false}
       signer={{ name: "Dr Desk", reg: "doctor", nurseName: "Nurse Desk", nurseReg: "Nursing" }}
       templates={[]}
       templateToItems={() => []}

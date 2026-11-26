@@ -27,13 +27,21 @@ export function doseOverageLabel(alert: DoseAlert): string {
 
 /**
  * The "Max dose · 24h" row. An overage flags; a line the server could not
- * check warns and says why — it never reads as within the ceiling.
+ * check warns and says why — it never reads as within the ceiling. When the
+ * safety service was unreachable `safety` is empty, not clear, so the row
+ * warns that nothing was checked.
  */
-export function maxDoseRow(safety: RxSafety): {
+export function maxDoseRow(
+  safety: RxSafety,
+  unavailable = false,
+): {
   state: SafetyState;
   detail: string;
   count: number;
 } {
+  if (unavailable) {
+    return { state: "warn", detail: "Not checked: safety service unreachable", count: 1 };
+  }
   const over = safety.dose_alerts;
   const unchecked = safety.dose_not_checked;
   const count = over.length + unchecked.length;

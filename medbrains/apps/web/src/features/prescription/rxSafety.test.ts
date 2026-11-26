@@ -39,4 +39,11 @@ describe("maxDoseRow", () => {
   it("is ok only when nothing was over or unchecked", () => {
     expect(maxDoseRow(EMPTY_SAFETY).state).toBe("ok");
   });
+
+  it("warns, never ok, when the safety service was unreachable", () => {
+    const row = maxDoseRow(EMPTY_SAFETY, true);
+    expect(row.state).toBe("warn");
+    expect(row.detail).toBe("Not checked: safety service unreachable");
+    expect(row.count).toBe(1);
+  });
 });

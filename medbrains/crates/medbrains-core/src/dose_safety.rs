@@ -190,22 +190,57 @@ fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
     })
 }
 
-/// Doses per day for a frequency: the eMAR codes ("TDS", "1-0-1", "Q6H")
-/// plus the "N×/day" form the prescription writer sends for 5+ doses.
-fn daily_doses(frequency: &str) -> Option<u32> {
-    if let Some(doses) = mar_schedule::doses_per_day(frequency) {
-        return Some(doses);
-    }
+/// Dose units per day for a frequency, for the dose checks.
+///
+/// "Q4H" is 24/4 = 6 (every four hours round the clock), "2-0-2" is
+/// 2 + 0 + 2 = 4 units, then the eMAR codes ("TDS", "QID") and the "N×/day"
+/// form the prescription writer sends for 5+ doses. The eMAR's own count is
+/// not used for the first two forms:
+/// its round times skip the small hours and count a slot once whatever its
+/// strength, which under-counts the day's total. Scheduling is unchanged.
+#[must_use]
+pub fn daily_doses(frequency: &str) -> Option<u32> {
     let compact: String = frequency
         .chars()
         .filter(|c| !c.is_whitespace())
         .collect::<String>()
         .to_lowercase();
+    if let Some(doses) = dash_units(&compact).or_else(|| every_n_hours(&compact)) {
+        return Some(doses);
+    }
+    if let Some(doses) = mar_schedule::doses_per_day(frequency) {
+        return Some(doses);
+    }
     let count = ["/day", "perday", "aday"]
         .iter()
         .find_map(|suffix| compact.strip_suffix(suffix))?
         .trim_end_matches(['x', '×']);
     count.parse().ok().filter(|n| (1..=24).contains(n))
+}
+
+/// The units a day of an Indian "morning-noon-night(-bedtime)" pattern adds up
+/// to: "2-0-2" is 4. Whole numbers only; anything else is `None` (not checked).
+fn dash_units(compact: &str) -> Option<u32> {
+    let parts: Vec<&str> = compact.split('-').collect();
+    if !(3..=4).contains(&parts.len()) {
+        return None;
+    }
+    let mut total = 0u32;
+    for part in parts {
+        total = total.checked_add(part.parse::<u32>().ok()?)?;
+    }
+    (total > 0).then_some(total)
+}
+
+/// Doses a day for "every n hours" ("q4h", "q6hr"): 24 / n, round the clock.
+/// An interval that does not divide the day is `None` (not checked).
+fn every_n_hours(compact: &str) -> Option<u32> {
+    let hours = compact.strip_prefix('q')?;
+    let hours = hours
+        .strip_suffix("hr")
+        .or_else(|| hours.strip_suffix('h'))?;
+    let n: u32 = hours.parse().ok()?;
+    (n > 0 && 24 % n == 0).then(|| 24 / n)
 }
 
 /// Compare a per-dose amount at `frequency` with the catalogue maximum.
@@ -474,5 +509,37 @@ mod max_dose_tests {
             outcome,
             MaxDoseOutcome::NotChecked(DoseNotChecked::AsNeeded { max_doses: 6 })
         );
+    }
+}
+
+#[cfg(test)]
+mod daily_dose_tests {
+    use super::daily_doses;
+
+    #[test]
+    fn counts_every_dose_unit_in_the_day() {
+        let cases = [
+            ("Q4H", Some(6)),
+            ("q 6 h", Some(4)),
+            ("Q8H", Some(3)),
+            ("Q12HR", Some(2)),
+            ("Q24H", Some(1)),
+            ("Q5H", None),
+            ("Q0H", None),
+            ("1-0-1", Some(2)),
+            ("2-0-2", Some(4)),
+            ("1-1-1-1", Some(4)),
+            ("0-0-0", None),
+            ("1/2-0-1/2", None),
+            ("TDS", Some(3)),
+            ("QID", Some(4)),
+            ("BD", Some(2)),
+            ("6x/day", Some(6)),
+            ("PRN", None),
+            ("whenever", None),
+        ];
+        for (frequency, want) in cases {
+            assert_eq!(daily_doses(frequency), want, "{frequency}");
+        }
     }
 }
