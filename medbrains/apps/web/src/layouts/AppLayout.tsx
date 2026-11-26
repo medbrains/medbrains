@@ -61,7 +61,7 @@ import classes from "./AppLayout.module.scss";
 import { AppNavbar, hasSidePanel } from "./AppNavbar";
 import { panelFor } from "./appPanel";
 import { FavouriteStar } from "./FavouriteStar";
-import { HospitalMarks } from "./HospitalMarks";
+import { HospitalMarks, useBrandingMarks } from "./HospitalMarks";
 import { OnDemandOverlays } from "./OnDemandOverlays";
 import { PanelHeader } from "./PanelHeader";
 import { PanelPages } from "./PanelPages";
@@ -181,6 +181,8 @@ export function AppLayout() {
   }, []);
 
   const userInitial = user?.full_name?.charAt(0)?.toUpperCase() ?? "U";
+  // The hospital's emblem stands in as the profile picture; the initial shows without one.
+  const hospitalEmblem = useBrandingMarks()?.emblem ?? null;
 
   // Resolve config items to renderable items with translated labels
   const resolveItem = useCallback(
@@ -552,10 +554,13 @@ export function AppLayout() {
               <Menu.Target>
                 <Group gap={8} wrap="nowrap" style={{ cursor: "pointer" }}>
                   <Avatar
+                    src={hospitalEmblem}
+                    alt=""
                     color="primary"
                     radius="lg"
                     size={30}
                     style={{ fontSize: 12, fontWeight: 600 }}
+                    styles={{ image: { objectFit: "contain" } }}
                   >
                     {userInitial}
                   </Avatar>
