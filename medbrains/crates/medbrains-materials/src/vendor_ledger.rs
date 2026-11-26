@@ -97,7 +97,7 @@ pub async fn ledger(
     tenant_id: Uuid,
     vendor_id: Uuid,
 ) -> Result<VendorLedgerResponse, AppError> {
-    ledger_listing(&mut **tx, tenant_id, vendor_id, MAX_ENTRIES).await
+    ledger_listing(tx, tenant_id, vendor_id, MAX_ENTRIES).await
 }
 
 /// [`ledger`], listing at most `limit` entries (a parameter for the tests),
