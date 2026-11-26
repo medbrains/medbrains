@@ -19,6 +19,7 @@ pub(crate) fn refuse_expired(expiry: NaiveDate, today: NaiveDate) -> Result<(), 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::refuse_expired;
     use chrono::{FixedOffset, NaiveDate, TimeZone, Utc};
