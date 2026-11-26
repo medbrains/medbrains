@@ -133,12 +133,11 @@ async fn a_line_returned_one_unit_at_a_time_leaves_a_zero_bill() {
         .expect("return")
         .expect("a unit was left to return");
     }
-    let header: (Decimal, Decimal, Decimal) = sqlx::query_as(
-        "SELECT subtotal, tax_amount, total_amount FROM invoices WHERE id = $1",
-    )
-    .bind(charged.invoice_id)
-    .fetch_one(&mut *tx)
-    .await
-    .unwrap();
+    let header: (Decimal, Decimal, Decimal) =
+        sqlx::query_as("SELECT subtotal, tax_amount, total_amount FROM invoices WHERE id = $1")
+            .bind(charged.invoice_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
     assert_eq!(header, (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
 }
