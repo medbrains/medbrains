@@ -34,6 +34,7 @@ mod storefront_world;
 mod uhi_world;
 
 mod aadhaar_storage_test;
+mod abc_analysis_total_test;
 mod abdm_abha_resend_test;
 mod abdm_bridge_test;
 mod abdm_callback_auth_test;
