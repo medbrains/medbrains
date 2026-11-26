@@ -53,9 +53,15 @@ mod tests {
         let db = test_db.owner().await.expect("owner");
         let utc = Utc::now();
         let (zone, local) = if chrono::Timelike::hour(&utc) >= 10 {
-            ("Etc/GMT-14", utc.date_naive().checked_add_days(Days::new(1)))
+            (
+                "Etc/GMT-14",
+                utc.date_naive().checked_add_days(Days::new(1)),
+            )
         } else {
-            ("Etc/GMT+12", utc.date_naive().checked_sub_days(Days::new(1)))
+            (
+                "Etc/GMT+12",
+                utc.date_naive().checked_sub_days(Days::new(1)),
+            )
         };
         let tenant = add_tenant(&db, "TVDATE").await.expect("tenant");
         sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
