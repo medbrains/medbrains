@@ -10,4 +10,5 @@
 pub mod actions;
 pub mod beds;
 pub mod consent;
+pub mod egfr;
 pub mod patient;

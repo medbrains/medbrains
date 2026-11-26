@@ -8,10 +8,13 @@ area: clinical-safety
 ## What
 
 The renal check doses from the newest verified result that is an eGFR — its test carries an eGFR
-LOINC code (12 codes, cited in `renal_check.rs` from the NLM Clinical Tables LOINC API) or the
+LOINC code (12 codes, cited in `medbrains-health-services/src/egfr.rs` from the NLM Clinical Tables LOINC API) or the
 analyte is named as one, and never a "clearance" — whose unit is per 1.73 m², measured in the last
 `EGFR_RECENCY_DAYS` = 90 days. The alert carries the eGFR's sample date. A line with a renal rule
 and no qualifying eGFR is returned as `renal_not_checked` and shown as a warning.
+
+The selector lives in the shared health-services crate, not in the OPD brick, so radiology's
+contrast screening can use the same one without a brick-to-brick crate edge.
 
 ## Why
 

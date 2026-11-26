@@ -8,6 +8,7 @@ rust-version.workspace = true
 license-file.workspace = true
 
 [dependencies]
+chrono = { workspace = true }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-kernel = { path = "../medbrains-kernel" }
