@@ -39,7 +39,12 @@ async fn order_and_invoice(db: &PgPool) -> (Uuid, Uuid, Uuid) {
 /// Every MRP from ₹0.01 to ₹3.00 at 5%, 12% and 18%, one to three units,
 /// priced the way the storefront prices it, as catalogue item, order line
 /// and invoice line, in one statement. Returns each order line's MRP.
-async fn seed_lines(db: &PgPool, tenant: Uuid, order: Uuid, invoice: Uuid) -> HashMap<Uuid, Decimal> {
+async fn seed_lines(
+    db: &PgPool,
+    tenant: Uuid,
+    order: Uuid,
+    invoice: Uuid,
+) -> HashMap<Uuid, Decimal> {
     let (mut lines, mut rates, mut prices, mut quantities) = (vec![], vec![], vec![], vec![]);
     let mut mrp_of = HashMap::new();
     for (n, rate) in (1..=300).flat_map(|p| [5, 12, 18].map(|r| (p, r))) {
