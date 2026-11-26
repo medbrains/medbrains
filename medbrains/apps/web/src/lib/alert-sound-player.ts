@@ -14,7 +14,8 @@ const SOUND_URLS: Record<AlertSound, string> = {
 /** Longest a caller waits for a sound to end; the longest clip is 2 s. */
 const MAX_WAIT_MS = 3000;
 
-export type PlayOutcome = "played" | "muted" | "hidden" | "throttled" | "blocked";
+/** `stalled`: the browser never started the clip and the wait ran out. */
+export type PlayOutcome = "played" | "muted" | "hidden" | "throttled" | "blocked" | "stalled";
 
 export interface PlayOptions {
   /** A place's speaker (the token board) answers to its own mute, not a person's. */
@@ -66,17 +67,24 @@ export function createAlertSoundPlayer(deps: AlertSoundDeps) {
   };
   const allow = createSoundThrottle();
 
+  /**
+   * Play one clip and resolve when it is over. `play()` itself can stay
+   * pending for good (a clip the browser cannot load); the board speaks only
+   * after this resolves, so the end-of-clip wait bounds `play()` too —
+   * otherwise one stalled sound silences every call that follows.
+   */
   const start = async (sound: AlertSound, volume: number): Promise<PlayOutcome> => {
     const audio = element(sound);
     audio.muted = false; // a real alert outranks a priming play still in flight
     audio.volume = volume;
     audio.currentTime = 0;
     const ended = untilEnded(audio);
-    try {
-      await audio.play();
-    } catch {
-      return "blocked";
-    }
+    const started = Promise.resolve(audio.play()).then(
+      () => "started" as const,
+      () => "blocked" as const,
+    );
+    const first = await Promise.race([started, ended.then(() => "stalled" as const)]);
+    if (first !== "started") return first;
     await ended;
     return "played";
   };
