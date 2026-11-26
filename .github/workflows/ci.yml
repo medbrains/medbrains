@@ -281,6 +281,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_kernel_no_domain.py --self-test
           python3 medbrains/scripts/check_kernel_no_domain.py
+      # A brick's crate depends on no other brick's crate, base crates on no domain crate
+      # (bricks/crates.txt). Today's edges are baselined and the list only shrinks.
+      - name: No new brick to brick crate edge
+        run: |
+          python3 medbrains/scripts/check_brick_edges.py --self-test
+          python3 medbrains/scripts/check_brick_edges.py
       # A crate without `[lints] workspace = true` escapes every denied lint
       # (unwrap, panic, print); eleven did, authz-gate and signing among them (#5976).
       - name: Every crate inherits the workspace lints

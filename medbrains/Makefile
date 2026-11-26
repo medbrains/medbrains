@@ -499,6 +499,13 @@ check-kernel-no-domain: ## The kernel is technical: no domain crates below it, n
 	python3 scripts/check_kernel_no_domain.py --self-test
 	python3 scripts/check_kernel_no_domain.py
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-brick-edges
+check-all: check-brick-edges
+check-brick-edges: ## Ratchet: no new crate edge brick -> brick, base -> domain, shared -> brick
+	python3 scripts/check_brick_edges.py --self-test
+	python3 scripts/check_brick_edges.py
+
 check-ai-label: ## Every screen that shows AI output carries the AiLabel (#4895)
 	python3 scripts/check_ai_label.py
 
