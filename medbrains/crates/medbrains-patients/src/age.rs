@@ -13,6 +13,7 @@ pub(crate) fn years_on(dob: NaiveDate, today: NaiveDate) -> i32 {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::years_on;
     use chrono::{FixedOffset, NaiveDate, TimeZone, Utc};
