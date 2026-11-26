@@ -331,6 +331,7 @@ mod readmission_report_test;
 mod request_role_sweep_test;
 mod retrospective_encounter_test;
 mod rls_gap_tables_test;
+mod route_table_snapshot_test;
 mod rx_safety_gate_test;
 mod sample_rejection_report_test;
 mod scoped_list_filters_test;
