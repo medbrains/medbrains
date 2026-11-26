@@ -19,6 +19,7 @@ pub(crate) fn range(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::range;
     use chrono::{FixedOffset, NaiveDate, TimeZone, Utc};
