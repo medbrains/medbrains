@@ -25,6 +25,7 @@ use medbrains_server_core::{
 
 mod hospital;
 mod me_flags;
+mod refresh_origin;
 mod sign_in_options;
 
 // ── Login ───────────────────────────────────────────────────
@@ -549,6 +550,8 @@ pub struct RefreshResponse {
     pub field_access: HashMap<String, String>,
 }
 
+/// `POST /api/auth/refresh` — trade a live refresh token for a new session,
+/// rotating the token; a reused token revokes its whole family.
 #[allow(clippy::too_many_lines)]
 pub async fn refresh_token(
     State(state): State<AppState>,
@@ -559,12 +562,7 @@ pub async fn refresh_token(
 ) -> Result<impl IntoResponse, AppError> {
     let include_native_tokens = wants_native_token_response(&headers);
 
-    // Try cookie first, fall back to JSON body (for mobile)
-    let refresh_raw = jar
-        .get("refresh_token")
-        .map(|c| c.value().to_owned())
-        .or_else(|| body.and_then(|b| b.refresh_token.clone()))
-        .ok_or(AppError::Unauthorized)?;
+    let refresh_raw = refresh_origin::refresh_token_of(&jar, &headers, body)?;
 
     let mut hasher = Sha256::new();
     hasher.update(refresh_raw.as_bytes());
