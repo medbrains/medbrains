@@ -271,8 +271,14 @@ async fn a_hospital_imports_its_history_before_go_live() {
 }
 
 /// A history import must not freeze the hospital: a sign-in (an audited
-/// write, on the same audit chain) completes promptly while a large batch is
-/// still being imported.
+/// write, on the same audit chain) completes while a large batch is still
+/// being imported.
+///
+/// Proved by what the import holds and by order, never by a stopwatch: while
+/// the batch runs nobody holds the audit-chain lock (migration 1218), and the
+/// sign-in answers before the batch does. A wall-clock bound measured the
+/// runner instead: a debug-build Argon2 check on a loaded CI machine took over
+/// a second with no import running at all.
 #[tokio::test]
 async fn a_sign_in_is_not_held_up_by_a_running_import() {
     let app = common::spawn_app().await;
@@ -330,9 +336,29 @@ async fn a_sign_in_is_not_held_up_by_a_running_import() {
 
     // Let the import get going, then sign in as another user while it runs.
     tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-    let started = std::time::Instant::now();
+    // The chain lock is two int4 keys (audit_log_hash_chain): pg_locks shows the
+    // first as classid, the second as objid, with objsubid 2.
+    let chain_holders: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND objsubid = 2 AND granted \
+            AND classid = (hashtext('audit_chain')::bigint & 4294967295)::oid",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("locks");
+    assert!(
+        !import.is_finished(),
+        "the batch finished before the lock check; the test proves nothing"
+    );
+    assert_eq!(
+        chain_holders, 0,
+        "a running import holds the audit-chain lock"
+    );
+    // Not a bound on speed: a guard so a sign-in that waits on the import fails
+    // the run instead of hanging it.
+    let hang_guard = std::time::Duration::from_secs(120);
     let other = reqwest::Client::builder()
         .cookie_store(true)
+        .timeout(hang_guard)
         .build()
         .expect("client");
     let login = other
@@ -341,16 +367,15 @@ async fn a_sign_in_is_not_held_up_by_a_running_import() {
         .send()
         .await
         .expect("login");
-    let took = started.elapsed();
     let import_still_running = !import.is_finished();
     assert_eq!(login.status(), StatusCode::OK);
     assert!(
-        took < std::time::Duration::from_secs(1),
-        "sign-in took {took:?} while an import ran"
-    );
-    assert!(
         import_still_running,
-        "the batch finished before the sign-in; the test proves nothing"
+        "the sign-in answered only after the batch: it waited on the import"
     );
-    assert_eq!(import.await.expect("join").expect("import"), StatusCode::OK);
+    let import = tokio::time::timeout(hang_guard, import).await;
+    assert_eq!(
+        import.expect("import hung").expect("join").expect("import"),
+        StatusCode::OK
+    );
 }

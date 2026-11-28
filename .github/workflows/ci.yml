@@ -38,10 +38,14 @@ on:
     branches: [master, main, 'release/**', 'hotfix/**']
     # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
     # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
+  # A merge queue tests each queued pull request on a temporary branch and reads the required
+  # checks from this event; without it they never report and the queue stalls.
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never a merge-group run: cancelling one drops the pull request out of the queue.
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -72,7 +76,7 @@ jobs:
           fetch-depth: 0
       - id: diff
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
           HEAD: ${{ github.sha }}
         run: |
           set -u

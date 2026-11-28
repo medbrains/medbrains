@@ -106,6 +106,21 @@ sudo dd if=medbrains-os-<ver>-arm64.raw of=/dev/sdX bs=4M conv=fsync status=prog
 card corrupts clinical records. Active cooling is required too. The Debian kernel's Pi 5 support is
 partial, so expect gaps; that is what D2 is for.
 
+### Device trees
+
+The image carries none. Debian's arm64 kernel package installs about a thousand under
+`/usr/lib/linux-image-<version>/` (56 MB; the x86-64 package has no such folder), and `mkosi.conf` removes
+them. Nothing read them: the boot file has no device-tree section (`Devicetree=` is unset), there is no
+boot loader entry that could name one, and neither the image nor the updater opens that folder. An arm64
+machine is described to the kernel by its UEFI firmware, with ACPI tables or the firmware's own device
+tree; QEMU does this, and so does the community UEFI firmware above, which keeps the Pi's device tree
+on its own SD card or EEPROM. A board whose firmware expects the operating system to bring the device
+tree does not boot this image, and did not before either: firmware cannot read the system partition, and
+nothing copied a device tree to the boot partition. Debian's package does carry the Pi 5's
+(`broadcom/bcm2712-rpi-5-b.dtb`). The Pi image (D2) would put it into the boot file with `Devicetree=`;
+mkosi reads it from this folder after `RemoveFiles` has run, so that change must also stop removing it.
+Proven by booting on QEMU arm64 only; no real ARM board has run this image.
+
 ## Install and run
 
 A release carries the one system image in every format below (`os/release-files.md`, which also goes into

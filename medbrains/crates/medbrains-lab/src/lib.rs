@@ -25,9 +25,11 @@ use axum::routing::{get, post, put};
 use medbrains_kernel::authz::{is_bypass_role, require_permission};
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::hospital_time::tenant_local_today;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 
+mod age_band;
 pub mod analyser;
 mod analyser_review;
 mod catalog_search;
@@ -1539,36 +1541,16 @@ async fn patient_lab_band(
     .fetch_optional(&mut **tx)
     .await?;
     let (dob, sex) = row.unwrap_or((None, None));
-    let adult = if sex.as_deref() == Some("female") {
-        "adult_f"
-    } else {
-        "adult_m"
-    };
     let Some(dob) = dob else {
+        let band = age_band::band(None, sex.as_deref(), NaiveDate::MIN);
         return Ok(PatientLabContext {
-            band: adult.to_owned(),
+            band: band.to_owned(),
             age_years: None,
             sex,
         });
     };
-    let today = chrono::Utc::now().date_naive();
-    let age_days = today.signed_duration_since(dob).num_days();
-    let elderly = if sex.as_deref() == Some("female") {
-        "elderly_f"
-    } else {
-        "elderly_m"
-    };
-    let band = if age_days < 28 {
-        "neonate"
-    } else if age_days < 365 {
-        "infant"
-    } else if age_days < 365 * 12 {
-        "child"
-    } else if age_days >= 365 * 65 {
-        elderly
-    } else {
-        adult
-    };
+    let today = tenant_local_today(&mut **tx, tenant_id).await?;
+    let band = age_band::band(Some(dob), sex.as_deref(), today);
     Ok(PatientLabContext {
         band: band.to_owned(),
         age_years: critical_rule::age_years(dob, today),

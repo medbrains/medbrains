@@ -248,6 +248,68 @@ Stale jobs are stopped with `TERM`, never `KILL` — cargo removes its lock file
 on the way out, and a `-9` leaves a lock that blocks the next run with a
 "waiting for file lock" message that explains nothing.
 
+#### Check once, properly, before every push (MANDATORY)
+
+CI must never be the first place a Rust or gate failure is found. Every change runs **one
+complete local gate, after the last edit**, with the commands CI runs, then pushes. Not after
+every edit, and never a guess: a push that fails CI on fmt, clippy, `unreachable_pub`, `.sqlx`,
+a missing doc comment or a ratchet costs a full CI run in a shared queue, a fix, and another run.
+
+In one target dir, in this order, stopping at the first failure:
+
+1. `cargo fmt --all -- --check`
+2. `cargo clippy --locked --all-targets` on the touched crates and their dependents
+   (test modules allow `clippy::unwrap_used`/`expect_used` explicitly; the ratchet counts the rest)
+3. `cargo build --locked -p medbrains-server --bin medbrains-server` (catches `unreachable_pub`)
+4. the touched crates' tests, with a time limit so nothing can hang
+5. the repo checks CI runs on a branch: `check_docs_on_new_functions.py`, `check_decisions.py`,
+   the rust, shell and web size checks, `check_kernel_boundary.py`, `check_brick_edges.py`,
+   `check_query_in_loop.py`, and `check_pr_evidence.py` on the PR body
+6. web changes: Biome, typecheck, and vitest for the touched files
+
+`.sqlx` is regenerated against a throwaway database, never written by hand. Each worktree has its
+own target dir: a shared one runs another branch's code and reports passes that are not real.
+The PR body names the commands that ran and their results; "should pass" is not a result.
+
+#### Pull request guidelines (MANDATORY)
+
+A pull request is work in progress, and work in progress is a cost: every open PR conflicts
+with the others, reruns CI when the base moves, and waits for somebody's attention. 126 were
+open on 2026-11-26; most were waiting for a read nobody had time for.
+
+1. **Limits.** At most 30 open PRs, and at most 10 waiting on the owner. Above either limit,
+   nobody (person or agent) opens a new PR except a security fix or a fix to the release branch
+   itself; finish and merge first.
+2. **One change per PR, small enough to review well**, with a linked issue, a `Risk class:`
+   line, `## Not verified` first, and proof (test output; screenshots for a screen). Size,
+   following Google's small-CL guidance and the review studies behind it (reviewers find
+   fewer defects once a change passes a few hundred lines):
+
+   | Measure (hand-written: excludes lockfiles, `.sqlx`, generated code, snapshots) | Aim | Hard limit |
+   |---|---|---|
+   | Lines changed (added + removed) | about 200 | 400 |
+   | Files changed | 5 or fewer | 10 |
+   | Concerns | one | one |
+
+   - **Refactor apart from behaviour.** A move, rename or split goes in its own PR, before the
+     change that uses it, so the behaviour change is small and readable.
+   - **Tests count toward the limit** but may take it to 500 when the test is most of the diff.
+   - **Over the limit** only for a pure move, a generated file or a mechanical rename, said in
+     the body ("mechanical: <how it was produced>"); never for a safety, money or security change.
+   - **Too big?** Split it: schema first, then the server, then the screen; or feature-flag the
+     unfinished part.
+3. **Checked before it is pushed** (the section above). CI is a confirmation, not a search.
+4. **Every open PR waits on one named thing:** CI, a fix, the owner, a clinician, an accountant,
+   or merge. A PR that waits on nothing is merged.
+5. **Seven days without movement** and it is triaged: merge it, fix it, or propose closing it.
+   Closing needs the owner's yes for that PR.
+6. **Stacks are at most two deep.** A child is retargeted to the release branch when its parent
+   merges, and its CI runs again.
+7. **Drafts are for designs being discussed,** at most 5 at a time; an idea with no design yet
+   is an issue, not a draft PR.
+8. **Avoid shared hot spots:** a decision is a file in `docs/decisions/`, never a row in a shared
+   table; `Cargo.lock` is regenerated, never hand-merged.
+
 #### Cross-compilation
 
 - **`cargo-zigbuild` is the only cross-compile path.** No `cross` (cross-rs), no docker emulation, no QEMU. Operator's mac (arm64) → server (x86_64) is the common direction; zigbuild handles glibc ABI cleanly.
