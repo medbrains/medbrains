@@ -26,6 +26,9 @@ import json
 import pathlib
 import re
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_client_source import api_client_source  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "apps/web/src/lib/print/print-registry.generated.ts"
@@ -246,7 +249,7 @@ def source_tables(handler_body: str) -> set[str]:
 
 
 def client_methods() -> dict[str, list[tuple[str, str]]]:
-    text = (ROOT / "packages/api/src/client.ts").read_text()
+    text = api_client_source()
     by_path: dict[str, list[tuple[str, str]]] = {}
     for m in re.finditer(
         r"(\w+PrintData): \(([^)]*)\)\s*=>[^;]{0,400}?request<[^>]*>\(\s*[`\"']([^`\"']+)",

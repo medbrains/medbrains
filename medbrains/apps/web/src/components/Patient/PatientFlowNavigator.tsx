@@ -1,5 +1,5 @@
 import { Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { usePermissionStore } from "@medbrains/stores";
+import { useModuleStore, usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalEventName,
   ClinicalOrderContext,
@@ -135,6 +135,21 @@ function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
   );
 }
 
+/**
+ * The flow steps to offer. A step the user may not take is not offered (a row
+ * of disabled "Permission required" chips is noise, and the same rule hides any
+ * button), nor one whose brick the hospital switched off: each flow module is
+ * named by its brick code.
+ */
+function useOfferedFlowItems() {
+  const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const disabledModules = useModuleStore((state) => state.disabledModules);
+  return (context: Parameters<typeof buildPatientFlowReadiness>[0]) =>
+    buildPatientFlowReadiness(context, hasPermission).items.filter(
+      (item) => item.blockedReason !== "permission" && !disabledModules.has(item.id),
+    );
+}
+
 /** Human label for a permission code (falls back to the code). */
 function flowPermissionLabel(code: string): string {
   return PERMISSIONS.find((permission) => permission.code === code)?.label ?? code;
@@ -164,7 +179,7 @@ export function PatientFlowNavigator({
 }: PatientFlowNavigatorProps) {
   const navigate = useNavigate();
   const { t } = useTranslation("clinical");
-  const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const offeredItems = useOfferedFlowItems();
   const recentEvents = useClinicalEventStore((state) => state.recentEvents);
 
   if (!patientId) return null;
@@ -191,11 +206,7 @@ export function PatientFlowNavigator({
     ...baseContext,
     completedEvents: mergeJourneyEventNames(baseContext, recentEvents),
   };
-  // A step the user may not take is not offered: a row of disabled
-  // "Permission required" chips is noise, and the same rule hides any button.
-  const items = buildPatientFlowReadiness(context, hasPermission).items.filter(
-    (item) => item.blockedReason !== "permission",
-  );
+  const items = offeredItems(context);
   const enabled = items.filter((item) => item.enabled).length;
   const blocked = items.length - enabled;
 

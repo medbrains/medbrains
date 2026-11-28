@@ -7,7 +7,7 @@ import { AppRoute } from "./AppRoute";
 function renderEmrRoute() {
   return render(
     <Routes>
-      <Route element={<AppRoute brick="opd" />}>
+      <Route element={<AppRoute />}>
         <Route path="/opd" element={<p>OPD queue screen</p>} />
       </Route>
     </Routes>,
@@ -31,5 +31,25 @@ describe("AppRoute", () => {
       screen.getByText("OPD / Outpatient isn't part of this hospital's MedBrains"),
     ).toBeInTheDocument();
     expect(screen.queryByText("OPD queue screen")).not.toBeInTheDocument();
+  });
+
+  it("guards a nested route of the app it belongs to and leaves core screens open", () => {
+    useModuleStore.getState().setDisabledModules(["lab", "pharmacy"]);
+    const shell = (path: string) =>
+      render(
+        <Routes>
+          <Route element={<AppRoute />}>
+            <Route path="*" element={<p>Screen</p>} />
+          </Route>
+        </Routes>,
+        { initialEntries: [path] },
+      );
+    const lab = shell("/lab/orders/42");
+    expect(
+      screen.getByText("Laboratory (LIS) isn't part of this hospital's MedBrains"),
+    ).toBeInTheDocument();
+    lab.unmount();
+    shell("/admin/users");
+    expect(screen.getByText("Screen")).toBeInTheDocument();
   });
 });

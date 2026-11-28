@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const news2Service = {
-  computeNews2: (data: Parameters<typeof api.computeNews2>[0]) => api.computeNews2(data),
+  computeNews2: (data: Parameters<typeof clinicalApi.computeNews2>[0]) =>
+    clinicalApi.computeNews2(data),
 };

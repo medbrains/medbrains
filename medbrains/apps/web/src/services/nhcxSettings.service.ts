@@ -1,8 +1,9 @@
-import { api } from "@medbrains/api";
+import { integrationsApi } from "@medbrains/api/modules/integrations";
 
 export const nhcxSettingsService = {
-  get: () => api.getNhcxSettings(),
-  save: (...args: Parameters<typeof api.saveNhcxSettings>) => api.saveNhcxSettings(...args),
-  test: () => api.testNhcxConnection(),
-  status: () => api.getNhcxStatus(),
+  get: () => integrationsApi.getNhcxSettings(),
+  save: (...args: Parameters<typeof integrationsApi.saveNhcxSettings>) =>
+    integrationsApi.saveNhcxSettings(...args),
+  test: () => integrationsApi.testNhcxConnection(),
+  status: () => integrationsApi.getNhcxStatus(),
 };

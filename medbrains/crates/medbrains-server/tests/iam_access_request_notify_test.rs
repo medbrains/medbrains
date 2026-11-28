@@ -24,7 +24,7 @@ async fn an_access_request_tells_the_people_who_can_approve_it() {
         .await
         .expect("department");
     let t = Uuid::new_v4().simple().to_string()[..8].to_owned();
-    let (username, password) = (format!("rc_{t}"), format!("Rc#{t}Aa9"));
+    let (username, password) = (format!("rc_{t}"), format!("Rc#Key{t}Aa9"));
     let created = app
         .client
         .post(app.url("/api/setup/users"))

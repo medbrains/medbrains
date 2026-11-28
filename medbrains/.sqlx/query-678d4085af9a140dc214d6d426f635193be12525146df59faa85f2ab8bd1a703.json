@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE encounters SET close_reason = $3, updated_at = now() WHERE tenant_id = $1 AND id = ANY($2) RETURNING id, COALESCE(doctor_id, created_by) AS actor",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "actor",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "678d4085af9a140dc214d6d426f635193be12525146df59faa85f2ab8bd1a703"
+}

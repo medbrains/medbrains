@@ -1,15 +1,18 @@
 import { userSchema } from "@medbrains/schemas";
 import {
   clearSession,
+  endClientSession,
   useAuthStore,
   useLocaleStore,
   useModuleStore,
   usePermissionStore,
 } from "@medbrains/stores";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
 import { sessionService } from "@/services/session.service";
 import { PageSkeleton } from "./PageSkeleton";
+import { QueryError } from "./QueryError";
 
 /** Subscribe to Zustand persist hydration state without polling */
 function useHasHydrated(): boolean {
@@ -17,6 +20,26 @@ function useHasHydrated(): boolean {
     (onStoreChange) => useAuthStore.persist.onFinishHydration(onStoreChange),
     () => useAuthStore.persist.hasHydrated(),
     () => false,
+  );
+}
+
+/**
+ * The failure to keep when `/auth/me` could not answer: with no permissions cached from this tab,
+ * nobody can know which apps this person has, so it must read as "couldn't check", never as an
+ * empty launcher. `null` when cached permissions can stand in.
+ */
+function unknownAccessAfter(err: unknown): unknown {
+  return usePermissionStore.getState().userRole ? null : err;
+}
+
+/** What the signed-in app shows while access is unknown: the error, and a reload to retry. */
+function AccessUncheckedError({ error }: { error: unknown }) {
+  return (
+    <QueryError
+      error={error}
+      title="We couldn't check your access"
+      onRetry={() => window.location.reload()}
+    />
   );
 }
 
@@ -30,9 +53,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
   const setRestrictCopy = useModuleStore((s) => s.setRestrictCopy);
   const [verified, setVerified] = useState<boolean | null>(null);
+  const [accessUnknown, setAccessUnknown] = useState<unknown>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
 
   // ── Initial session verification ──
   useEffect(() => {
@@ -105,6 +130,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         } else {
           // Backend unreachable (network error) — trust stored auth if present,
           // otherwise treat as unauthenticated.
+          setAccessUnknown(unknownAccessAfter(err));
           setVerified(Boolean(useAuthStore.getState().user));
         }
       });
@@ -123,7 +149,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     refreshTimer.current = setInterval(() => {
       sessionService.refreshToken().catch(() => {
         // Refresh failed — session expired, force re-login
-        clearSession();
+        endClientSession(queryClient);
         setVerified(false);
       });
     }, REFRESH_INTERVAL_MS);
@@ -145,9 +171,13 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <PageSkeleton />;
   }
 
-  if (verified === false) {
+  // Signed out of the store (logout, or an expired session) unmounts every
+  // signed-in screen at once, so no poll or socket outlives the session.
+  if (verified === false || !user) {
     return <Navigate to="/login" replace />;
   }
+
+  if (accessUnknown) return <AccessUncheckedError error={accessUnknown} />;
 
   // Seeded/provisioned credential — block the app until the password is rotated
   if (mustChangePassword) {

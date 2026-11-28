@@ -2,9 +2,10 @@
 //!
 //! ABDM answers with a code and a terse message ("ABDM-1027", "Invalid
 //! TransactionId"), in several body shapes, sometimes with a trailing `": "`
-//! on the code. [`describe`] turns any of them into one sentence that says
-//! what happened and what to do next, with ABDM's code kept at the end for
-//! support. A code we have no words for keeps ABDM's own message.
+//! on the code. [`describe`] turns any of them into what happened and what
+//! to do next, with ABDM's code kept at the end for
+//! support. ABDM's own message leads and ours follows as a hint; a code we
+//! have no words for keeps ABDM's message alone.
 //!
 //! Each code also says whether to send again ([`Retry`]): an outage clears
 //! by itself, a refusal needs something changed first, and a duplicate
@@ -73,8 +74,21 @@ pub fn retry(code: &str) -> Option<Retry> {
     entry(code).map(|e| e.1)
 }
 
-/// The code [`describe`] put at the end of its sentence, when there is one.
-fn code_of(described: &str) -> Option<&str> {
+/// The codes ABDM refuses a stored link token with.
+///
+/// Invalid or expired (ABDM-1026), or issued for another ABHA address
+/// (ABDM-1038). Either way the token is useless and a new one must be
+/// generated, never resent.
+pub const LINK_TOKEN_REJECTED_CODES: &[&str] = &["ABDM-1026", "ABDM-1038"];
+
+/// ABDM's "calls out of order": resume from the step after the last one ABDM
+/// confirmed, never resend the refused call in place.
+pub const OUT_OF_SEQUENCE: &str = "ABDM-2406";
+
+/// The code [`describe`] put at the end of its sentence, when there is one —
+/// how a refusal already turned into staff words still says which code it was.
+#[must_use]
+pub fn code_of(described: &str) -> Option<&str> {
     described
         .strip_suffix(')')?
         .rsplit_once("(code ")
@@ -92,6 +106,12 @@ pub fn retry_later(described: &str) -> bool {
 #[must_use]
 pub fn is_deactivated(code: &str) -> bool {
     DEACTIVATED_CODES.contains(&normalize(code).as_str())
+}
+
+/// Whether `code` says the stored link token is no longer usable.
+#[must_use]
+pub fn is_link_token_rejected(code: &str) -> bool {
+    LINK_TOKEN_REJECTED_CODES.contains(&normalize(code).as_str())
 }
 
 /// The code and message out of any ABDM error body: `{error:{code,message}}`,
@@ -127,22 +147,31 @@ fn field_refusal(node: &Value) -> Option<String> {
         .find_map(|(_, v)| v.as_str().map(str::to_owned))
 }
 
-/// One sentence for staff: our words for the code when we have them, else
-/// ABDM's message, else `fallback`; the code is kept for support.
+/// What staff read: ABDM's own message first, then our hint.
+///
+/// NHA's M1 cases want the API's words (`CRT_ABHA_105`, `107`); then — on
+/// the next line, as a hint — our
+/// words for the code; ours alone when ABDM sent no message; `fallback`
+/// when there is neither. The code is kept at the end for support. Screens
+/// split on [`HINT_SEPARATOR`] to show the hint beneath.
 #[must_use]
 pub fn describe(code: Option<&str>, message: Option<&str>, fallback: &str) -> String {
     let code = code.map(normalize).filter(|c| !c.is_empty());
-    let words = code
-        .as_deref()
-        .and_then(plain)
-        .map(str::to_owned)
-        .or_else(|| message.map(str::to_owned))
-        .unwrap_or_else(|| fallback.to_owned());
+    let ours = code.as_deref().and_then(plain);
+    let words = match (message, ours) {
+        (Some(m), Some(o)) => format!("{m}{HINT_SEPARATOR}{o}"),
+        (Some(m), None) => m.to_owned(),
+        (None, Some(o)) => o.to_owned(),
+        (None, None) => fallback.to_owned(),
+    };
     match code {
         Some(c) => format!("{words} (code {c})"),
         None => words,
     }
 }
+
+/// Between ABDM's message and our hint in [`describe`]'s sentence.
+pub const HINT_SEPARATOR: &str = "\n";
 
 /// [`describe`] straight from an ABDM body (a response or a callback).
 #[must_use]
@@ -247,8 +276,17 @@ mod tests {
             &json!({"error": {"code": "ABDM-1027", "message": "You are blocked"}}),
             "x",
         );
-        assert!(blocked.starts_with("ABDM has blocked this ABHA for 24 hours"));
+        let (abdm, hint) = blocked
+            .split_once(super::HINT_SEPARATOR)
+            .unwrap_or_default();
+        assert_eq!(abdm, "You are blocked", "ABDM's own words come first");
+        assert!(hint.starts_with("ABDM has blocked this ABHA for 24 hours"));
         assert!(blocked.ends_with("(code ABDM-1027)"));
+        assert!(
+            describe(Some("ABDM-1027"), None, "x").starts_with("ABDM has blocked"),
+            "ours alone when ABDM sent no words"
+        );
+        assert_eq!(super::code_of(&blocked), Some("ABDM-1027"));
         assert_eq!(
             describe(Some("ABDM-0001"), Some("User not found"), "x"),
             "User not found (code ABDM-0001)"

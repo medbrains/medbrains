@@ -204,6 +204,7 @@ export * from "./onboarding-masters";
 export * from "./onboarding-store";
 export * from "./onboarding-workbook";
 export * from "./online-payments";
+export * from "./opd-reports";
 export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
@@ -741,6 +742,9 @@ export type CommitteeFrequencyType =
   | "annual"
   | "as_needed";
 
+/** Which way an indicator's value meets its target. */
+export type IndicatorDirection = "higher_better" | "lower_better";
+
 export interface QualityIndicator {
   id: string;
   tenant_id: string;
@@ -758,7 +762,8 @@ export interface QualityIndicator {
   threshold_critical?: number;
   benchmark_national?: number;
   benchmark_international?: number;
-  auto_calculated: boolean;
+  /** `null` until set; the NABH report never calls such an indicator met. */
+  direction: IndicatorDirection | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -993,7 +998,7 @@ export interface CreateQualityIndicatorRequest {
   target_value?: number;
   threshold_warning?: number;
   threshold_critical?: number;
-  auto_calculated?: boolean;
+  direction: IndicatorDirection;
 }
 
 export interface RecordIndicatorValueRequest {
@@ -5502,11 +5507,14 @@ export interface StartupCheck {
 export interface AiSettings {
   provider: string;
   model: string;
+  /** The assistant reads registration and OPD through typed actions (default on). */
+  typed_actions: boolean;
 }
 
 export interface UpdateAiSettingsRequest {
   provider: string;
   model: string;
+  typed_actions: boolean;
 }
 
 export interface EmailSettings {
@@ -5864,6 +5872,64 @@ export interface UnreadCountResponse {
   unread_count: number;
 }
 
+/** An app brick's code and the name the launcher shows for it (`bricks.rs`). */
+export interface BrickName {
+  id: string;
+  name: string;
+}
+
+/** `GET /users/me/launcher`: my starred screen paths and every app's name. */
+export interface LauncherResponse {
+  favourites: string[];
+  bricks: BrickName[];
+}
+
+/** `PUT /users/me/favourites`: my starred screen paths after the change. */
+export interface FavouritesResponse {
+  favourites: string[];
+}
+
+/** A patient as a critical-value line names them ("A. Rao"), shown only after the access check. */
+export interface WorkPatientLabel {
+  name: string;
+  uhid: string;
+}
+
+/** The one typed fact under a work count; the web words it. Never free text. */
+export type WorkDetail =
+  | {
+      kind: "critical_result";
+      parameter: string;
+      value: string;
+      unit: string | null;
+      reported_at: string;
+      patient: WorkPatientLabel | null;
+    }
+  | { kind: "queue_wait"; longest_minutes: number; long_waits: number; long_wait_minutes: number }
+  | { kind: "oldest_at"; at: string }
+  | { kind: "soonest_due"; at: string };
+
+/**
+ * One item of my work on the launcher. `count` is set only when `status` is `ok`: a failed
+ * item says "didn't load", never 0. `capped` means show "99+".
+ */
+export interface WorkItem {
+  key: "lab_critical" | "opd_waiting" | "notes_unsigned" | "approvals";
+  brick: string | null;
+  section: "now" | "waiting";
+  severity: "critical" | "info";
+  status: "ok" | "failed";
+  count: number | null;
+  capped: boolean;
+  detail: WorkDetail | null;
+  href: string;
+}
+
+/** `GET /users/me/work`: the items I may see; hidden ones are absent, not zero. */
+export interface WorkResponse {
+  items: WorkItem[];
+}
+
 // ── Unified token / queue system ──
 /**
  * One queue row as the clinician working it sees it.
@@ -5941,7 +6007,7 @@ export interface ModuleToken {
   visit_id?: string | null;
   /**
    * How many this department will call first — priority, then queue position.
-   * Only returned by `myTokens`; a shared visit number is unreadable on a board
+   * Only returned by `patientTokens`; a shared visit number is unreadable on a board
    * without it.
    */
   ahead?: number;
@@ -6247,6 +6313,11 @@ export interface ConnectedApp {
   version: string;
   manifest: ExtensionManifest;
   permissions: string[];
+  /**
+   * Codes in `permissions` no app may hold: unknown, or they change access.
+   * Such an app cannot be approved or sign in; it is registered again without them.
+   */
+  refused_permissions: string[];
   status: "pending" | "approved" | "revoked";
   has_webhook: boolean;
   approved_at: string | null;

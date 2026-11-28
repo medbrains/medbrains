@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useQuery } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { Alert } from "@/components/ui";
@@ -13,7 +13,7 @@ import { Alert } from "@/components/ui";
 export function ScreenUrlHint() {
   const tenant = useQuery({
     queryKey: ["tenant"],
-    queryFn: () => api.getTenant(),
+    queryFn: () => setupApi.getTenant(),
     staleTime: 600_000,
   });
   if (tenant.isError) {

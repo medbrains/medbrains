@@ -90,31 +90,90 @@ pub fn effective_outcome<S: BuildHasher>(
     }
 }
 
-/// What stops `code` being switched on (`turning_on`) or off.
+/// What stands in the way of switching `code` on (`turning_on`) or off, as brick ids in table
+/// order.
 ///
-/// Switching off, the bricks that are on and need it; switching on, the bricks it needs that are
-/// off. Empty means the switch may go ahead. Names come back as brick names, in table order.
-pub fn switch_blockers<S: BuildHasher>(
+/// Switching on, the bricks it needs that are off. Switching off, every brick that needs it and
+/// is on as the module check sees it ([`effective_outcome`]): a stored `enabled`, and equally an
+/// edition brick nobody set up (no row, or `available`), which answers its API all the same.
+/// Leaving those out would let them go dark with no word to the operator.
+fn blocker_ids<S: BuildHasher>(
     code: &str,
     turning_on: bool,
     by_code: &HashMap<String, String, S>,
 ) -> Vec<&'static str> {
-    let ids: Vec<&'static str> = if turning_on {
+    let status = |id: &str| by_code.get(id).map(String::as_str);
+    if turning_on {
         bricks::with_dependencies(&[code])
             .into_iter()
-            .filter(|id| *id != code)
-            .filter(|id| module_outcome(id, by_code.get(*id).map(String::as_str)) == Outcome::Deny)
+            .filter(|id| *id != code && module_outcome(id, status(id)) == Outcome::Deny)
             .collect()
     } else {
         bricks::dependents(code)
             .into_iter()
             .filter(|id| effective_outcome(id, by_code) == Outcome::Allow)
             .collect()
-    };
-    ids.into_iter()
-        .filter_map(bricks::find)
-        .map(|b| b.name)
+    }
+}
+
+/// A brick's name with why it is on, so the operator can tell a brick the hospital switched on
+/// from one that answers only because nobody ever set it up. For bricks that are on.
+fn named_with_reason<S: BuildHasher>(id: &str, by_code: &HashMap<String, String, S>) -> String {
+    let name = bricks::find(id).map_or(id, |b| b.name);
+    if by_code.get(id).map(String::as_str) == Some("enabled") {
+        format!("{name} (switched on)")
+    } else {
+        format!("{name} (on, never set up)")
+    }
+}
+
+/// Display names for brick ids, for writing a row to a brick that has none; an id that names
+/// no brick stands for itself.
+#[must_use]
+pub fn brick_names(ids: &[String]) -> Vec<&str> {
+    ids.iter()
+        .map(|id| bricks::find(id).map_or(id.as_str(), |b| b.name))
         .collect()
+}
+
+/// The module codes one switch of `code` changes, `code` last.
+///
+/// `together` also switches what stands in the way (see [`blocker_ids`]), so the Modules screen
+/// can ask once and switch them in one transaction. Without it a blocked switch is refused.
+///
+/// # Errors
+/// The refusal, naming the bricks in the way, when the switch is blocked and `together` is unset.
+pub fn switch_plan<S: BuildHasher>(
+    code: &str,
+    turning_on: bool,
+    together: bool,
+    by_code: &HashMap<String, String, S>,
+) -> Result<Vec<String>, String> {
+    let blockers = blocker_ids(code, turning_on, by_code);
+    if !blockers.is_empty() && !together {
+        let name = bricks::find(code).map_or(code, |b| b.name);
+        let named = |id: &&str| {
+            if turning_on {
+                bricks::find(id).map_or(*id, |b| b.name).to_owned()
+            } else {
+                named_with_reason(id, by_code)
+            }
+        };
+        let listed = blockers.iter().map(named).collect::<Vec<_>>().join(", ");
+        return Err(if turning_on {
+            format!("{name} cannot be switched on: it needs {listed}, switched off.")
+        } else {
+            format!(
+                "{name} cannot be switched off while apps that need it are on: {listed}. \
+                 Switch them off first, or together with it."
+            )
+        });
+    }
+    Ok(blockers
+        .into_iter()
+        .chain([code])
+        .map(str::to_owned)
+        .collect())
 }
 
 /// Every live `module_config` status of a tenant. Bounded by the module table (one row per
@@ -124,12 +183,20 @@ pub async fn read_statuses(
     tenant_id: Uuid,
 ) -> Result<HashMap<String, String>, DbError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    Ok(statuses_on(&mut conn, tenant_id).await?)
+}
+
+/// The statuses query, on a connection the caller already holds (its own or a transaction's).
+async fn statuses_on(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+) -> Result<HashMap<String, String>, sqlx::Error> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT code, status::text FROM module_config \
          WHERE tenant_id = $1 AND deleted_at IS NULL",
     )
     .bind(tenant_id)
-    .fetch_all(&mut *conn)
+    .fetch_all(conn)
     .await?;
     Ok(rows.into_iter().collect())
 }
@@ -198,6 +265,29 @@ pub async fn module_entitlement(db: &PgPool, tenant_id: Uuid, code: &str) -> Out
     }
 }
 
+/// Whether the tenant has module `code`, read on the caller's transaction.
+///
+/// For work that runs inside another module's write (an automatic charge from an OPD visit),
+/// where no pool connection should be taken mid-transaction. A read error comes back as the
+/// error, never as on or off; the caller's transaction is then aborted, so callers that must
+/// survive it read inside a savepoint. Uses and fills the same per-tenant cache.
+///
+/// # Errors
+/// The `module_config` read failed.
+pub async fn module_enabled_in_tx(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    code: &str,
+) -> Result<bool, sqlx::Error> {
+    if let Some(outcome) = cached_outcome(tenant_id, code) {
+        return Ok(outcome == Outcome::Allow);
+    }
+    let by_code = statuses_on(conn, tenant_id).await?;
+    let on = effective_outcome(code, &by_code) == Outcome::Allow;
+    remember(tenant_id, by_code);
+    Ok(on)
+}
+
 /// Require the tenant to have module `code`. `403` when it is disabled (or an add-on not
 /// enabled), `503` when the licence could not be read. Call it after `require_permission`.
 pub async fn require_module_enabled(
@@ -244,7 +334,7 @@ mod tests {
 
     use std::collections::HashMap;
 
-    use super::{effective_outcome, module_outcome, switch_blockers};
+    use super::{effective_outcome, module_outcome, switch_plan};
 
     fn statuses(rows: &[(&str, &str)]) -> HashMap<String, String> {
         rows.iter()
@@ -266,13 +356,67 @@ mod tests {
     #[test]
     fn registration_cannot_go_off_while_pharmacy_is_on() {
         let on = statuses(&[("registration", "enabled"), ("pharmacy", "enabled")]);
-        assert!(switch_blockers("registration", false, &on).contains(&"Pharmacy"));
+        let refused = switch_plan("registration", false, false, &on)
+            .err()
+            .unwrap_or_default();
+        assert!(refused.contains("Pharmacy"), "{refused}");
         let alone = statuses(&[("pharmacy", "enabled"), ("registration", "disabled")]);
+        let refused = switch_plan("pharmacy", true, false, &alone)
+            .err()
+            .unwrap_or_default();
+        assert!(refused.contains("Patient Registration"), "{refused}");
         assert_eq!(
-            switch_blockers("pharmacy", true, &alone),
-            vec!["Patient Registration"]
+            switch_plan("pharmacy", false, false, &on),
+            Ok(vec!["pharmacy".to_owned()])
         );
-        assert!(switch_blockers("pharmacy", false, &on).is_empty());
+    }
+
+    /// The Registration + OPD hospital: Maternity was never set up (no row) and Operation Theatre
+    /// has the seed's `available`. Both answer their API, so both are named, marked apart from a
+    /// brick the hospital switched on, and `together` takes them along so the switch is possible.
+    #[test]
+    fn a_brick_that_is_on_because_nobody_set_it_up_is_named_and_can_go_off_together() {
+        let small = statuses(&[
+            ("registration", "enabled"),
+            ("opd", "enabled"),
+            ("ipd", "enabled"),
+            ("nursing", "enabled"),
+            ("ot", "available"),
+            ("diet", "disabled"),
+        ]);
+        let refused = switch_plan("ipd", false, false, &small)
+            .err()
+            .unwrap_or_default();
+        for named in [
+            "Nursing Station (switched on)",
+            "Operation Theatre (on, never set up)",
+            "Maternity (on, never set up)",
+        ] {
+            assert!(refused.contains(named), "{named} missing: {refused}");
+        }
+        assert!(!refused.contains("Diet"), "Diet is off: {refused}");
+        let plan = switch_plan("ipd", false, true, &small).unwrap_or_default();
+        for code in ["nursing", "ot", "maternity"] {
+            assert!(plan.iter().any(|c| c == code), "{code} missing: {plan:?}");
+        }
+        assert_eq!(plan.last().map(String::as_str), Some("ipd"));
+        assert!(!plan.iter().any(|c| c == "diet"), "{plan:?}");
+    }
+
+    /// A licensed add-on with no row is off, so it neither blocks nor is switched.
+    #[test]
+    fn an_add_on_nobody_bought_is_not_named() {
+        let on = statuses(&[("registration", "enabled")]);
+        let refused = switch_plan("registration", false, false, &on)
+            .err()
+            .unwrap_or_default();
+        assert!(
+            refused.contains("OPD / Outpatient (on, never set up)"),
+            "{refused}"
+        );
+        assert!(!refused.contains("Patient Companion"), "{refused}");
+        let plan = switch_plan("registration", false, true, &on).unwrap_or_default();
+        assert!(!plan.iter().any(|c| c == "companion"), "{plan:?}");
     }
 
     #[test]

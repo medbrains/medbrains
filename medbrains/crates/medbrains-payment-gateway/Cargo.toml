@@ -35,3 +35,6 @@ aes = "0.9"
 cbc = { version = "0.2", features = ["alloc"] }
 cipher = "0.5"
 urlencoding = "2"
+
+[lints]
+workspace = true

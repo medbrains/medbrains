@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
+import { BrandMarksSection } from "./BrandMarkField";
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -39,10 +40,21 @@ const EMPTY_FORM: BrandingSettingsFormInput = {
   primary_color: DEFAULT_PRIMARY,
   secondary_color: DEFAULT_SECONDARY,
   logo_url: "",
+  name_banner_url: "",
 };
+
+/** The text keys the form saves, in order: one PUT for each that changed. */
+const SAVED_KEYS = [
+  "display_name",
+  "primary_color",
+  "secondary_color",
+  "logo_url",
+  "name_banner_url",
+] as const;
 
 // ── Helpers ────────────────────────────────────────────────
 
+/** The form's values from the stored branding rows, defaults where unset. */
 function parseBrandingSettings(rows: TenantSettingsRow[]): BrandingSettingsFormInput {
   const find = (key: string): string => {
     const row = rows.find((r) => r.key === key);
@@ -54,11 +66,13 @@ function parseBrandingSettings(rows: TenantSettingsRow[]): BrandingSettingsFormI
     primary_color: find("primary_color") || DEFAULT_PRIMARY,
     secondary_color: find("secondary_color") || DEFAULT_SECONDARY,
     logo_url: find("logo_url"),
+    name_banner_url: find("name_banner_url"),
   };
 }
 
 // ── Component ──────────────────────────────────────────────
 
+/** The Branding screen: name, colours, and the emblem and name banner the header and card show. */
 export function BrandingSettings() {
   const queryClient = useQueryClient();
 
@@ -90,30 +104,15 @@ export function BrandingSettings() {
   const mutation = useMutation({
     mutationFn: async (formData: BrandingSettingsFormInput) => {
       const original = parseBrandingSettings(settings ?? []);
-      const entries: { key: string; value: string }[] = [];
-
-      if (formData.display_name !== original.display_name) {
-        entries.push({ key: "display_name", value: formData.display_name });
-      }
-      if (formData.primary_color !== original.primary_color) {
-        entries.push({ key: "primary_color", value: formData.primary_color });
-      }
-      if (formData.secondary_color !== original.secondary_color) {
-        entries.push({
-          key: "secondary_color",
-          value: formData.secondary_color,
-        });
-      }
-      if (formData.logo_url !== original.logo_url) {
-        entries.push({ key: "logo_url", value: formData.logo_url });
-      }
-
-      for (const entry of entries) {
-        await tenantSettingsService.updateBranding(entry);
+      for (const key of SAVED_KEYS) {
+        if (formData[key] !== original[key]) {
+          await tenantSettingsService.updateBranding({ key, value: formData[key] });
+        }
       }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["setup-branding"] });
+      void queryClient.invalidateQueries({ queryKey: ["branding-marks"] });
       notifications.show({
         title: "Branding saved",
         message: "Your branding settings have been updated successfully.",
@@ -136,6 +135,7 @@ export function BrandingSettings() {
       primary_color: form.primary_color.trim(),
       secondary_color: form.secondary_color.trim(),
       logo_url: form.logo_url.trim(),
+      name_banner_url: form.name_banner_url.trim(),
     });
   });
   const primaryColor = watch("primary_color");
@@ -216,18 +216,7 @@ export function BrandingSettings() {
         />
       </Group>
 
-      <Text fw={600} size="lg" mt="md">
-        Logo
-      </Text>
-
-      <TextInput
-        label="Logo URL"
-        description="URL to your hospital logo image. Leave empty to use the default."
-        placeholder="https://..."
-        error={errors.logo_url?.message}
-        {...register("logo_url")}
-        maw={480}
-      />
+      <BrandMarksSection control={control} errors={errors} />
 
       <Text fw={600} size="lg" mt="md">
         Preview

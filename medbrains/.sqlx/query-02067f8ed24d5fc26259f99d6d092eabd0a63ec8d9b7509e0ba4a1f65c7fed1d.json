@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM abdm_care_contexts WHERE tenant_id = $1 AND abdm_request_id = $2 AND deleted_at IS NULL LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "02067f8ed24d5fc26259f99d6d092eabd0a63ec8d9b7509e0ba4a1f65c7fed1d"
+}

@@ -6,7 +6,7 @@
 //!    ABHA. If they already had an ABHA, ABDM returns it and we are done.
 //! 3. `POST …/{id}/mobile-otp` — only when that mobile is not the
 //!    Aadhaar-linked one: the OTP sent to it.
-//! 4. `POST …/{id}/address` — the ABHA address chosen.
+//! 4. `POST …/{id}/address` — the ABHA address chosen (`abha_enrol_address`).
 //!
 //! `POST …/{id}/resend` sends the waiting OTP again — after 60 seconds, at
 //! most twice per OTP (M1 test case `CRT_ABHA_106`). The Aadhaar OTP needs the
@@ -21,9 +21,9 @@ use axum::{
     extract::{Path, State},
 };
 use medbrains_abdm::{
-    ABHA_ENROL_SCOPE, CreateAddressRequest, ENROL_CONSENT_CODE, ENROL_CONSENT_VERSION,
-    EnrolAuthData, EnrolByAadhaarRequest, EnrolConsent, EnrolMobileVerifyRequest, EnrolOtp,
-    EnrolOtpRequest, MOBILE_VERIFY_SCOPE,
+    ABHA_ENROL_SCOPE, ENROL_CONSENT_CODE, ENROL_CONSENT_VERSION, EnrolAuthData,
+    EnrolByAadhaarRequest, EnrolConsent, EnrolMobileVerifyRequest, EnrolOtp, EnrolOtpRequest,
+    MOBILE_VERIFY_SCOPE,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
@@ -31,15 +31,16 @@ use uuid::Uuid;
 
 use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_common::{
-    RESEND_AFTER_SECONDS, VerificationStep, check_resend, digits, env_name, keep_token, peek_token,
-    record_verified, to_profile, update,
+    OTP_TRANSACTION_MINUTES, RESEND_AFTER_SECONDS, VerificationStep, aadhaar_digits, check_resend,
+    digits, env_name, keep_token, mask_mobile, mobile_digits, peek_token, record_verified,
+    to_profile, update,
 };
+use super::abha_enrol_address::offer_addresses;
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
-const ENROLMENT_LIFETIME_MINUTES: i32 = 30;
 const MAX_OTP_ATTEMPTS: i32 = 5;
 
 #[derive(Debug, Deserialize)]
@@ -68,11 +69,6 @@ pub struct MobileOtpInput {
     pub otp: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ChooseAddress {
-    pub abha_address: String,
-}
-
 fn six_digits(otp: &str) -> Result<String, AppError> {
     let otp = digits(otp);
     if otp.len() == 6 {
@@ -82,26 +78,17 @@ fn six_digits(otp: &str) -> Result<String, AppError> {
     }
 }
 
-/// An OTP stage keeps the resend pause and cap; any other has neither.
-fn step(id: Uuid, stage: &'static str, message: Option<String>) -> VerificationStep {
+/// An OTP stage keeps the resend pause, the cap and where the OTP went; any
+/// other has none of them.
+pub(super) fn step(id: Uuid, stage: &'static str, message: Option<String>) -> VerificationStep {
     let waiting = matches!(stage, "otp_sent" | "mobile_otp_sent");
     let sent = VerificationStep::otp_sent(id, message);
     VerificationStep {
         stage,
         resend_after_seconds: sent.resend_after_seconds.filter(|_| waiting),
         resends_left: sent.resends_left.filter(|_| waiting),
+        sent_to: sent.sent_to.clone().filter(|_| waiting),
         ..sent
-    }
-}
-
-pub(crate) fn aadhaar_digits(aadhaar: &str) -> Result<String, AppError> {
-    let aadhaar = digits(aadhaar);
-    if aadhaar.len() == 12 {
-        Ok(aadhaar)
-    } else {
-        Err(AppError::BadRequest(
-            "an Aadhaar number has 12 digits".to_owned(),
-        ))
     }
 }
 
@@ -163,7 +150,7 @@ pub async fn start(
     .bind(claims.sub)
     .bind(env_name(&abdm))
     .bind(&sent.txn_id)
-    .bind(ENROLMENT_LIFETIME_MINUTES)
+    .bind(OTP_TRANSACTION_MINUTES)
     .bind(format!("{ENROL_CONSENT_CODE}:{ENROL_CONSENT_VERSION}"))
     .fetch_one(&mut *tx)
     .await?;
@@ -172,14 +159,14 @@ pub async fn start(
 }
 
 #[derive(sqlx::FromRow)]
-struct Enrolment {
+pub(super) struct Enrolment {
     stage: String,
-    abdm_txn_id: String,
+    pub(super) abdm_txn_id: String,
     otp_attempts: i32,
 }
 
 /// The caller's own, unexpired, unlinked enrolment at `stage`.
-async fn load(
+pub(super) async fn load(
     state: &AppState,
     claims: &Claims,
     id: Uuid,
@@ -235,12 +222,7 @@ pub async fn submit_otp(
 ) -> Result<Json<VerificationStep>, AppError> {
     require_permission(&claims, permissions::abdm::abha::MANAGE)?;
     let otp = six_digits(&body.otp)?;
-    let mobile = digits(&body.mobile);
-    if mobile.len() != 10 {
-        return Err(AppError::BadRequest(
-            "a mobile number has 10 digits".to_owned(),
-        ));
-    }
+    let mobile = mobile_digits(&body.mobile)?;
     let row = load(&state, &claims, id, "otp_sent").await?;
     count_attempt(&state, &claims, id).await?;
 
@@ -289,6 +271,8 @@ pub async fn submit_otp(
     offer_addresses(&state, &claims, id, &abdm, &txn).await
 }
 
+/// Ask ABDM to send an OTP to the mobile chosen for the ABHA, which is not
+/// the Aadhaar-linked one; it gets its own pause and two resends.
 async fn send_mobile_otp(
     state: &AppState,
     claims: &Claims,
@@ -309,28 +293,9 @@ async fn send_mobile_otp(
             .push_bind(sent.txn_id);
     })
     .await?;
-    Ok(Json(step(id, "mobile_otp_sent", sent.message)))
-}
-
-async fn offer_addresses(
-    state: &AppState,
-    claims: &Claims,
-    id: Uuid,
-    abdm: &Abdm,
-    txn: &str,
-) -> Result<Json<VerificationStep>, AppError> {
-    let suggested = abdm
-        .client
-        .address_suggestions(&abdm.session, txn)
-        .await
-        .map_err(map_abdm_error)?;
-    update(state, claims, id, |q| {
-        q.push("stage = 'choose_address'");
-    })
-    .await?;
     Ok(Json(VerificationStep {
-        suggestions: suggested.abha_address_list,
-        ..step(id, "choose_address", None)
+        sent_to: Some(mask_mobile(mobile)),
+        ..step(id, "mobile_otp_sent", sent.message)
     }))
 }
 
@@ -402,14 +367,15 @@ pub async fn resend(
             .push_bind(sent.txn_id);
     })
     .await?;
-    let waiting = if row.stage == "otp_sent" {
-        "otp_sent"
+    let next = if row.stage == "otp_sent" {
+        step(id, "otp_sent", sent.message)
     } else {
-        "mobile_otp_sent"
+        VerificationStep {
+            sent_to: row.abha_mobile.as_deref().map(mask_mobile),
+            ..step(id, "mobile_otp_sent", sent.message)
+        }
     };
-    Ok(Json(
-        step(id, waiting, sent.message).resent(row.resend_count + 1),
-    ))
+    Ok(Json(next.resent(row.resend_count + 1)))
 }
 
 /// `POST /api/abdm/abha/enrolments/{id}/mobile-otp` — the OTP sent to the
@@ -429,7 +395,8 @@ pub async fn submit_mobile_otp(
     let row = load(&state, &claims, id, "mobile_otp_sent").await?;
     count_attempt(&state, &claims, id).await?;
     let abdm = connect(&state, claims.tenant_id).await?;
-    abdm.client
+    let verified = abdm
+        .client
         .enrol_verify_mobile(
             &abdm.session,
             &EnrolMobileVerifyRequest {
@@ -446,50 +413,21 @@ pub async fn submit_mobile_otp(
         )
         .await
         .map_err(map_abdm_error)?;
+    // ABDM answers a wrong OTP here with 200 and `authResult: failed`.
+    if verified
+        .auth_result
+        .as_deref()
+        .is_some_and(|r| !r.eq_ignore_ascii_case("success"))
+    {
+        return Err(AppError::BadRequest(verified.message.unwrap_or_else(
+            || "ABDM did not accept the OTP. Check it with the patient.".to_owned(),
+        )));
+    }
     offer_addresses(&state, &claims, id, &abdm, &row.abdm_txn_id).await
 }
 
-/// `POST /api/abdm/abha/enrolments/{id}/address` — create the chosen ABHA
-/// address and finish.
-///
-/// # Errors
-/// 400 when ABDM refuses the address (taken, or not allowed).
-#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
-pub async fn choose_address(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<ChooseAddress>,
-) -> Result<Json<VerificationStep>, AppError> {
-    require_permission(&claims, permissions::abdm::abha::MANAGE)?;
-    let address = body
-        .abha_address
-        .trim()
-        .trim_end_matches("@sbx")
-        .trim_end_matches("@abdm");
-    if address.is_empty() {
-        return Err(AppError::BadRequest(
-            "choose or type an ABHA address".to_owned(),
-        ));
-    }
-    let row = load(&state, &claims, id, "choose_address").await?;
-    let abdm = connect(&state, claims.tenant_id).await?;
-    abdm.client
-        .create_address(
-            &abdm.session,
-            &CreateAddressRequest {
-                txn_id: row.abdm_txn_id,
-                abha_address: address.to_owned(),
-                preferred: 1,
-            },
-        )
-        .await
-        .map_err(map_abdm_error)?;
-    finish(&state, &claims, id, &abdm, true).await
-}
-
 /// Fetch the finished profile with the person's X-token and record it.
-async fn finish(
+pub(super) async fn finish(
     state: &AppState,
     claims: &Claims,
     id: Uuid,

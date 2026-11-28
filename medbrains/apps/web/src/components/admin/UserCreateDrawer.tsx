@@ -17,7 +17,6 @@ import {
   Button,
   Group,
   MultiSelect,
-  PasswordInput,
   Select,
   Stack,
   Stepper,
@@ -32,7 +31,7 @@ import { buildPermissionTree, PERMISSIONS } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext } from "react-hook-form";
-import { Modal } from "@/components/ui";
+import { Modal, NewPasswordField } from "@/components/ui";
 import { type FlatSelectOption, groupedSelectData } from "@/lib/select-groups";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -310,12 +309,11 @@ function IdentityStep() {
         control={control}
         name="password"
         render={({ field }) => (
-          <PasswordInput
+          <NewPasswordField
             label="Password"
             value={field.value}
             onChange={field.onChange}
             required
-            description="≥ 8 chars. User can change after first login."
             error={errors.password?.message}
           />
         )}

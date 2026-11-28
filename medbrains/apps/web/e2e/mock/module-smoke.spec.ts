@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import { NAV_GROUPS } from "@/config/navigation";
 import { installMockApi, seedMockSession } from "./mockApi";
 
+// Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
+test.describe.configure({ mode: "parallel" });
+
 interface ModuleTarget {
   label: string;
   path: string;

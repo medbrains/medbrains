@@ -8,7 +8,7 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { notificationsApi } from "@medbrains/api/modules/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import { type AppNotification, P } from "@medbrains/types";
 import { IconBell, IconChecks, IconNotes } from "@tabler/icons-react";
@@ -50,13 +50,13 @@ export function NotificationCenter() {
 
   const { data: count } = useQuery({
     queryKey: ["notifications-unread"],
-    queryFn: () => api.notificationsUnreadCount(),
+    queryFn: () => notificationsApi.notificationsUnreadCount(),
     // Live delivery is the WS stream below; the poll is only a fallback.
     refetchInterval: 60_000,
   });
   const { data: list, isLoading } = useQuery({
     queryKey: ["notifications", tab],
-    queryFn: () => api.listNotifications({ unread: tab === "unread", limit: 30 }),
+    queryFn: () => notificationsApi.listNotifications({ unread: tab === "unread", limit: 30 }),
     enabled: opened,
   });
 
@@ -106,7 +106,7 @@ export function NotificationCenter() {
     if (sound !== "none") void playAlertSound(sound);
   });
   const markRead = useMutation({
-    mutationFn: (id: string) => api.markNotificationRead(id),
+    mutationFn: (id: string) => notificationsApi.markNotificationRead(id),
     onSuccess: invalidate,
   });
   const canNote = useHasPermission(P.NOTES.USE);
@@ -119,7 +119,7 @@ export function NotificationCenter() {
     onError: (e: Error) => toast.error(e.message, { title: "Could not pin to notes" }),
   });
   const markAll = useMutation({
-    mutationFn: () => api.markAllNotificationsRead(),
+    mutationFn: () => notificationsApi.markAllNotificationsRead(),
     onSuccess: invalidate,
   });
 

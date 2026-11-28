@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-tenant-export — one hospital's data, and nothing
+# of any other hospital's, as an age-sealed psql script that loads it into a
+# fresh MedBrains server of the same version. Weekly by
+# medbrains-tenant-export.timer when TENANT_EXPORT is set; by hand any time.
+# Import: docs/ops/BACKUP-RESTORE.md, "Per-hospital export".
+#
+#   medbrains-tenant-export <tenant code or id>            to S3 (or BACKUP_DIR)
+#   medbrains-tenant-export <tenant> --to DIR              to a directory
+#   medbrains-tenant-export <tenant> --stdout > x.sql      unsealed; tests only
+#
+# Two fences, each enough alone:
+#   - it reads as the app's own role (DATABASE_URL, medbrains_app), with the
+#     tenant's context set, so row level security applies; it refuses a role
+#     that is superuser or BYPASSRLS, which would see every hospital;
+#   - every table is read with an explicit `WHERE tenant_id = <id>` as well,
+#     because RLS alone shows a sharing branch group's rows to each member.
+# Read in one REPEATABLE READ READ ONLY transaction: one consistent moment.
+#
+# What it carries: the tenants row and every public table with a tenant_id
+# the app role can read (generated columns left out, the target recomputes
+# them). What it leaves: shared reference rows (tenant_id NULL; the target's
+# migrations seed them), tables without tenant_id (reference data, and the
+# cross-hospital tables that name a second hospital), and tables the app role
+# cannot read (honeytokens). The script it writes checks itself on import:
+# same schema version, every table's row count, no dangling foreign key.
+
+set -euo pipefail
+umask 077
+
+TENANT="${1:?usage: medbrains-tenant-export <tenant code or id> [--to DIR | --stdout]}"
+MODE=default DIR=""
+case "${2:-}" in
+    --to) MODE=dir DIR="${3:?--to DIR}" ;;
+    --stdout) MODE=stdout ;;
+    "") ;;
+    *) echo "unknown option $2" >&2; exit 2 ;;
+esac
+RECIPIENTS="${TENANT_EXPORT_RECIPIENTS:-/etc/medbrains/backup-recipients.txt}"
+URL="${DATABASE_URL:?DATABASE_URL (the app role) must be set; run with /etc/medbrains/env}"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+# psql as the app role, over DATABASE_URL.
+app_psql() {
+    psql -XAtq -v ON_ERROR_STOP=1 "$URL" "$@"
+}
+
+# Refuses a role that row level security would not hold.
+[[ "$(app_psql -c "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user")" == "f" ]] \
+    || die "DATABASE_URL's role is superuser or BYPASSRLS: it would see every hospital. Use the app role (db-roles.sh)."
+
+row="$(app_psql -v t="$TENANT" <<'SQL'
+SELECT id || '|' || lower(code) FROM tenants
+ WHERE id::text = :'t' OR upper(code) = upper(:'t');
+SQL
+)"
+[[ "$row" =~ ^[0-9a-f-]{36}\|[a-z0-9-]+$ ]] || die "no single tenant with code or id '$TENANT'"
+TID="${row%%|*}" SLUG="${row#*|}"
+VERSION="$(app_psql -c "SELECT max(version) FROM _sqlx_migrations WHERE success")"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+
+# Pass 1 writes the reading script (SQL only, no rows): per table, the COPY
+# header the import needs, the filtered COPY out, and the terminator.
+app_psql -v tid="$TID" > "$TMP/read.sql" <<'SQL'
+SELECT format(E'\\echo %s\n%s\n\\echo ''\\\\.''',
+              quote_literal(format('COPY %s (%s) FROM stdin;', t, cols)),
+              format('COPY (SELECT %s FROM %s WHERE %s = %L) TO STDOUT;', cols, t,
+                     CASE WHEN t = 'public.tenants' THEN 'id' ELSE 'tenant_id' END, :'tid'))
+  FROM (SELECT format('%I.%I', n.nspname, c.relname) AS t,
+               string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum) AS cols
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0
+                             AND NOT a.attisdropped AND a.attgenerated = ''
+         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+           AND has_table_privilege(c.oid, 'SELECT')
+           AND (c.relname = 'tenants' OR EXISTS (
+                 SELECT 1 FROM pg_attribute x
+                  WHERE x.attrelid = c.oid AND x.attname = 'tenant_id' AND NOT x.attisdropped))
+         GROUP BY n.nspname, c.relname) tabs
+ ORDER BY t <> 'public.tenants', t;
+SQL
+
+# Pass 2 reads every table in one snapshot and prints the import script; awk
+# passes it through, counts each table's rows and appends the checks.
+export_stream() {
+    {
+        printf "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSET LOCAL app.tenant_id = '%s';\n" "$TID"
+        printf '\\echo %s\n' "'-- MedBrains export of tenant $SLUG ($TID), schema $VERSION, $(hostname) $STAMP'" \
+            "'\\\\set ON_ERROR_STOP on'" "'BEGIN;'" "'SET LOCAL session_replication_role = replica;'" \
+            "'DO \$v\$ BEGIN IF (SELECT max(version) FROM _sqlx_migrations WHERE success) <> $VERSION THEN RAISE EXCEPTION ''this server is not at schema $VERSION''; END IF; END \$v\$;'"
+        cat "$TMP/read.sql"
+        echo "COMMIT;"
+    } | app_psql | awk -v tid="$TID" -v counts="$TMP/counts" -f /dev/fd/3 3<<'AWK'
+# Counts rows between "COPY t (...) FROM stdin;" and "\.", then appends the
+# self-checks (row counts, foreign keys, sequences) and the COMMIT.
+BEGIN { incopy = 0; ntab = 0 }
+{ print }
+incopy && $0 == "\\." { incopy = 0; cnt[t] = n; next }
+incopy { n++; next }
+/^COPY .* FROM stdin;$/ { t = $2; n = 0; incopy = 1; order[++ntab] = t }
+END {
+    list = ""
+    for (i = 1; i <= ntab; i++) {
+        t = order[i]
+        col = (t == "public.tenants") ? "id" : "tenant_id"
+        printf "DO $c$ BEGIN IF (SELECT count(*) FROM %s WHERE %s = '%s') <> %d THEN RAISE EXCEPTION '%s: expected %d rows'; END IF; END $c$;\n", t, col, tid, cnt[t], t, cnt[t]
+        if (cnt[t] > 0) list = list (list == "" ? "" : ",") "'" t "'"
+        print t "\t" cnt[t] > counts
+    }
+    if (list == "") list = "'public.tenants'"
+    print "CREATE TEMP TABLE medbrains_import_tables ON COMMIT DROP AS SELECT unnest(ARRAY[" list "])::regclass AS t;"
+    print "DO $fk$ DECLARE r record; n bigint; bad text := ''; BEGIN"
+    print "  FOR r IN SELECT con.conrelid::regclass AS child, con.confrelid::regclass AS parent, con.conname,"
+    print "      (SELECT string_agg(format('c.%I = p.%I', ca.attname, pa.attname), ' AND ') FROM unnest(con.conkey, con.confkey) k(ck, pk)"
+    print "         JOIN pg_attribute ca ON ca.attrelid = con.conrelid AND ca.attnum = k.ck JOIN pg_attribute pa ON pa.attrelid = con.confrelid AND pa.attnum = k.pk) AS eq,"
+    print "      (SELECT string_agg(format('c.%I IS NOT NULL', ca.attname), ' AND ') FROM unnest(con.conkey) ck JOIN pg_attribute ca ON ca.attrelid = con.conrelid AND ca.attnum = ck) AS nn"
+    print "    FROM pg_constraint con WHERE con.contype = 'f' AND con.conparentid = 0 AND con.conrelid IN (SELECT t FROM medbrains_import_tables) LOOP"
+    print "    EXECUTE format('SELECT count(*) FROM %s c WHERE %s AND NOT EXISTS (SELECT 1 FROM %s p WHERE %s)', r.child, r.nn, r.parent, r.eq) INTO n;"
+    print "    IF n > 0 THEN bad := bad || format(E'\\n  %s.%s -> %s: %s rows', r.child, r.conname, r.parent, n); END IF;"
+    print "  END LOOP;"
+    print "  IF bad <> '' THEN RAISE EXCEPTION 'rows point at rows this server does not have:%', bad; END IF; END $fk$;"
+    print "DO $s$ DECLARE r record; m bigint; BEGIN"
+    print "  FOR r IN SELECT i.t, a.attname, pg_get_serial_sequence(i.t::text, a.attname) AS s FROM medbrains_import_tables i"
+    print "      JOIN pg_attribute a ON a.attrelid = i.t AND a.attnum > 0 AND NOT a.attisdropped WHERE pg_get_serial_sequence(i.t::text, a.attname) IS NOT NULL LOOP"
+    print "    EXECUTE format('SELECT max(%I) FROM %s', r.attname, r.t) INTO m;"
+    print "    IF m IS NOT NULL THEN PERFORM setval(r.s, m); END IF;"
+    print "  END LOOP; END $s$;"
+    print "COMMIT;"
+}
+AWK
+}
+
+if [[ "$MODE" == "stdout" ]]; then
+    export_stream
+    exit 0
+fi
+[[ -s "$RECIPIENTS" ]] || die "no $RECIPIENTS: an export is never written unsealed"
+seal() { age -R "$RECIPIENTS"; }
+NAME="$(hostname)-$SLUG-$STAMP"
+
+if [[ "$MODE" == "default" && -n "${BACKUP_BUCKET:-}" ]]; then
+    PREFIX="${TENANT_EXPORT_PREFIX:-tenants}"
+    DEST="s3://${BACKUP_BUCKET}/${PREFIX%/}/$SLUG/$NAME.sql.age"
+    echo "==> exporting tenant $SLUG ($TID) → $DEST"
+    export_stream | seal | aws s3 cp - "$DEST" \
+        --content-type application/octet-stream --checksum-algorithm CRC32
+    seal < "$TMP/counts" | aws s3 cp - "${DEST%.sql.age}.counts.age" \
+        --content-type application/octet-stream --checksum-algorithm CRC32
+else
+    [[ "$MODE" == "dir" ]] || DIR="${BACKUP_DIR:?no BACKUP_BUCKET, BACKUP_DIR or --to DIR}"
+    install -d -m 0700 "$DIR"
+    echo "==> exporting tenant $SLUG ($TID) → $DIR/$NAME.sql.age"
+    export_stream | seal > "$DIR/$NAME.sql.age.partial"
+    mv "$DIR/$NAME.sql.age.partial" "$DIR/$NAME.sql.age"
+    seal < "$TMP/counts" > "$DIR/$NAME.counts.age"
+fi
+echo "    $(wc -l < "$TMP/counts") tables, $(awk -F'\t' '{s += $2} END {print s + 0}' "$TMP/counts") rows"

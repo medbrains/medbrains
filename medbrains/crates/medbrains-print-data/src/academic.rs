@@ -25,6 +25,8 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::{DateTime, NaiveDate, Utc};
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -51,7 +53,6 @@ use medbrains_core::print_data::{
 };
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── Student Admission Form ────────────────────────────────────────────────────
@@ -115,11 +116,9 @@ pub async fn get_pg_logbook_entry(
     Path(entry_id): Path<Uuid>,
 ) -> Result<Json<PgLogbookEntryPrintData>, AppError> {
     // Same gate as GET /api/cds/pg-logbook, the logbook's own list.
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::queue::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PgLogbookRow>(
@@ -148,7 +147,7 @@ pub async fn get_pg_logbook_entry(
     // The entry names a patient's encounter; printing it discloses that
     // patient's UHID, so the caller needs access to that care.
     if let Some(encounter_id) = row.encounter_id {
-        medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
+        gate::require_encounter_access(&state, &claims, encounter_id).await?;
     }
 
     Ok(Json(PgLogbookEntryPrintData {
@@ -390,11 +389,9 @@ pub async fn get_hospital_branding(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<HospitalBrandingPrintData>, AppError> {
-    require_permission(&claims, permissions::dashboard::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::dashboard::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let mut branding = sqlx::query_as::<_, HospitalBrandingPrintData>(
         "SELECT t.name AS hospital_name, t.logo_url, t.address_line1 AS address_line_1, \

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT key, value #>> '{}' AS text FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' AND key IN ('display_name', 'logo_url', 'name_banner_url') AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "text",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "f0d71844082b4aa19c4d0b2743de0184ad7efe8b05141437bc8feb5da31846a9"
+}

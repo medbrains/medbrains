@@ -1,61 +1,76 @@
-import { api } from "@medbrains/api";
+import { bloodBankApi } from "@medbrains/api/modules/blood-bank";
 
 export const bloodBankService = {
-  listBloodDonors: (...args: Parameters<typeof api.listBloodDonors>) =>
-    api.listBloodDonors(...args),
-  createBloodDonor: (...args: Parameters<typeof api.createBloodDonor>) =>
-    api.createBloodDonor(...args),
-  listDonations: (...args: Parameters<typeof api.listDonations>) => api.listDonations(...args),
-  createDonation: (...args: Parameters<typeof api.createDonation>) => api.createDonation(...args),
-  updateDonation: (...args: Parameters<typeof api.updateDonation>) => api.updateDonation(...args),
-  setDonorDeferral: (...args: Parameters<typeof api.setDonorDeferral>) =>
-    api.setDonorDeferral(...args),
-  listTtiResults: (...args: Parameters<typeof api.listTtiResults>) => api.listTtiResults(...args),
-  recordTtiResults: (...args: Parameters<typeof api.recordTtiResults>) =>
-    api.recordTtiResults(...args),
-  listBloodComponents: (...args: Parameters<typeof api.listBloodComponents>) =>
-    api.listBloodComponents(...args),
-  createBloodComponent: (...args: Parameters<typeof api.createBloodComponent>) =>
-    api.createBloodComponent(...args),
-  updateComponentStatus: (...args: Parameters<typeof api.updateComponentStatus>) =>
-    api.updateComponentStatus(...args),
-  listCrossmatchRequests: (...args: Parameters<typeof api.listCrossmatchRequests>) =>
-    api.listCrossmatchRequests(...args),
-  createCrossmatchRequest: (...args: Parameters<typeof api.createCrossmatchRequest>) =>
-    api.createCrossmatchRequest(...args),
-  updateCrossmatchRequest: (...args: Parameters<typeof api.updateCrossmatchRequest>) =>
-    api.updateCrossmatchRequest(...args),
-  listTransfusions: (...args: Parameters<typeof api.listTransfusions>) =>
-    api.listTransfusions(...args),
-  createTransfusion: (...args: Parameters<typeof api.createTransfusion>) =>
-    api.createTransfusion(...args),
-  recordTransfusionReaction: (...args: Parameters<typeof api.recordTransfusionReaction>) =>
-    api.recordTransfusionReaction(...args),
-  listTransfusionObservations: (...args: Parameters<typeof api.listTransfusionObservations>) =>
-    api.listTransfusionObservations(...args),
-  recordTransfusionObservation: (...args: Parameters<typeof api.recordTransfusionObservation>) =>
-    api.recordTransfusionObservation(...args),
-  getTtiReport: (...args: Parameters<typeof api.getTtiReport>) => api.getTtiReport(...args),
-  getHemovigilanceReport: (...args: Parameters<typeof api.getHemovigilanceReport>) =>
-    api.getHemovigilanceReport(...args),
-  getBbSbtcReport: (...args: Parameters<typeof api.getBbSbtcReport>) =>
-    api.getBbSbtcReport(...args),
-  listBbMsbos: (...args: Parameters<typeof api.listBbMsbos>) => api.listBbMsbos(...args),
-  createBbMsbos: (...args: Parameters<typeof api.createBbMsbos>) => api.createBbMsbos(...args),
-  createBbReturn: (...args: Parameters<typeof api.createBbReturn>) => api.createBbReturn(...args),
-  listBbDevices: (...args: Parameters<typeof api.listBbDevices>) => api.listBbDevices(...args),
-  createBbDevice: (...args: Parameters<typeof api.createBbDevice>) => api.createBbDevice(...args),
-  listBbReadings: (...args: Parameters<typeof api.listBbReadings>) => api.listBbReadings(...args),
-  addBbReading: (...args: Parameters<typeof api.addBbReading>) => api.addBbReading(...args),
-  listBbLookback: (...args: Parameters<typeof api.listBbLookback>) => api.listBbLookback(...args),
-  createBbLookback: (...args: Parameters<typeof api.createBbLookback>) =>
-    api.createBbLookback(...args),
-  updateBbLookback: (...args: Parameters<typeof api.updateBbLookback>) =>
-    api.updateBbLookback(...args),
-  listBbCampaigns: (...args: Parameters<typeof api.listBbCampaigns>) =>
-    api.listBbCampaigns(...args),
-  createBbCampaign: (...args: Parameters<typeof api.createBbCampaign>) =>
-    api.createBbCampaign(...args),
-  updateBbCampaign: (...args: Parameters<typeof api.updateBbCampaign>) =>
-    api.updateBbCampaign(...args),
+  listBloodDonors: (...args: Parameters<typeof bloodBankApi.listBloodDonors>) =>
+    bloodBankApi.listBloodDonors(...args),
+  createBloodDonor: (...args: Parameters<typeof bloodBankApi.createBloodDonor>) =>
+    bloodBankApi.createBloodDonor(...args),
+  listDonations: (...args: Parameters<typeof bloodBankApi.listDonations>) =>
+    bloodBankApi.listDonations(...args),
+  createDonation: (...args: Parameters<typeof bloodBankApi.createDonation>) =>
+    bloodBankApi.createDonation(...args),
+  updateDonation: (...args: Parameters<typeof bloodBankApi.updateDonation>) =>
+    bloodBankApi.updateDonation(...args),
+  setDonorDeferral: (...args: Parameters<typeof bloodBankApi.setDonorDeferral>) =>
+    bloodBankApi.setDonorDeferral(...args),
+  listTtiResults: (...args: Parameters<typeof bloodBankApi.listTtiResults>) =>
+    bloodBankApi.listTtiResults(...args),
+  recordTtiResults: (...args: Parameters<typeof bloodBankApi.recordTtiResults>) =>
+    bloodBankApi.recordTtiResults(...args),
+  listBloodComponents: (...args: Parameters<typeof bloodBankApi.listBloodComponents>) =>
+    bloodBankApi.listBloodComponents(...args),
+  createBloodComponent: (...args: Parameters<typeof bloodBankApi.createBloodComponent>) =>
+    bloodBankApi.createBloodComponent(...args),
+  updateComponentStatus: (...args: Parameters<typeof bloodBankApi.updateComponentStatus>) =>
+    bloodBankApi.updateComponentStatus(...args),
+  listCrossmatchRequests: (...args: Parameters<typeof bloodBankApi.listCrossmatchRequests>) =>
+    bloodBankApi.listCrossmatchRequests(...args),
+  createCrossmatchRequest: (...args: Parameters<typeof bloodBankApi.createCrossmatchRequest>) =>
+    bloodBankApi.createCrossmatchRequest(...args),
+  updateCrossmatchRequest: (...args: Parameters<typeof bloodBankApi.updateCrossmatchRequest>) =>
+    bloodBankApi.updateCrossmatchRequest(...args),
+  listTransfusions: (...args: Parameters<typeof bloodBankApi.listTransfusions>) =>
+    bloodBankApi.listTransfusions(...args),
+  createTransfusion: (...args: Parameters<typeof bloodBankApi.createTransfusion>) =>
+    bloodBankApi.createTransfusion(...args),
+  recordTransfusionReaction: (...args: Parameters<typeof bloodBankApi.recordTransfusionReaction>) =>
+    bloodBankApi.recordTransfusionReaction(...args),
+  listTransfusionObservations: (
+    ...args: Parameters<typeof bloodBankApi.listTransfusionObservations>
+  ) => bloodBankApi.listTransfusionObservations(...args),
+  recordTransfusionObservation: (
+    ...args: Parameters<typeof bloodBankApi.recordTransfusionObservation>
+  ) => bloodBankApi.recordTransfusionObservation(...args),
+  getTtiReport: (...args: Parameters<typeof bloodBankApi.getTtiReport>) =>
+    bloodBankApi.getTtiReport(...args),
+  getHemovigilanceReport: (...args: Parameters<typeof bloodBankApi.getHemovigilanceReport>) =>
+    bloodBankApi.getHemovigilanceReport(...args),
+  getBbSbtcReport: (...args: Parameters<typeof bloodBankApi.getBbSbtcReport>) =>
+    bloodBankApi.getBbSbtcReport(...args),
+  listBbMsbos: (...args: Parameters<typeof bloodBankApi.listBbMsbos>) =>
+    bloodBankApi.listBbMsbos(...args),
+  createBbMsbos: (...args: Parameters<typeof bloodBankApi.createBbMsbos>) =>
+    bloodBankApi.createBbMsbos(...args),
+  createBbReturn: (...args: Parameters<typeof bloodBankApi.createBbReturn>) =>
+    bloodBankApi.createBbReturn(...args),
+  listBbDevices: (...args: Parameters<typeof bloodBankApi.listBbDevices>) =>
+    bloodBankApi.listBbDevices(...args),
+  createBbDevice: (...args: Parameters<typeof bloodBankApi.createBbDevice>) =>
+    bloodBankApi.createBbDevice(...args),
+  listBbReadings: (...args: Parameters<typeof bloodBankApi.listBbReadings>) =>
+    bloodBankApi.listBbReadings(...args),
+  addBbReading: (...args: Parameters<typeof bloodBankApi.addBbReading>) =>
+    bloodBankApi.addBbReading(...args),
+  listBbLookback: (...args: Parameters<typeof bloodBankApi.listBbLookback>) =>
+    bloodBankApi.listBbLookback(...args),
+  createBbLookback: (...args: Parameters<typeof bloodBankApi.createBbLookback>) =>
+    bloodBankApi.createBbLookback(...args),
+  updateBbLookback: (...args: Parameters<typeof bloodBankApi.updateBbLookback>) =>
+    bloodBankApi.updateBbLookback(...args),
+  listBbCampaigns: (...args: Parameters<typeof bloodBankApi.listBbCampaigns>) =>
+    bloodBankApi.listBbCampaigns(...args),
+  createBbCampaign: (...args: Parameters<typeof bloodBankApi.createBbCampaign>) =>
+    bloodBankApi.createBbCampaign(...args),
+  updateBbCampaign: (...args: Parameters<typeof bloodBankApi.updateBbCampaign>) =>
+    bloodBankApi.updateBbCampaign(...args),
 };

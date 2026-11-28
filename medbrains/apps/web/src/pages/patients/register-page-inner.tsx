@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { PageHeader, useClinicalEmit } from "@/components";
 import { shareRegistrationValues } from "@/components/abha/scanShare";
+import { OPD_NUMBER_QUERY_KEY } from "@/components/Patient/OpdNumberRow";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
 import { useOpdVisitGates } from "@/components/Patient/useOpdVisitGates";
@@ -36,6 +37,8 @@ import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow
 import classes from "../patients.module.scss";
 import { campRegistrationValues } from "./campRegistration";
 import { DuplicateMatchTable } from "./DuplicateMatchTable";
+import { registeredNoticeText, showRegisteredNotice } from "./registered-notice";
+import { registrationQueueNotes, registrationVisitType } from "./registration-visit";
 import { registrationAction } from "./registrationGate";
 
 const NO_MATCHES: MpiMatchResult[] = [];
@@ -61,29 +64,6 @@ interface RegisterPatientMutationResult {
 interface PatientRegistrationCampContext {
   campId: string;
   returnTo?: string;
-}
-
-function registrationVisitType(req: CreatePatientRequest): string {
-  if (req.registration_type === "camp" || req.registration_source === "camp") return "camp";
-  if (req.registration_type === "emergency" || req.registration_source === "ambulance") {
-    return "emergency";
-  }
-  if (req.registration_type === "referral" || req.registration_source === "referral") {
-    return "referral";
-  }
-  if (req.registration_type === "revisit") return "follow_up";
-  return "walk_in";
-}
-
-function registrationQueueNotes(req: CreatePatientRequest): string {
-  const notes = ["Created from patient registration"];
-  if (req.registration_type) notes.push(`Registration type: ${req.registration_type}`);
-  if (req.registration_source) notes.push(`Source: ${req.registration_source}`);
-  if (req.camp_name) notes.push(`Camp: ${req.camp_name}`);
-  if (req.referred_by_name) notes.push(`Referred by: ${req.referred_by_name}`);
-  if (req.initial_diagnosis_text)
-    notes.push(`Provisional diagnosis: ${req.initial_diagnosis_text}`);
-  return notes.join("\n");
 }
 
 function patientRegistrationName(req: CreatePatientRequest): string {
@@ -239,6 +219,7 @@ export function PatientRegisterPageInner() {
           camp_id: req.camp_id,
           chief_complaint: req.initial_diagnosis_text,
           notes: registrationQueueNotes(req),
+          opd_number: req.opd_number,
         });
         return {
           patient,
@@ -287,35 +268,14 @@ export function PatientRegisterPageInner() {
       }
       // The visit exists but the queue gave no number (outside its hours,
       // paused, full): say why, so the desk can tell the patient when to return.
-      if (tokenRefused) {
-        notifications.show({
-          title: t("notify.patientRegisteredNoToken"),
-          message: t("notify.patientRegisteredTokenRefused", {
-            uhid: patient.uhid,
-            reason: tokenRefused,
-          }),
-          color: "warning",
-        });
-      } else {
-        notifications.show({
-          title: queueWarning
-            ? t("notify.patientRegisteredOpdQueuePending")
-            : t("notify.patientRegistered"),
-          message: queueWarning
-            ? t("notify.patientRegisteredQueueWarning", {
-                queueWarning,
-                uhid: patient.uhid,
-              })
-            : tokenNumber
-              ? t("notify.patientRegisteredWithToken", {
-                  token: tokenNumber,
-                  uhid: patient.uhid,
-                })
-              : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),
-          color: queueWarning ? "warning" : "success",
-        });
-      }
+      showRegisteredNotice({
+        ...registeredNoticeText(t, { uhid: patient.uhid, tokenRefused, queueWarning, tokenNumber }),
+        patientId: patient.id,
+        encounterId,
+        tokenNumber: tokenRefused ? null : tokenNumber,
+      });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: OPD_NUMBER_QUERY_KEY });
       if (encounterId) {
         void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
         void queryClient.invalidateQueries({ queryKey: ["opd-encounter", encounterId] });
@@ -341,6 +301,8 @@ export function PatientRegisterPageInner() {
       void navigate(`/patients/${patient.id}`);
     },
     onError: (err: Error) => {
+      // A number in use: offer the fresh next one beside the field.
+      void queryClient.invalidateQueries({ queryKey: OPD_NUMBER_QUERY_KEY });
       notifications.show({
         title: t("notify.registrationFailed"),
         message: err.message || t("errors.unknown"),

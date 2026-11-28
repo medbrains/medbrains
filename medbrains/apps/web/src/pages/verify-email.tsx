@@ -1,5 +1,5 @@
 import { Anchor, Box, Center, Loader, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
 import { IconCircleCheck, IconCircleX } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
@@ -10,7 +10,7 @@ export function VerifyEmailPage() {
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["verify-email", token],
-    queryFn: () => api.verifyEmail(token),
+    queryFn: () => authApi.verifyEmail(token),
     enabled: token.length > 0,
     retry: false,
   });

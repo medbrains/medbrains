@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "./auth-store.js";
 import { useModuleStore } from "./module-store.js";
 import { usePermissionStore } from "./permission-store.js";
@@ -11,4 +12,15 @@ export function clearSession(): void {
   useAuthStore.getState().clearAuth();
   useModuleStore.getState().clearModules();
   usePermissionStore.getState().clearPermissions();
+}
+
+/**
+ * End the session on this device: stop every query in flight, sign out of every store (which
+ * unmounts the signed-in screens, their polls and the notifications socket), then drop the cache,
+ * which holds this session's patient data. Used on sign-out and when the server refuses a refresh.
+ */
+export function endClientSession(queryClient: QueryClient): void {
+  void queryClient.cancelQueries();
+  clearSession();
+  queryClient.clear();
 }

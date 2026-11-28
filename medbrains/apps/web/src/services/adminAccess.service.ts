@@ -1,79 +1,85 @@
-import { api } from "@medbrains/api";
+import { accessApi } from "@medbrains/api/modules/access";
+import { accessGroupsApi } from "@medbrains/api/modules/access-groups";
+import { iamApi } from "@medbrains/api/modules/iam";
+import { setupApi } from "@medbrains/api/modules/setup";
 import type { BulkCreateUsersRequest } from "@medbrains/types";
 
-export type CreateSetupUserInput = Parameters<typeof api.createSetupUser>[0];
-export type UpdateSetupUserInput = Parameters<typeof api.updateSetupUser>[1];
-export type UpdateUserAccessMatrixInput = Parameters<typeof api.updateUserAccessMatrix>[1];
-export type AssignUserFacilitiesInput = Parameters<typeof api.assignUserFacilities>[1];
-export type CreateRoleInput = Parameters<typeof api.createRole>[0];
-export type UpdateRoleInput = Parameters<typeof api.updateRole>[1];
-export type ListIamAccessRequestsInput = Parameters<typeof api.listIamAccessRequests>[0];
-export type CreateIamAccessRequestInput = Parameters<typeof api.createIamAccessRequest>[0];
-export type ApproveIamAccessRequestInput = Parameters<typeof api.approveIamAccessRequest>[1];
-export type RejectIamAccessRequestInput = Parameters<typeof api.rejectIamAccessRequest>[1];
-export type RevokeIamAccessRequestInput = Parameters<typeof api.revokeIamAccessRequest>[1];
-export type CreateAccessGroupInput = Parameters<typeof api.createAccessGroup>[0];
-export type UpdateAccessGroupInput = Parameters<typeof api.updateAccessGroup>[1];
-export type AddAccessGroupMemberInput = Parameters<typeof api.addAccessGroupMember>[1];
-export type CreateDepartmentInput = Parameters<typeof api.createDepartment>[0];
-export type CreateFacilityInput = Parameters<typeof api.createFacility>[0];
-export type CreateLocationInput = Parameters<typeof api.createLocation>[0];
+export type CreateSetupUserInput = Parameters<typeof setupApi.createSetupUser>[0];
+export type UpdateSetupUserInput = Parameters<typeof setupApi.updateSetupUser>[1];
+export type UpdateUserAccessMatrixInput = Parameters<typeof setupApi.updateUserAccessMatrix>[1];
+export type AssignUserFacilitiesInput = Parameters<typeof setupApi.assignUserFacilities>[1];
+export type CreateRoleInput = Parameters<typeof setupApi.createRole>[0];
+export type UpdateRoleInput = Parameters<typeof setupApi.updateRole>[1];
+export type ListIamAccessRequestsInput = Parameters<typeof iamApi.listIamAccessRequests>[0];
+export type CreateIamAccessRequestInput = Parameters<typeof iamApi.createIamAccessRequest>[0];
+export type ApproveIamAccessRequestInput = Parameters<typeof iamApi.approveIamAccessRequest>[1];
+export type RejectIamAccessRequestInput = Parameters<typeof iamApi.rejectIamAccessRequest>[1];
+export type RevokeIamAccessRequestInput = Parameters<typeof iamApi.revokeIamAccessRequest>[1];
+export type CreateAccessGroupInput = Parameters<typeof accessGroupsApi.createAccessGroup>[0];
+export type UpdateAccessGroupInput = Parameters<typeof accessGroupsApi.updateAccessGroup>[1];
+export type AddAccessGroupMemberInput = Parameters<typeof accessGroupsApi.addAccessGroupMember>[1];
+export type CreateDepartmentInput = Parameters<typeof setupApi.createDepartment>[0];
+export type CreateFacilityInput = Parameters<typeof setupApi.createFacility>[0];
+export type CreateLocationInput = Parameters<typeof setupApi.createLocation>[0];
 
 export const adminAccessService = {
-  getAccessManifest: () => api.getAccessManifest(),
+  getAccessManifest: () => accessApi.getAccessManifest(),
 
-  listIamAccessRequests: (params?: ListIamAccessRequestsInput) => api.listIamAccessRequests(params),
-  createIamAccessRequest: (data: CreateIamAccessRequestInput) => api.createIamAccessRequest(data),
+  listIamAccessRequests: (params?: ListIamAccessRequestsInput) =>
+    iamApi.listIamAccessRequests(params),
+  createIamAccessRequest: (data: CreateIamAccessRequestInput) =>
+    iamApi.createIamAccessRequest(data),
   approveIamAccessRequest: (id: string, data?: ApproveIamAccessRequestInput) =>
-    api.approveIamAccessRequest(id, data),
+    iamApi.approveIamAccessRequest(id, data),
   rejectIamAccessRequest: (id: string, data?: RejectIamAccessRequestInput) =>
-    api.rejectIamAccessRequest(id, data),
+    iamApi.rejectIamAccessRequest(id, data),
   revokeIamAccessRequest: (id: string, data?: RevokeIamAccessRequestInput) =>
-    api.revokeIamAccessRequest(id, data),
+    iamApi.revokeIamAccessRequest(id, data),
 
-  listUsers: () => api.listSetupUsers(),
-  listDoctors: () => api.listDoctors(),
-  createUser: (data: CreateSetupUserInput) => api.createSetupUser(data),
-  updateUser: (id: string, data: UpdateSetupUserInput) => api.updateSetupUser(id, data),
-  deleteUser: (id: string) => api.deleteSetupUser(id),
+  listUsers: () => setupApi.listSetupUsers(),
+  listDoctors: () => setupApi.listDoctors(),
+  createUser: (data: CreateSetupUserInput) => setupApi.createSetupUser(data),
+  updateUser: (id: string, data: UpdateSetupUserInput) => setupApi.updateSetupUser(id, data),
+  deleteUser: (id: string) => setupApi.deleteSetupUser(id),
   setUserSupervisor: (id: string, supervisorId: string | null) =>
-    api.setUserSupervisor(id, supervisorId),
+    setupApi.setUserSupervisor(id, supervisorId),
   resetUserPassword: (id: string, newPassword?: string) =>
-    api.resetSetupUserPassword(id, newPassword ? { new_password: newPassword } : {}),
-  bulkCreateUsers: (data: BulkCreateUsersRequest) => api.bulkCreateUsers(data),
+    setupApi.resetSetupUserPassword(id, newPassword ? { new_password: newPassword } : {}),
+  bulkCreateUsers: (data: BulkCreateUsersRequest) => setupApi.bulkCreateUsers(data),
   updateUserAccessMatrix: (id: string, data: UpdateUserAccessMatrixInput) =>
-    api.updateUserAccessMatrix(id, data),
-  listUserFacilities: (userId: string) => api.listUserFacilities(userId),
+    setupApi.updateUserAccessMatrix(id, data),
+  listUserFacilities: (userId: string) => setupApi.listUserFacilities(userId),
   assignUserFacilities: (userId: string, data: AssignUserFacilitiesInput) =>
-    api.assignUserFacilities(userId, data),
+    setupApi.assignUserFacilities(userId, data),
 
-  listRoles: () => api.listRoles(),
-  createRole: (data: CreateRoleInput) => api.createRole(data),
-  updateRole: (id: string, data: UpdateRoleInput) => api.updateRole(id, data),
-  deleteRole: (id: string) => api.deleteRole(id),
+  listRoles: () => setupApi.listRoles(),
+  createRole: (data: CreateRoleInput) => setupApi.createRole(data),
+  updateRole: (id: string, data: UpdateRoleInput) => setupApi.updateRole(id, data),
+  deleteRole: (id: string) => setupApi.deleteRole(id),
   updateRolePermissions: (id: string, permissions: string[]) =>
-    api.updateRolePermissions(id, permissions),
+    setupApi.updateRolePermissions(id, permissions),
   updateRoleFieldAccess: (
     id: string,
-    fieldAccess: Parameters<typeof api.updateRoleFieldAccess>[1],
-  ) => api.updateRoleFieldAccess(id, fieldAccess),
+    fieldAccess: Parameters<typeof setupApi.updateRoleFieldAccess>[1],
+  ) => setupApi.updateRoleFieldAccess(id, fieldAccess),
   updateRoleWidgetAccess: (
     id: string,
-    widgetAccess: Parameters<typeof api.updateRoleWidgetAccess>[1],
-  ) => api.updateRoleWidgetAccess(id, widgetAccess),
+    widgetAccess: Parameters<typeof setupApi.updateRoleWidgetAccess>[1],
+  ) => setupApi.updateRoleWidgetAccess(id, widgetAccess),
 
-  listDepartments: () => api.listDepartments(),
-  createDepartment: (data: CreateDepartmentInput) => api.createDepartment(data),
-  listFacilities: () => api.listFacilities(),
-  createFacility: (data: CreateFacilityInput) => api.createFacility(data),
-  createLocation: (data: CreateLocationInput) => api.createLocation(data),
-  listAccessGroups: () => api.listAccessGroups(),
-  createAccessGroup: (data: CreateAccessGroupInput) => api.createAccessGroup(data),
-  updateAccessGroup: (id: string, data: UpdateAccessGroupInput) => api.updateAccessGroup(id, data),
-  deleteAccessGroup: (id: string) => api.deleteAccessGroup(id),
-  listAccessGroupMembers: (groupId: string) => api.listAccessGroupMembers(groupId),
+  listDepartments: () => setupApi.listDepartments(),
+  createDepartment: (data: CreateDepartmentInput) => setupApi.createDepartment(data),
+  listFacilities: () => setupApi.listFacilities(),
+  createFacility: (data: CreateFacilityInput) => setupApi.createFacility(data),
+  createLocation: (data: CreateLocationInput) => setupApi.createLocation(data),
+  listAccessGroups: () => accessGroupsApi.listAccessGroups(),
+  createAccessGroup: (data: CreateAccessGroupInput) => accessGroupsApi.createAccessGroup(data),
+  updateAccessGroup: (id: string, data: UpdateAccessGroupInput) =>
+    accessGroupsApi.updateAccessGroup(id, data),
+  deleteAccessGroup: (id: string) => accessGroupsApi.deleteAccessGroup(id),
+  listAccessGroupMembers: (groupId: string) => accessGroupsApi.listAccessGroupMembers(groupId),
   addAccessGroupMember: (groupId: string, data: AddAccessGroupMemberInput) =>
-    api.addAccessGroupMember(groupId, data),
+    accessGroupsApi.addAccessGroupMember(groupId, data),
   removeAccessGroupMember: (groupId: string, userId: string) =>
-    api.removeAccessGroupMember(groupId, userId),
+    accessGroupsApi.removeAccessGroupMember(groupId, userId),
 };

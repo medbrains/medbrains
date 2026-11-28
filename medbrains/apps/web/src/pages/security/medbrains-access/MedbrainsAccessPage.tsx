@@ -5,7 +5,7 @@
  * listed here, and access can be ended at once.
  */
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { securityApi } from "@medbrains/api/modules/security";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type VendorAccessGrant } from "@medbrains/types";
 import { IconShieldLock } from "@tabler/icons-react";
@@ -78,36 +78,33 @@ export function MedbrainsAccessPage() {
 
   const grants = useQuery({
     queryKey: [...GRANTS_KEY, page],
-    queryFn: () => api.listVendorAccessGrants(page),
+    queryFn: () => securityApi.listVendorAccessGrants(page),
     enabled: canView,
   });
-  /** Reload the grants list after any change. */
-  const refresh = () => void qc.invalidateQueries({ queryKey: GRANTS_KEY });
+  /** Reload the grants list after any change, and say what changed. */
+  const refresh = (done: string) => {
+    void qc.invalidateQueries({ queryKey: GRANTS_KEY });
+    toast.success(done);
+  };
   const create = useMutation({
-    mutationFn: api.createVendorAccessGrant,
+    mutationFn: securityApi.createVendorAccessGrant,
     onSuccess: (g) => {
       setGiving(false);
-      refresh();
-      toast.success(
-        g.is_masked ? "Access given" : "Access asked for — waiting for a second approver",
-      );
+      refresh(g.is_masked ? "Access given" : "Access asked for — waiting for a second approver");
     },
   });
   const approve = useMutation({
-    mutationFn: api.approveVendorAccessGrant,
-    onSuccess: () => {
-      refresh();
-      toast.success("Unmasked access approved");
-    },
+    mutationFn: securityApi.approveVendorAccessGrant,
+    onSuccess: () => refresh("Unmasked access approved"),
     onError: (e: Error) => toast.error(e.message),
   });
   const revoke = useMutation({
-    mutationFn: (g: VendorAccessGrant) => api.revokeVendorAccessGrant(g.id, endReason || undefined),
+    mutationFn: (g: VendorAccessGrant) =>
+      securityApi.revokeVendorAccessGrant(g.id, endReason || undefined),
     onSuccess: () => {
       setEnding(null);
       setEndReason("");
-      refresh();
-      toast.success("Access ended. Their next request is refused.");
+      refresh("Access ended. Their next request is refused.");
     },
     onError: (e: Error) => toast.error(e.message),
   });

@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { flowApi } from "@medbrains/api/modules/flow";
 import type { FlowConfigZone } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -26,13 +26,16 @@ function feeds(zone: FlowConfigZone): string {
  * place on the map and what feeds it.
  */
 export function SetupTab() {
-  const floors = useQuery({ queryKey: flowKeys.configFloors, queryFn: api.listFlowConfigFloors });
+  const floors = useQuery({
+    queryKey: flowKeys.configFloors,
+    queryFn: flowApi.listFlowConfigFloors,
+  });
   const [chosen, setChosen] = useState<string | null>(null);
   const floorId =
     chosen ?? floors.data?.find((f) => f.zone_count > 0)?.id ?? floors.data?.[0]?.id ?? null;
   const setup = useQuery({
     queryKey: flowKeys.setup(floorId ?? ""),
-    queryFn: () => api.getFlowFloorSetup(floorId as string),
+    queryFn: () => flowApi.getFlowFloorSetup(floorId as string),
     enabled: Boolean(floorId),
   });
   const [editing, setEditing] = useState<FlowConfigZone | null>(null);

@@ -91,13 +91,13 @@ use std::{collections::HashMap, str::FromStr};
 use uuid::Uuid;
 
 use axum::routing::{delete, get, post, put};
-use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{
     is_bypass_role, require_any_permission, require_permission,
 };
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
+use medbrains_server_core::{error::AppError, hospital_time::tenant_local_today};
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -3483,6 +3483,7 @@ async fn apply_camp_corrections(
     Ok(())
 }
 
+/// The participant's camp OPD visit and queue row, dated by the hospital's today.
 async fn find_or_create_camp_encounter(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
@@ -3546,7 +3547,7 @@ async fn find_or_create_camp_encounter(
             "camp OPD encounter requires department_id or organizing department".to_owned(),
         )
     })?;
-    let today = Utc::now().date_naive();
+    let today = tenant_local_today(&mut **tx, claims.tenant_id).await?;
     let encounter_id = Uuid::new_v4();
     let attributes = serde_json::json!({
         "camp_id": camp_id,
@@ -5987,6 +5988,7 @@ fn normalized_camp_charge_mode(value: Option<&str>) -> Result<&'static str, AppE
     }
 }
 
+/// Edit a camp supply item; refuses a batch already expired on the hospital's date.
 pub async fn update_supply_item(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5999,9 +6001,7 @@ pub async fn update_supply_item(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     if let Some(expiry) = body.expiry_date {
-        let today =
-            medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
-                .await?;
+        let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
         if expiry < today {
             return Err(AppError::BadRequest(
                 "This batch has already expired; pack an in-date batch.".to_owned(),

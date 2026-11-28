@@ -1,5 +1,5 @@
 import { Anchor, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { patientsApi } from "@medbrains/api/modules/patients";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxPreparedClaimDocuments, PatientDocument } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -35,7 +35,7 @@ export function NhcxClaimDocumentsPicker({
   const canReadPatientDocs = useHasPermission(P.PATIENTS.VIEW);
   const stored = useQuery({
     queryKey: ["patient-documents", prepared.patient_id],
-    queryFn: () => api.listPatientDocuments(prepared.patient_id),
+    queryFn: () => patientsApi.listPatientDocuments(prepared.patient_id),
     enabled: canReadPatientDocs,
   });
   const options = useMemo(() => {

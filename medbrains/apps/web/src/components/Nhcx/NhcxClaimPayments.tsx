@@ -1,5 +1,5 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ export function NhcxClaimPayments({ claimId }: NhcxClaimPaymentsProps) {
   const canSee = useHasPermission(P.INSURANCE.NHCX.PAYMENTS);
   const payments = useQuery({
     queryKey: ["claim-nhcx-payments", claimId],
-    queryFn: () => api.listClaimNhcxPayments(claimId),
+    queryFn: () => billingApi.listClaimNhcxPayments(claimId),
     enabled: canSee,
   });
   if (!canSee) return null;

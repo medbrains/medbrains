@@ -1,6 +1,5 @@
 import { lazy } from "react";
-import { Navigate, Route, Routes } from "react-router";
-import { AppRoute } from "./components/AppRoute";
+import { createRoutesFromElements, Navigate, Route } from "react-router";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SpotlightProvider } from "./components/SpotlightProvider";
 import { AppLayout } from "./layouts/AppLayout";
@@ -9,6 +8,7 @@ import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 const DemoDicomFixturesPage = lazy(() =>
   import("./pages/demo-dicom-fixtures").then((m) => ({ default: m.DemoDicomFixturesPage })),
 );
+const LauncherPage = lazy(() => import("./pages/launcher"));
 const DashboardPage = lazy(() =>
   import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })),
 );
@@ -59,6 +59,7 @@ const OpdEncounterPage = lazy(() =>
   import("./pages/opd").then((m) => ({ default: m.OpdEncounterPage })),
 );
 const OpdVitalsPage = lazy(() => import("./pages/opd").then((m) => ({ default: m.OpdVitalsPage })));
+const OpdReportsPage = lazy(() => import("./pages/opd/reports"));
 const AppointmentsPage = lazy(() =>
   import("./pages/appointments").then((m) => ({ default: m.AppointmentsPage })),
 );
@@ -512,17 +513,15 @@ const AccessDeniedPage = lazy(() =>
 const NotFoundPage = lazy(() =>
   import("./pages/errors/not-found").then((m) => ({ default: m.NotFoundPage })),
 );
-
 /**
- * The signed-in app: the shell (ProtectedRoute, tenant config, spotlight,
- * AppLayout) and every page inside it, mounted by App under `/*`. Split from
- * App so the sign-in page and the public pages do not load this route table.
- * Paths are relative to `/`; the shell's own `*` route is the not-found page.
+ * Every signed-in route: the shell (ProtectedRoute, tenant config, spotlight, AppLayout) and every
+ * page inside it. Paths are relative to `/`; `*` is the not-found page. `AuthedApp` registers only
+ * the routes of the apps the hospital has on.
  */
-export function AuthedRoutes() {
+function routeTable() {
   return (
-    <Routes>
-      {/* Protected */}
+    // biome-ignore lint/complexity/noUselessFragments: keeps the table at its reviewed indentation
+    <>
       <Route
         element={
           <ProtectedRoute>
@@ -533,6 +532,7 @@ export function AuthedRoutes() {
           </ProtectedRoute>
         }
       >
+        <Route path="home" element={<LauncherPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="forbidden" element={<AccessDeniedPage />} />
         {/* Inside the shell, after every real route: an unknown address. */}
@@ -555,20 +555,18 @@ export function AuthedRoutes() {
         <Route path="patients/group-identity" element={<GroupIdentityQueuePage />} />
         <Route path="patients/:id/edit" element={<PatientEditPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
-        {/* EMR: only while the hospital has the app switched on. */}
-        <Route element={<AppRoute brick="opd" />}>
-          <Route path="opd" element={<OpdPage />} />
-          <Route path="opd/new" element={<OpdNewVisitPage />} />
-          <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
-          <Route path="opd/queue/:queueEntryId/vitals" element={<OpdVitalsPage />} />
-          <Route path="opd/appointments" element={<AppointmentsPage />} />
-          <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
-          <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
-          <Route path="telemedicine" element={<TelemedicinePage />} />
-          <Route path="chronic-care" element={<ChronicCarePage />} />
-          <Route path="scheduling" element={<SchedulingPage />} />
-          <Route path="admin/doctor-schedules" element={<DoctorSchedulesPage />} />
-        </Route>
+        <Route path="opd" element={<OpdPage />} />
+        <Route path="opd/new" element={<OpdNewVisitPage />} />
+        <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
+        <Route path="opd/queue/:queueEntryId/vitals" element={<OpdVitalsPage />} />
+        <Route path="opd/appointments" element={<AppointmentsPage />} />
+        <Route path="opd/reports" element={<OpdReportsPage />} />
+        <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
+        <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
+        <Route path="telemedicine" element={<TelemedicinePage />} />
+        <Route path="chronic-care" element={<ChronicCarePage />} />
+        <Route path="scheduling" element={<SchedulingPage />} />
+        <Route path="admin/doctor-schedules" element={<DoctorSchedulesPage />} />
         <Route path="order-sets" element={<OrderSetsPage />} />
         <Route path="lab" element={<LabPage />} />
         <Route path="lab/dispatch/new" element={<LabDispatchCreatePage />} />
@@ -597,7 +595,6 @@ export function AuthedRoutes() {
         <Route path="billing/tpa-pipeline" element={<BillingTpaPipelinePage />} />
         <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
         <Route path="materials" element={<MaterialsPage />} />
-        {/* Consolidated into the unified Materials workspace. */}
         <Route path="indent/*" element={<Navigate to="/materials" replace />} />
         <Route path="procurement" element={<Navigate to="/materials" replace />} />
         <Route path="quality" element={<QualityPage />} />
@@ -745,6 +742,8 @@ export function AuthedRoutes() {
           <Route path="hospital-binding" element={<HospitalBindingPage />} />
         </Route>
       </Route>
-    </Routes>
+    </>
   );
 }
+
+export const AUTHED_ROUTES = createRoutesFromElements(routeTable());

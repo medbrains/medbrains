@@ -2,6 +2,8 @@
 
 Owner direction 2026-11-07: the native Slint apps, the web apps and the backend are built like Lego. Each app in the catalogue (`OS-NATIVE-GUI.md`: Pharmacy, Patient Registration, EMR and the rest) is one **brick**, and a brick has the same shape on every layer.
 
+How bricks are released, tested and updated (one signed release for every hospital, bricks picked in core): `medbrains/RFCs/RFC-ONE-RELEASE-LEGO-BRICKS.md`.
+
 ## What one brick is
 
 | Layer | Part of the brick | Today |
@@ -21,13 +23,58 @@ A brick touches the rest of the system only through these, so it can be added, r
 3. **Events** through the outbox, for anything another brick needs to react to.
 4. **Opening another brick** by id through the shell or router, for example from a prescription to the patient's EMR. A brick never imports another brick's code on any layer.
 5. **Its manifest,** which the Software Center reads to turn it on or off with the bricks it depends on.
+6. **Its actions:** typed operations (`patients.find`, `opd.queue.today`) a person or the assistant runs through the kernel's one broker, checked for the brick being on, the effect, the permission and audited. See `ACTIONS.md`.
 
 ## Rules
 
 - **No brick imports another brick, on any layer.** A check fails CI if a module crate, web package or Slint app depends on another module's code (backend, web and native alike).
-- **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its native app is not started, and nothing else breaks.
+  - Backend crates: `make check-brick-edges` (`scripts/check_brick_edges.py`). `bricks/crates.txt` gives every workspace crate a class (kernel/base, shared health service, a brick, shell, tooling, native). A new dependency from one brick's crate to another brick's, from a base crate to a domain crate, or from a shared health service to a brick fails; the edges that exist are listed in `scripts/brick_edges.baseline.txt`, which only shrinks. Listing a brick in `depends_on` does not allow a crate edge to it: `depends_on` says what must be switched on together, not what may be linked.
+- **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its background jobs stop, its native app is not started, and nothing else breaks.
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
+  - Measured, not yet enforced: `make brick-tables-report` (`scripts/check_brick_tables.py`) counts SQL in one brick's crates that reads or writes a table another brick owns, per brick pair, against `scripts/brick_tables.baseline.txt`. CI prints the change and warns when a pair's writes rise. The owner of a table is guessed from who writes it most, and only upper-case SQL in `src/` is seen, so the numbers are a floor.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
+- **The server is a shell, and it only shrinks.** `crates/medbrains-server` still holds whole areas of domain code and declares routes itself. `make check-shell-size` (`scripts/check_shell_size.py`) fails when the lines under its `src/` or its own `.route(` calls rise above `scripts/shell_size.baseline.txt`; a PR that moves code out lowers the file with `--update`. A handler, a job or a route goes in the crate that owns it.
+
+## Switching a brick off (2026-11-22)
+
+A brick goes off unless a brick that **is on** needs it. "On" is what the module check sees
+(`effective_outcome`): a stored `enabled`, and equally an edition brick nobody set up (no
+`module_config` row, or the seed's `available`), because a missing row counts as on and that
+brick answers its API. The server then refuses (409) and names every such brick with why it is
+on: "Nursing Station (switched on), Maternity (on, never set up)". The Modules screen sends the
+switch, shows the server's sentence when it is refused, and asks once. One confirm sends
+`together: true`, and the server switches them all off in one transaction, writing an explicit
+`disabled` row for a brick that had none. So a hospital that really uses Maternity without ever
+having set it up is told before it goes off, and a hospital that does not can still switch IPD
+off in one step. The screen holds no list of its own for this: a brick with no row is not in what
+it loads, so only the server can name it. Records are kept either way. The rule is `switch_plan`
+in `medbrains-server-core/src/middleware/entitlement.rs`.
+
+## A brick's background jobs (2026-11-19)
+
+A job that serves only some bricks is a row in `BRICK_JOBS` (`medbrains-core/src/bricks.rs`): its
+id, its label and the bricks it serves. The server's supervisor
+(`medbrains-server/src/services/brick_jobs.rs`, decision in `medbrains-server-core/src/brick_jobs.rs`)
+reads every active hospital's switches at boot and every 30 seconds, and runs a job while at least
+one hospital has one of its bricks on (with the bricks that brick needs).
+
+- **Switching on** starts the job within 30 seconds, no restart. **Switching off** aborts it: every
+  pass is idempotent and transactional, so the stop is a crash-only stop, the same as a restart.
+- **Unreadable switches run everything.** A database fault is logged and every brick job keeps (or
+  starts) running; a clinical escalation is never silenced by a fault.
+- **Patient-safety jobs list every brick whose patients they protect** (early-warning escalation:
+  IPD, Nursing and Emergency), so switching one app off never silences another's alerts.
+- A job every install needs (security, legal deadlines, retention, the notification listener) is in
+  `PLATFORM_JOBS` and `main.rs` starts it. `make check-bricks` fails on a job `main.rs` starts that
+  is in neither list.
+- The Modules screen shows, per brick, whether this server runs its background work.
+- **Every brick job declares a machine actor and its least permissions** (`actor: "job:<id>"`,
+  `permissions` as permission constants) next to its bricks. Owner rule 2026-11-19: everything goes
+  through access, background jobs included. Today the passes still run on the worker pool
+  (BYPASSRLS) with no authz decision and no audit actor; the declaration is the contract the
+  follow-up enforces: each pass runs as its actor through the kernel (tenant context, authz
+  decision on the declared permissions, audit rows naming the job). Enforcement must keep the
+  fail-safe rule: an authz outage never stops a clinical escalation.
 
 ## Order
 
@@ -62,6 +109,44 @@ Setup asks which apps the hospital needs, and installs only those bricks with th
 - **Seeds only the roles those apps need**, so the role editor does not offer pharmacy staff a hundred permissions for apps the hospital does not run.
 - **Can grow later:** adding an app from the Software Center (O14) installs its brick and dependencies on the machines whose roles fit, with no reinstall.
 - **Shows the same everywhere:** web, OS launcher, edge machines and native apps all read the one installed set, then the person's permissions.
+
+## The manifest (2026-11-19)
+
+Each brick has one manifest, assembled from the tables that already declare it and written to the web as `BRICK_MANIFESTS` (`packages/types/src/app-screens.generated.ts`, schema version `BRICK_MANIFEST_VERSION`, from `bricks::MANIFEST_VERSION`):
+
+| Field | Declared in |
+|---|---|
+| `id`, `name`, `dependsOn`, `permissionGroups` | the brick's row in `bricks.rs` |
+| `settings`: the Settings sections it plugs in (hidden while it is off) | `Brick::settings`, set with `.with_settings(&[...])` |
+| `backgroundJobs` | the `BRICK_JOBS` rows that list the brick (a job may serve several) |
+| `icon`, `screens` (route + permission + any-of) | its rows in `access/screens.rs` |
+| `actions` (id + permission + data classes), `dataClasses` | its rows in `medbrains-health-services/src/actions.rs` |
+
+Regenerate with `python3 scripts/generate_app_screens.py`; `make check-app-screens` fails when the copy is stale or the tables disagree: a screen or action naming no brick, a screen with no permission (only the personal `/approvals` inbox is exempt), an unknown action permission, or a Settings section unknown to `apps/web/src/config/settings-tabs.ts` or claimed twice. Raise `MANIFEST_VERSION` when a field is added, removed or changes meaning.
+
+## The web launcher (2026-11-16)
+
+The web home after sign-in is `/home` (`apps/web/src/pages/launcher.tsx`). It shows the person's **Favourites**, then **Your apps**: one tile per brick in which they can open at least one screen, named from `bricks.rs` (served by `GET /api/users/me/launcher`). A screen counts by the side panel's rule, `isItemVisible` in `apps/web/src/features/launcher/launcherModel.ts`: its permission, any one of its alternative permissions, its brick on, and its parent entry visible. Apps the person cannot use are hidden, never greyed. Administration belongs to no brick, so it is not an app, but anyone who can open an Administration screen gets an Administration tile, so someone whose work is all there is not told nothing is set up. Someone with exactly one app and no Administration goes straight into the app: after sign-in, and from the logo too, because both lead to `/home`.
+
+Favourites are stored per person on the server (`user_favourite_screens`, tenant RLS plus `user_id`), starred from the side panel and unstarred on the launcher. A star on a screen the person has lost access to stays stored but is not shown, and it returns with the access. Stars kept in a browser's `localStorage` before this change are not carried over; people re-star once. Still to come: Waiting for you, Recent patients, and the one top bar.
+
+## The side panel shows one app (owner 2026-11-17)
+
+Every screen lives in one registry, `crates/medbrains-core/src/access/screens.rs`: its route, label key, icon, permission, any-of list and the brick that owns it (`brick: None` for a core screen: dashboard, compliance, administration). `scripts/generate_app_screens.py` writes the web copy, and `apps/web/src/config/navigation.ts` builds the whole menu from it; `scripts/check_nav_drift.py` refuses a menu entry written by hand.
+
+Inside an app the side panel (`apps/web/src/layouts/appPanel.ts`) lists **only that app's screens** the person may open, under the app's name and icon, with an **All apps** link to `/home`. The app is the one owning the closest registered route above the current one (`/pharmacy/orders/42` is Pharmacy's, `/admin/doctor-schedules` is OPD's). A core screen, an unknown route, a switched-off app, or an app in which the person can open nothing shows the **core panel**: the core screens and Administration. The full menu is never shown; ⌘K search still covers every screen the person may open, with switched-off apps left out. Switching apps is the launcher's job, or search's, or favourites'. The shell also refuses a switched-off app's routes, whichever route reaches them (`AppRoute` with no `brick`).
+
+## The web loads only the apps a hospital has on (2026-11-19)
+
+`AUTHED_ROUTES` (`apps/web/src/AuthedRoutes.tsx`) is the whole signed-in route table; `AuthedApp` registers it through `enabledRoutes` (`layouts/appPanel.ts`), which drops every route a switched-off app owns: the app owning the closest screen-registry route above it, so the registry stays the one owner. A route that is not registered is never matched, so its code-split page is never downloaded; `preloadRoute` refuses a switched-off app's path too, and Settings hides the sections a switched-off app plugs in. Typing a switched-off app's address still lands on the shell guard (`AppRoute`), which shows **Not installed**, never a crash or a blank. `AuthedRoutes.test.tsx` fails if a route sits under no registry screen and is not a named shell route, because such a route would open with its app off; `e2e/mock/brick-loading.spec.ts` signs in a Registration + OPD front desk, counts the JavaScript fetched, and fails if Pharmacy's page chunk is requested.
+
+What this does **not** shrink: the shell already code-split every page, so a Registration + OPD session downloads the same ~1.8 MB on first load and ~2.4 MB after opening both apps as before. The weight that belongs to other apps sits in the monolithic `@medbrains/api` client (every module's methods, loaded by the shell) and in other apps' components the OPD and patient screens import directly (Lab, Radiology, Pharmacy, IPD, Billing, ~190 KB of source). Splitting the client per brick and turning those imports into plugged-in tabs are the next steps.
+
+If `/auth/me` cannot answer and this tab has no cached permissions, the signed-in app shows **We couldn't check your access** with a retry, never an empty launcher: an unknown answer is not "no apps".
+
+## Web source of one brick imports no other brick's (2026-11-23)
+
+`apps/web/brick-units.json` gives every unit of `apps/web/src` (`pages/<entry>`, `components/<entry>`, `features/<entry>`, `services/<file>`, each other top-level folder) to a brick, to `core` (the shell and Administration) or to `shared` (design system, hooks, shared clinical pieces, and the patient, patient-name, doctor and drug pickers). `make check-web-brick-imports` (`scripts/check_web_brick_imports.py`) counts import statements from one brick's units into another's, per brick pair, against `scripts/web_brick_imports.baseline.txt`: a pair above its number, a new pair, or a unit with no row fails. A brick shows another brick's screen through a panel slot (next section) or by opening its route. The map is not yet checked against the screen registry, so a page that changes app needs its row changed by hand.
 
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 

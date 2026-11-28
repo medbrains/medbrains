@@ -24,8 +24,8 @@
  * must happen exactly once per app lifetime.
  */
 
-import { useAuthStore } from "@medbrains/stores";
-import type { TenantSettingsRow } from "@medbrains/types";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
+import { P, type TenantSettingsRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
@@ -82,11 +82,15 @@ export function TenantConfigProvider({
   const user = useAuthStore((s) => s.user);
   const deviceId = useMemo(readOrCreateDeviceId, []);
 
+  // `/setup/settings` answers `admin.settings.read`; without it the read is not
+  // sent (every signed-in clinician sent it, refused), and the app stays on REST.
+  const canReadSettings = useHasPermission(P.ADMIN.SETTINGS.READ);
   const { data: clinicalSettings } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "clinical"],
     queryFn: () => tenantSettingsService.getTenantSettings("clinical"),
     staleTime: 5 * 60 * 1000,
-    enabled: !!user,
+    enabled: !!user && canReadSettings,
+    retry: false,
   });
 
   const value = useMemo<TenantConfig | null>(() => {

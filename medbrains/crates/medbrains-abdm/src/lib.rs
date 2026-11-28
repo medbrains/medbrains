@@ -13,6 +13,7 @@ pub mod errors;
 pub mod gateway;
 pub mod phr;
 pub mod registry;
+pub mod rules;
 pub mod scan_share;
 mod types;
 

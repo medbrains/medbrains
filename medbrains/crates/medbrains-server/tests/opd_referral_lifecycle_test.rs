@@ -127,7 +127,7 @@ async fn a_referral_is_accepted_answered_and_returns_the_patient() {
     );
     let (visit_tokens, distinct_visits): (i64, i64) = sqlx::query_as(
         "SELECT count(*), count(DISTINCT visit_id) FROM tokens \
-          WHERE module = 'opd' AND token_date = CURRENT_DATE AND patient_id = $1",
+          WHERE module = 'opd' AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date AND patient_id = $1",
     )
     .bind(patient)
     .fetch_one(&app.db)

@@ -1,5 +1,5 @@
 import { Group } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { IconRefresh } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, toast } from "@/components/ui";
@@ -12,7 +12,7 @@ interface PreauthStatusCheckProps {
 export function PreauthStatusCheck({ priorAuthId }: PreauthStatusCheckProps) {
   const queryClient = useQueryClient();
   const check = useMutation({
-    mutationFn: () => api.checkPreauthNhcxStatus(priorAuthId),
+    mutationFn: () => insuranceApi.checkPreauthNhcxStatus(priorAuthId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["preauth-nhcx", priorAuthId] });
       toast.success("The payer's answer will update this pre-auth.", {

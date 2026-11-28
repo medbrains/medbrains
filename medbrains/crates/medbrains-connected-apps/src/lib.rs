@@ -14,6 +14,7 @@
 //! work per request, the tenant and actor set by the kernel, audit through the
 //! kernel's chain.
 
+mod grantable;
 mod lifecycle;
 pub mod manifest;
 mod token;
@@ -52,8 +53,17 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/connected-apps/{id}/deliveries", get(deliveries))
 }
 
+/// An app as the console lists it: the stored row, plus the codes in its grant
+/// no app may hold, so the screen warns instead of offering Approve.
 #[derive(Debug, Serialize)]
 pub struct AppSummary {
+    #[serde(flatten)]
+    pub app: AppRow,
+    pub refused_permissions: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AppRow {
     pub id: Uuid,
     pub client_id: String,
     pub secret_prefix: String,
@@ -128,6 +138,7 @@ async fn record(
     .await?)
 }
 
+/// The console's list of apps, newest first, with refused codes marked.
 async fn list(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -137,7 +148,7 @@ async fn list(
     medbrains_kernel::work::<_, AppError, _>(&state.db, Actor::from_claims(&claims), async |tx| {
         // The secret hash is never selected: a console has no use for it.
         let rows = sqlx::query_as!(
-            AppSummary,
+            AppRow,
             r#"SELECT a.id, a.client_id, a.secret_prefix, a.name, a.publisher, a.purpose,
                       a.version, a.manifest, a.permissions, a.status,
                       a.webhook_subscription_id IS NOT NULL AS "has_webhook!",
@@ -153,9 +164,26 @@ async fn list(
         )
         .fetch_all(&mut **tx)
         .await?;
-        Ok(Json(rows))
+        Ok(Json(rows.into_iter().map(summarise).collect()))
     })
     .await
+}
+
+/// Attach the refused codes to a row (see [`AppSummary`]).
+fn summarise(app: AppRow) -> AppSummary {
+    let refused_permissions = app
+        .permissions
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .filter(|code| grantable::refusal(code).is_some())
+        .map(str::to_owned)
+        .collect();
+    AppSummary {
+        app,
+        refused_permissions,
+    }
 }
 
 fn new_webhook_secret() -> Result<String, AppError> {

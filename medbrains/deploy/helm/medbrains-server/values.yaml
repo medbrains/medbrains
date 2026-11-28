@@ -4,7 +4,9 @@
 image:
   repository: ghcr.io/domnicamalan/medbrains
   tag: latest
-  pullPolicy: IfNotPresent
+  # Always: with a moving tag, IfNotPresent keeps running whatever image the
+  # node cached first, including one with a fixed CVE.
+  pullPolicy: Always
   # Set to "ghcr-pull" if image is private and the secret has been created.
   pullSecretName: ""
 

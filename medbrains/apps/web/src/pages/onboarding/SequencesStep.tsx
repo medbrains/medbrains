@@ -113,7 +113,7 @@ export function SequencesStep({ onNext, onBack }: Props) {
                   label="Pad Width"
                   value={field.value}
                   onChange={(v) => field.onChange(Number(v))}
-                  min={3}
+                  min={0}
                   max={10}
                   error={form.formState.errors.uhid_pad_width?.message}
                 />
@@ -141,7 +141,7 @@ export function SequencesStep({ onNext, onBack }: Props) {
                   label="Pad Width"
                   value={field.value}
                   onChange={(v) => field.onChange(Number(v))}
-                  min={3}
+                  min={0}
                   max={10}
                   error={form.formState.errors.invoice_pad_width?.message}
                 />
@@ -174,7 +174,7 @@ export function SequencesStep({ onNext, onBack }: Props) {
                         label="Pad Width"
                         value={seq.pad_width}
                         onChange={(v) => updateSeq(index, "pad_width", Number(v))}
-                        min={3}
+                        min={0}
                         max={10}
                         size="sm"
                       />

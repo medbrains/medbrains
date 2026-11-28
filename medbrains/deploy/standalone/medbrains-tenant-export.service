@@ -1,0 +1,19 @@
+[Unit]
+Description=MedBrains per-hospital export (TENANT_EXPORT) → S3, age-sealed
+Documentation=https://github.com/DomnicAmalan/MedBrains/blob/master/medbrains/docs/ops/BACKUP-RESTORE.md
+After=postgresql.service network-online.target
+Wants=network-online.target
+# An export that stops working is found the day a hospital asks for its data.
+OnFailure=medbrains-alert@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+EnvironmentFile=-/etc/medbrains/postgres.env
+Environment="AWS_DEFAULT_REGION=ap-south-1"
+# One export per tenant code in TENANT_EXPORT (space separated); $$ is a
+# literal $ for the shell, ${TENANT_EXPORT} systemd fills from the env file.
+ExecStart=/bin/sh -c 'for t in ${TENANT_EXPORT}; do /usr/local/bin/medbrains-tenant-export "$$t" || exit 1; done'
+Nice=10
+IOSchedulingClass=idle
+Restart=no

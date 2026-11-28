@@ -1,6 +1,6 @@
 name: Problem with a docs page
 description: Something on docs.medbrains.in is wrong, unclear or out of date
-labels: ["documentation", "needs-triage"]
+labels: ["documentation", "needs-triage", "status:intake"]
 body:
   - type: markdown
     attributes:

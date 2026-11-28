@@ -1,5 +1,8 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
+import { setupApi } from "@medbrains/api/modules/setup";
+import { stationsApi } from "@medbrains/api/modules/stations";
+import { tokensApi } from "@medbrains/api/modules/tokens";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import {
   type ModuleToken,
@@ -72,17 +75,16 @@ export function TokenConsolePage() {
   ];
   const { data: campStations = [] } = useQuery({
     queryKey: ["camp-stations"],
-    queryFn: () => api.listCampStations(),
+    queryFn: () => tokensApi.listCampStations(),
     enabled: isCamp && canWorkCamps,
   });
   const station = campStations.find((entry) => entry.counter_id === stationId);
   // At a camp the call names the room: the one picked when a step has several
   // (two doctors), otherwise the station itself.
   const roomLabel = isCamp ? counter || station?.name || "" : counter;
-
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => setupApi.listDepartments(),
     staleTime: 600_000,
     enabled: canListDepartments,
   });
@@ -103,7 +105,7 @@ export function TokenConsolePage() {
     isLoading: boardLoading,
   } = useQuery({
     queryKey,
-    queryFn: () => api.listTokenBoard({ module, scope, scope_id: scopeId }),
+    queryFn: () => tokensApi.listTokenBoard({ module, scope, scope_id: scopeId }),
     refetchInterval: 5000,
     enabled: canViewBoard,
   });
@@ -112,11 +114,10 @@ export function TokenConsolePage() {
   // console missing one number, not an outage.
   const { data: serviceTime, isError: serviceTimeFailed } = useQuery({
     queryKey: ["token-service-times", module, scope, scopeId],
-    queryFn: () => api.getServiceTimes({ module, scope, scope_id: scopeId }),
+    queryFn: () => tokensApi.getServiceTimes({ module, scope, scope_id: scopeId }),
     enabled: canViewBoard,
     staleTime: 300_000,
   });
-
   const invalidate = () => void queryClient.invalidateQueries({ queryKey });
 
   // Both mutations report failure. Without this a 403 from a stale
@@ -125,18 +126,17 @@ export function TokenConsolePage() {
   // and the operator pressed it again.
   const onActionError = (error: Error) =>
     toast.error(error.message, { title: t("tokenConsole.actionFailed") });
-
   const advance = useMutation({
     mutationFn: (input: { id: string; status: string; finish?: boolean }) =>
       input.finish
-        ? api.finishToken(input.id)
-        : api.advanceToken(input.id, input.status, roomLabel || undefined),
+        ? tokensApi.finishToken(input.id)
+        : tokensApi.advanceToken(input.id, input.status, roomLabel || undefined),
     onSuccess: invalidate,
     onError: onActionError,
   });
   const callNext = useMutation({
     mutationFn: () =>
-      api.callNextToken({
+      tokensApi.callNextToken({
         module,
         scope,
         scope_id: scopeId,
@@ -168,7 +168,7 @@ export function TokenConsolePage() {
   ]);
   const { data: stations = [] } = useQuery({
     queryKey: ["stations"],
-    queryFn: () => api.listStations(),
+    queryFn: () => stationsApi.listStations(),
     enabled: canListStations,
   });
 
@@ -177,7 +177,7 @@ export function TokenConsolePage() {
   const canViewQueues = useHasPermission(P.FRONT_OFFICE.QUEUE.CONFIG.VIEW);
   const queuesQuery = useQuery({
     queryKey: ["queues"],
-    queryFn: () => api.listQueues(),
+    queryFn: () => queuesApi.listQueues(),
     enabled: canViewQueues && Boolean(departmentId),
   });
   const queues = queuesQuery.data ?? [];
@@ -190,7 +190,7 @@ export function TokenConsolePage() {
   );
   const countersQuery = useQuery({
     queryKey: ["queue-counters", liveQueue?.id],
-    queryFn: () => api.listQueueCounters(liveQueue?.id ?? ""),
+    queryFn: () => queuesApi.listQueueCounters(liveQueue?.id ?? ""),
     enabled: Boolean(liveQueue),
   });
   const queueCounters = countersQuery.data ?? [];

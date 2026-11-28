@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { flowApi } from "@medbrains/api/modules/flow";
 import type { FlowConfigZone, FlowFloorSetup, FlowSourceInput } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -93,8 +93,8 @@ export function ZoneForm({ zone, setup, onSaved }: ZoneFormProps) {
   const save = useMutation({
     mutationFn: async (values: ZoneFormValues) => {
       const { sources: _ignored, ...limits } = values;
-      await api.updateFlowZone(zone.location_id, limits);
-      return api.replaceFlowZoneSources(zone.location_id, toSources(values));
+      await flowApi.updateFlowZone(zone.location_id, limits);
+      return flowApi.replaceFlowZoneSources(zone.location_id, toSources(values));
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["flow"] });

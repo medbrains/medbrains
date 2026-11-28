@@ -401,7 +401,14 @@ async fn a_hospital_starts_with_regional_levels_and_audits_its_median_against_th
         .await;
         assert_eq!(status, StatusCode::OK);
     }
-    let today = chrono::Utc::now().date_naive();
+    // Exams are audited by the hospital's date, not the test runner's UTC one.
+    let today: chrono::NaiveDate = sqlx::query_scalar(
+        "SELECT (timezone(COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), now()))::date",
+    )
+    .bind(tenant)
+    .fetch_one(&app.db)
+    .await
+    .expect("hospital today");
     let (status, report) = send(
         client.get(app.url(&format!("/api/radiology/drl-audit?from={today}&to={today}"))),
         &csrf,

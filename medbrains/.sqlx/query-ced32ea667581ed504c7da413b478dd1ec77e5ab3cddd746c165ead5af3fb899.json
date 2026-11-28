@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, logo_url, nabh_certificate_number,\n                  nabh_valid_until::text AS \"nabh_valid_until?\"\n           FROM tenants WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "logo_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "nabh_certificate_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "nabh_valid_until?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "ced32ea667581ed504c7da413b478dd1ec77e5ab3cddd746c165ead5af3fb899"
+}
