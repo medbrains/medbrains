@@ -261,6 +261,8 @@ pub const BASE_PLATE: &[&str] = &[
     // The hospital's emblem and name in the header and on printed cards: every screen and
     // print shows them, whatever apps are on.
     "branding",
+    // A signer's own signature: every app with a Sign button needs it, so no one app owns it.
+    "signatures",
 ];
 
 /// Groups that are apps in their own right but have no module switch yet. Each one is a brick

@@ -72,8 +72,8 @@ claim.
 | --- | --- | --- |
 | Field-level UI/API access | `crates/medbrains-server/src/middleware/field_access.rs`, `packages/types/src/index.ts`, and role/user `field_access` maps support `edit`, `view`, and `hidden`. | Present |
 | Cloud-egress nulling | `crates/medbrains-core/src/boundary_filter.rs` strips PHI fields, fails closed on unknown fields, and reports redacted paths. | Present |
-| Aadhaar handling | `crates/medbrains-server/src/routes/patients.rs` stores masked/hash Aadhaar and rejects raw invalid Aadhaar. | Present |
-| Client error logs | `crates/medbrains-server/src/routes/client_errors.rs` redacts UUID-like route segments before storing client error telemetry. | Present |
+| Aadhaar handling | `crates/medbrains-patients/src/lib.rs` stores masked/hash Aadhaar and rejects raw invalid Aadhaar. | Present |
+| Client error logs | `crates/medbrains-client-errors/src/lib.rs` redacts UUID-like route segments before storing client error telemetry. | Present |
 | Camp, IPD, emergency, pharmacy, billing field masking | `docs/audit/permission-entity-matrix.md` tracks backend/UI masking work by module and field family. | Partial |
 | PDF/document/DICOM hard redaction | Document and DICOM pipelines exist, but hard redaction must still remove text, metadata, annotations, and burned-in identifiers before release. | Gap |
 | Non-production masking job | Demo fixtures and simulator data exist, but a formal deterministic data masking and pseudonymization job is still needed. | Gap |

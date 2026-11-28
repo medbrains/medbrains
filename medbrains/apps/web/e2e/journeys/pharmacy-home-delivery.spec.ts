@@ -71,7 +71,7 @@ test("a runner delivers a dispensed order against the patient's code", async ({
   await handover.getByRole("textbox", { name: "Patient's code" }).fill("000000");
   await handover.getByRole("button", { name: "Delivered", exact: true }).click();
   await expect(run.getByText("That code doesn't match", { exact: false })).toBeVisible();
-  await handover.getByRole("textbox", { name: "Patient's code" }).fill(latestDeliveryCode(phone));
+  await handover.getByRole("textbox", { name: "Patient's code" }).fill(await latestDeliveryCode(phone));
   await handover.getByRole("button", { name: "Delivered", exact: true }).click();
   await expect(handover).toBeHidden();
 

@@ -5,12 +5,16 @@
 //! per file. They are modules of this crate now. Run one file with
 //! `cargo test -p medbrains-server --test integration <file_name>::`.
 //!
-//! One test at a time, always: `.cargo/config.toml` sets `RUST_TEST_THREADS=1`.
-//! Files used to be separate processes that ran one after another, so tests in
-//! different files never overlapped; ~24 of them share hospital-wide settings
-//! (payment providers, ABDM mock addresses, the NHCX participant code) and their
-//! per-file `SERIAL` locks do not reach across files. Give them their own tenant
-//! and the default parallelism comes back.
+//! About 24 of them set hospital-wide values (payment providers, ABDM mock
+//! addresses, the NHCX participant code), and their per-file `SERIAL` locks do
+//! not reach across files or processes. So tests never share a hospital at the
+//! same moment:
+//!
+//! - `cargo test`: one database, one test at a time (`.cargo/config.toml` sets
+//!   `RUST_TEST_THREADS=1`).
+//! - `cargo nextest`: each test is a process, and each parallel slot of the run
+//!   has a database and a hospital of its own (`common::database_url`). Tests
+//!   in a slot follow one another; `.config/nextest.toml` sets how many slots.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 mod abdm_abha_world;
@@ -34,6 +38,7 @@ mod storefront_world;
 mod uhi_world;
 
 mod aadhaar_storage_test;
+mod abc_analysis_total_test;
 mod abdm_abha_resend_test;
 mod abdm_bridge_test;
 mod abdm_callback_auth_test;
@@ -83,6 +88,7 @@ mod authz_pharmacy_dispense_view_test;
 mod auto_charge_savepoint_test;
 mod bad_debt_write_off_test;
 mod bank_recon_test;
+mod billing_collections_widget_test;
 mod billing_concession_test;
 mod billing_payment_settings_test;
 mod blood_bank_safety_test;
@@ -174,6 +180,7 @@ mod immunization_schedule_test;
 mod insurance_claim_money_test;
 mod ipd_admission_guard_test;
 mod ipd_bed_transfer_test;
+mod ipd_census_sweep_test;
 mod ipd_discharge_clearance_test;
 mod ipd_holds_restraints_births_test;
 mod ipd_mar_safety_test;
@@ -184,6 +191,7 @@ mod kpi_department_filter_test;
 mod lab_critical_escalation_test;
 mod lab_critical_value_report_test;
 mod lab_order_handoff_test;
+mod lab_phlebotomy_widget_test;
 mod lab_report_release_test;
 mod lab_tat_test;
 mod lab_unit_flag_test;
@@ -263,6 +271,7 @@ mod password_reset_cap_test;
 mod patient_acquisition_test;
 mod patient_advance_test;
 mod patient_contact_consent_test;
+mod patient_list_authz_fault_test;
 mod patient_match_scoring_test;
 mod patient_portal_isolation_test;
 mod patient_refill_requests_test;
@@ -287,6 +296,7 @@ mod pharmacy_dispense_controls_test;
 mod pharmacy_expired_stock_test;
 mod pharmacy_schedule_gate_test;
 mod pharmacy_settlement_verify_test;
+mod pharmacy_stock_alerts_widget_test;
 mod pharmacy_storefront_customer_test;
 mod pharmacy_storefront_p2_refunds_test;
 mod pharmacy_storefront_p2_returns_test;
@@ -294,6 +304,7 @@ mod pharmacy_storefront_p2_stock_test;
 mod pharmacy_storefront_p2_substitution_test;
 mod pharmacy_storefront_test;
 mod pharmacy_transfer_stock_test;
+mod polypharmacy_one_query_test;
 mod portal_export_test;
 mod portal_health_data_test;
 mod portal_sign_in_limit_test;
@@ -306,6 +317,7 @@ mod privacy_requests_test;
 mod psychiatry_mhca_test;
 mod psychiatry_privacy_test;
 mod public_booking_otp_test;
+mod public_slots_one_count_test;
 mod public_token_status_test;
 mod qa_test_cycles_test;
 mod query_budget_test;
@@ -319,6 +331,7 @@ mod readmission_report_test;
 mod request_role_sweep_test;
 mod retrospective_encounter_test;
 mod rls_gap_tables_test;
+mod route_table_snapshot_test;
 mod rx_safety_gate_test;
 mod sample_rejection_report_test;
 mod scoped_list_filters_test;
@@ -331,9 +344,9 @@ mod sign_in_options_test;
 mod signable_author_test;
 mod signable_guard_test;
 mod signable_types_test;
+mod signature_own_test;
 mod signature_payload_test;
 mod signature_verify_test;
-mod signature_own_test;
 mod signatures_test;
 mod snomed_terminology_test;
 mod soap_note_access_test;

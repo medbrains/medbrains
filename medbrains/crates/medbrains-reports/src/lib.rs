@@ -3,6 +3,7 @@
 
 pub mod acquisition;
 pub mod analytics;
+mod census;
 pub mod nabh_indicators;
 mod report_dates;
 pub mod report_widget;
