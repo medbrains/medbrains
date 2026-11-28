@@ -599,6 +599,7 @@ jobs:
     needs: [build-backend, build-frontend, android, ios, os-image]
     # The server and web app must succeed. A failed Android, iOS or OS-image job
     # leaves its files out of this release rather than stopping it; its job shows red.
+    # An OS image whose checks did not all pass is left out too ("OS image checks").
     # The Docker image is not built yet: it follows on Publish (the docker job).
     if: >-
       always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -639,6 +640,33 @@ jobs:
           fi
           # Which OS file fits which machine, after the changelog's own words.
           { echo; cat medbrains/os/release-files.md; } >> NOTES.md
+      # An OS image is released only with a pass from every check its os-image job runs: file modes, and
+      # for x86-64 the smoke boot with a TPM (os/README.md "Test an image"). A failed check already fails
+      # that job before upload; this also removes any image whose record is missing a pass, so a check
+      # skipped or deleted from the job cannot let an image through. The notes say what passed.
+      - name: OS image checks
+        run: |
+          { echo; echo "## OS image checks"; echo
+            echo "file-modes: every file the OS adds is readable where the system needs it."
+            echo "smoke-boot: first boot under QEMU with a software TPM reached the recovery key screen."
+            echo; } >> NOTES.md
+          for arch in x86-64 arm64; do
+            dir="artifacts/os-$arch"; rec="$dir/os-checks-$arch.txt"; need=file-modes; missing=
+            if [ "$arch" = x86-64 ]; then need="file-modes smoke-boot"; fi
+            for c in $need; do grep -qx "$c: passed" "$rec" 2>/dev/null || missing="$missing $c"; done
+            if [ ! -d "$dir" ]; then
+              echo "- $arch: **not released**: its OS image job failed (the build or a check)." >> NOTES.md
+            elif [ -n "$missing" ]; then
+              rm -rf "$dir"
+              echo "- $arch: **not released**: no pass recorded for:$missing." >> NOTES.md
+            else
+              line="- $arch: passed $(sed 's/: passed$//' "$rec" | paste -sd, - | sed 's/,/, /g')"
+              if [ "$arch" = arm64 ]; then line="$line (not boot-tested: CI has no arm64 boot with a TPM)"; fi
+              echo "$line" >> NOTES.md
+              rm "$rec"
+            fi
+          done
+          cat NOTES.md >> "$GITHUB_STEP_SUMMARY"
       # One tool for both lockfiles: syft reads Cargo.lock and pnpm-lock.yaml
       # (every crate and npm package that can reach the server and web app),
       # in CycloneDX, the format hospital procurement and scanners ask for.
