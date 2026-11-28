@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Center, Group, Loader, Stack, Text, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { publicApi } from "@medbrains/api/modules/public";
 import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@medbrains/schemas";
 import { applyServerErrors } from "@medbrains/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -32,7 +32,7 @@ export function AcceptInvitePage() {
     error,
   } = useQuery({
     queryKey: ["public-invite", token],
-    queryFn: () => api.getPublicInvite(token),
+    queryFn: () => publicApi.getPublicInvite(token),
     enabled: token.length > 0,
     retry: false,
   });
@@ -48,7 +48,7 @@ export function AcceptInvitePage() {
   });
 
   const accept = useMutation({
-    mutationFn: (data: FormInput) => api.acceptInvite(token, data),
+    mutationFn: (data: FormInput) => publicApi.acceptInvite(token, data),
     onSuccess: () => {
       toast.success("Account created — you can sign in now.", { title: "Welcome" });
       void navigate("/login");

@@ -129,8 +129,8 @@ Before PITR the data-loss window is the day since 02:30. With PITR it is the las
 ## Point-in-time recovery (opt-in, RPO ≤ 6 min)
 
 Off by default. Nothing changes on any server until its env file says `PITR_ENABLED=1` and `install.sh` runs (or
-`medbrains-wal-g-setup --apply` is run by hand). It works on both tiers: the host's own Postgres (attach), and the
-dedicated tier's `medbrains-postgres` container (Rishi's Lightsail server, `postgres:17-alpine`).
+`medbrains-wal-g-setup --apply` is run by hand). It works on the kit's native cluster (`postgresql@17-main`) and on a
+reused host Postgres (attach). A host still on the old kit's container moves first ("Moving a host off Docker").
 
 **Tool: WAL-G** (`v3.0.9`, pinned and checksum-verified; the Ubuntu 22.04 build also runs on Debian 12), not
 pgBackRest. Both stream WAL to S3. The deciding point is retention **without delete rights**: the host may never
@@ -172,8 +172,7 @@ MedBrains' own (`POSTGRES_DB` or the one in `DATABASE_URL`, `spicedb`, and `PITR
 `archive_command` is already set by another tool. Check by hand as well:
 
 ```sh
-sudo -u postgres psql -c '\l'                                         # the host's own Postgres
-sudo docker exec medbrains-postgres psql -U medbrains -c '\l'         # the container
+sudo -u postgres psql -c '\l'
 sudo -u postgres psql -XAtc 'SHOW archive_mode; SHOW archive_command'   # someone else archiving?
 ```
 
@@ -241,7 +240,7 @@ the cluster, so take the evidence dump first (runbook step 2).
 ```sh
 sudo systemctl stop medbrains-server
 SPOOL=$(sudo medbrains-wal-g spool); DATA=${SPOOL%/medbrains-wal-spool}
-sudo docker stop medbrains-postgres          # host's own Postgres: sudo systemctl stop postgresql
+sudo systemctl stop postgresql@17-main      # a reused host Postgres: its own unit
 OWNER=$(sudo stat -c %u:%g "$DATA")
 sudo mv "$DATA" "$DATA.broken-$(date -u +%F)" && sudo install -d -o "${OWNER%:*}" -g "${OWNER#*:}" -m 0700 "$DATA"
 sudo medbrains-wal-g fetch-base "$DATA"
@@ -255,11 +254,11 @@ recovery_target_time = '2026-11-17 10:41:00+05:30'   # just before the incident;
 recovery_target_action = 'promote'
 CONF
 sudo chown "$OWNER" "$DATA/postgresql.auto.conf" "$DATA/recovery.signal"
-sudo docker start medbrains-postgres         # or: sudo systemctl start postgresql; replays, then promotes
+sudo systemctl start postgresql@17-main     # replays, then promotes
 ```
 
-`restore_command` copies from a prefetched directory instead of calling WAL-G, so the same steps work in the
-container. When the log says `database system is ready to accept connections`, do step 7 (verify) of the runbook
+`restore_command` copies from a prefetched directory instead of calling WAL-G, so recovery needs no WAL-G
+configuration in the restored data directory. When the log says `database system is ready to accept connections`, do step 7 (verify) of the runbook
 below. Then delete the three recovery lines and `medbrains-wal-restore/`, start the server, and take a fresh base
 backup straight away (`systemctl start medbrains-wal-g-backup`): the timeline changed. Keep `$DATA.broken-*` until the
 hospital confirms.
@@ -377,13 +376,13 @@ psql script. It exists for two cases: a hospital asks for its data, or it moves 
 nightly dump cannot do either, because it carries every tenant.
 
 ```sh
-sudo sh -c 'set -a; . /etc/medbrains/env; . /etc/medbrains/.compose-env 2>/dev/null; medbrains-tenant-export RISHI'
-# weekly instead: TENANT_EXPORT="RISHI" (space-separated codes) in /etc/medbrains/env, then re-run install.sh,
+sudo sh -c 'set -a; . /etc/medbrains/env; . /etc/medbrains/.compose-env 2>/dev/null; medbrains-tenant-export SAMPLE'
+# weekly instead: TENANT_EXPORT="SAMPLE" (space-separated codes) in /etc/medbrains/env, then re-run install.sh,
 # which enables medbrains-tenant-export.timer (Sunday 04:00 local). Unset = off, the default.
 ```
 
 Where it goes: `s3://$BACKUP_BUCKET/$TENANT_EXPORT_PREFIX/<code>/<host>-<code>-<UTC>.sql.age` (default prefix
-`tenants`; on a per-hospital bucket it must sit under the slug, for example `rishi/tenants`), plus a sealed
+`tenants`; on a per-hospital bucket it must sit under the slug, for example `sample/tenants`), plus a sealed
 `.counts.age` with the row count of every table. Without a bucket it goes to `BACKUP_DIR`, or `--to DIR`. It is sealed
 to `backup-recipients.txt` unless `TENANT_EXPORT_RECIPIENTS` names the receiving hospital's public key. The prod
 writer policy (`ops.tf`) accepts `tenants/*.age` only, kept 35 days.
@@ -427,8 +426,7 @@ failure rolls the whole import back.
 3. Load it as the database superuser. Decrypt on your machine, so the offline key never reaches a server:
    ```sh
    age -d -i key.txt <host>-<code>-<UTC>.sql.age \
-     | ssh newhost 'sudo docker exec -i medbrains-postgres psql -X -q -U medbrains -d medbrains'
-   # host's own Postgres: … | ssh newhost 'sudo -u postgres psql -X -q -d medbrains'
+     | ssh newhost 'sudo -u postgres psql -X -q -d medbrains'
    ```
    No output means it loaded. `rows point at rows this server does not have: <table>.<fk> -> <parent>` means a
    row references something the target lacks. Nothing was written. For example, a tenant in a branch group needs
@@ -441,19 +439,95 @@ failure rolls the whole import back.
 ### Test — 2026-11-17 (throwaway Homebrew PostgreSQL 17.5)
 
 The cluster ran on 127.0.0.1:55417 from a scratch directory, was migrated with all 350 migrations (schema 1470) and
-was deleted afterwards. It held two tenants, `RISHI` (2 patients) and `OTHER` (3 patients), in one branch group with
+was deleted afterwards. It held two tenants, `SAMPLE` (2 patients) and `OTHER` (3 patients), in one branch group with
 `share_clinical_records = true`. The tenant trigger seeded 161 rows for each.
 
 | Check | Result |
 |---|---|
-| RLS alone, as `medbrains_app` with `app.tenant_id` = RISHI: `SELECT count(*) FROM patients` | **5**: the group leak the explicit filter exists for |
-| `medbrains-tenant-export RISHI --to …` | 965 tables, 164 rows (1 tenant, 161 seeded, 2 patients) |
+| RLS alone, as `medbrains_app` with `app.tenant_id` = SAMPLE: `SELECT count(*) FROM patients` | **5**: the group leak the explicit filter exists for |
+| `medbrains-tenant-export SAMPLE --to …` | 965 tables, 164 rows (1 tenant, 161 seeded, 2 patients) |
 | Decrypted script: occurrences of OTHER's tenant id, or of `Other` | **0**, and 0 |
 | Run as the superuser URL / with an unknown code | refused, exit 1 / refused, exit 1 |
 | Import into a freshly migrated database without the group row | refused: `tenants.tenants_group_id_fkey -> hospital_groups: 1 rows`; 0 tenants afterwards |
-| Same, after creating the group row | loaded; `tenants` = RISHI only; patients = RishiA, RishiB |
+| Same, after creating the group row | loaded; `tenants` = SAMPLE only; patients = SampleA, SampleB |
 | One data row removed from the script, then imported | refused: `public.patients: expected 2 rows` |
 | Imported into a database still migrating (schema 1463) | refused: `this server is not at schema 1470` |
+
+## Moving a host off Docker
+
+The kit runs PostgreSQL natively (`postgresql@17-main`, `deploy/standalone/native-postgres.sh`). A host installed
+by the old kit has Postgres in the `medbrains-postgres` container; `install.sh` refuses to run there until it is
+moved. The move is a logical copy, never the data directory: the container is musl and the host glibc, and their
+`en_US.utf8` sort text differently, so copied text indexes would be silently wrong.
+
+```sh
+# on the host, from the new kit's deploy/standalone directory, at a quiet time
+sudo bash migrate-docker-postgres-to-native.sh --dry-run    # every check, changes nothing
+sudo bash migrate-docker-postgres-to-native.sh              # the move; log in /var/log/medbrains-migrate-*.log
+sudo bash install.sh <domain> <admin-email>                 # the normal deploy, now native
+```
+
+What the move does, in order: preflight (PostgreSQL 17 at or above 17.12 in the container, only the `medbrains`
+database, SCRAM passwords for every login role, disk for three copies, WAL archiving off, the newest backup completed
+within 26 h, apt.postgresql.org reachable); a fresh backup; native PostgreSQL 17 installed on port 5433 beside the
+container (no downtime); **the writers stop** (`medbrains-server`, `medbrains-edge`, every active medbrains timer);
+`pg_dumpall --globals-only` and `pg_dump -Fc` from the container; restore into native, `ANALYZE`; verification
+(every table's exact row count, every sequence's last value, extensions and versions, RLS policies and tables,
+roles, memberships and role settings, index/constraint/trigger/function counts, all equal; `amcheck` on every btree
+index with `heapallindexed`; every role in `/etc/medbrains/env` logs in with its own password); the container stops
+with `--restart=no`, native moves to 5432 (the URLs do not change); the kit's native-only scripts and units are
+installed (the old ones are saved to `/var/lib/medbrains-migrate/prev-tooling.tar`); **the writers start**;
+`/api/health` and a session on the native cluster are checked; one backup is taken.
+
+Downtime is the stop-to-start window: 8 s for a 47 MB database in the rehearsal below; allow 1–2 minutes for a
+100 MB one on a small server. Any failure before the switch restarts the writers on the container, which was never
+changed; a failure during the switch puts the container back. Re-running is safe at every point.
+
+Rollback, after the switch (writes made on the native cluster since are lost; the script prints these with the
+services this host has):
+
+```sh
+sudo systemctl stop medbrains-server.service medbrains-edge.service
+sudo systemctl disable --now postgresql@17-main.service
+sudo docker update --restart=unless-stopped medbrains-postgres
+sudo docker start medbrains-postgres
+sudo tar -C / -xf /var/lib/medbrains-migrate/prev-tooling.tar
+sudo systemctl daemon-reload
+sudo systemctl start medbrains-server.service medbrains-edge.service
+curl -fsS http://127.0.0.1:3000/api/health
+```
+
+After a week of good native backups, and only then, by hand: `sudo docker rm medbrains-postgres`,
+`sudo docker volume rm medbrains_medbrains-pgdata`, then remove docker itself if no opt-in extra
+(`docker-compose.prod.yml`) uses it.
+
+Behaviour change: `ORDER BY` on text follows glibc `en_US.UTF-8` (punctuation ignored at the first level, case and
+accents interleaved: `a b`, `ab`, `a-b`, `Ab`) where the container sorted bytewise (`-dash` before `Apple` before
+`apple`). Stored values, equality and uniqueness are unchanged.
+
+### Rehearsal — 2026-11-20 (throwaway VM)
+
+Ubuntu 24.04.5 arm64 cloud image (SHA256SUMS signature checked) under QEMU; the old kit installed with Ubuntu's
+`docker.io` 29.1.3 and `postgres:17-alpine` (`sha256:526f86d93c6e…3d84f32`, PostgreSQL 17.12, `en_US.utf8`); a seed
+shaped like the first hospital's database (the five roles, the four extensions, three RLS policies, a partitioned
+table, 60,000 patients with non-ASCII and mixed-case names under btree, expression and trigram indexes; 47 MB);
+stand-ins for the server, proxy and certbot (no real certificate).
+
+| Run | Result |
+|---|---|
+| fresh native install, twice | both exit 0; `postgresql@17-main` 17.12 on 127.0.0.1/::1 only, SCRAM, checksums on, en_US.UTF-8; no docker installed; backup sealed |
+| `--dry-run` on the docker host | exit 0, nothing installed |
+| migration | exit 0 in 40 s; 186 btree indexes pass amcheck; fingerprints identical; server down 8 s |
+| migration re-run | "already switched", exit 0 |
+| `install.sh` on the migrated host | exit 0, health probe ok |
+| reboot | native up, container stays stopped, server healthy, backup ok |
+| injected failure after the writers stopped (a wrong password in the env) | refused at verification; writers back on the container; the fixed re-run completes |
+| rollback commands above | container serves the original data; the old backup script works; forward again completes |
+| `install.sh` on an unmigrated docker host | refused, pointing at this script |
+
+Found and fixed during the rehearsal: `GRANTED BY` the container's bootstrap role is refused by PostgreSQL 16+ on
+a cluster whose bootstrap role is `postgres`; the server's start limit left it down after repeated runs; a stopped
+client's backend lingers until its query ends (docs/DECISIONS.md, 2026-11-20).
 
 ## Restore drill — 2026-10-12 (local dev DB)
 
@@ -510,7 +584,8 @@ change to the backup script; append results here.
 ## Restore drill script (operator machine)
 
 `deploy/standalone/medbrains-restore-drill` (`make restore-drill FROM=… IDENTITY=…`) does steps 3, 5 and 7 into a
-throwaway Postgres 17 container: newest object under `--from` (S3 prefix, directory or file) → `age -d` with the
+throwaway local Postgres 17 cluster (`initdb` from `PG_BIN` or `pg_config --bindir`, socket-only in a 0700
+directory, no TCP listener) unless `--target-url` names one: newest object under `--from` (S3 prefix, directory or file) → `age -d` with the
 offline key (a tampered or truncated object fails here, age authenticates each chunk) → creates the roles the
 archive grants to → `pg_restore --exit-on-error -j 4` → checks: migrations recorded and none failed, exact row
 counts of every table (`--counts-out` writes them), tenants/users present, newest `audit_log`, `SET ROLE
@@ -522,7 +597,8 @@ The plaintext dump lives only in a 0700 temp dir for the run.
 key and a directory as the bucket: the uploaded object is age ciphertext (no `PGDMP` magic, `pg_restore` cannot read
 it, a wrong key cannot open it, secret values absent), S3 without a key is refused and recorded, monthly-then-daily
 placement, `backup_history` rows, restored row counts identical to the source, scratch DB dropped, tampered object
-fails, and the drill also runs in its own throwaway container. 15/15 on 2026-10-26.
+fails, and the drill also runs in its own throwaway cluster and removes it. 15/15 on 2026-10-26; 15/15 again on
+2026-11-20 with no docker (`PG_BIN=/opt/homebrew/opt/postgresql@17/bin`).
 
 ## Known gaps
 

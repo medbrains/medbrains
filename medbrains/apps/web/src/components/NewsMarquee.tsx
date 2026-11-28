@@ -1,6 +1,6 @@
 import { HoverCard, Text } from "@mantine/core";
 import { useFocusWithin, useHover, useInterval, useMergedRef } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { newsFeedApi } from "@medbrains/api/modules/news-feed";
 import { useAuthStore } from "@medbrains/stores";
 import type { NewsFeedListItem } from "@medbrains/types";
 import { IconExternalLink } from "@tabler/icons-react";
@@ -66,7 +66,7 @@ export function NewsMarquee() {
 
   const { data } = useQuery({
     queryKey: ["news-feed", news.topic],
-    queryFn: () => api.listNewsFeed({ topic: news.topic, limit: 15 }),
+    queryFn: () => newsFeedApi.listNewsFeed({ topic: news.topic, limit: 15 }),
     staleTime: 600_000,
     retry: 1,
   });

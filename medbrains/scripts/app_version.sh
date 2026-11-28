@@ -4,6 +4,9 @@
 #   scripts/app_version.sh            # "3.33.0 33300"
 #   scripts/app_version.sh v3.33.0    # the same, or exit 1 if the tag names another version
 #                                     # (v3.33.0-rc1 is accepted for 3.33.0)
+#   scripts/app_version.sh --web web-v3.33.0+web.2   # "3.33.0+web.2 3.33.0": the web patch
+#                                     # version and the server it fits; exit 1 if malformed or
+#                                     # the server version is not the workspace version
 #   scripts/app_version.sh --self-test
 #
 # The one source is `[workspace.package] version` in medbrains/Cargo.toml (`make release`
@@ -32,7 +35,24 @@ build_number() {
   echo $(( 10#$major * 10000 + minor * 100 + patch ))
 }
 
+# For a web-patch tag web-vX.Y.Z+web.N (N from 1): prints "X.Y.Z+web.N X.Y.Z", or refuses
+# the tag when it is malformed or X.Y.Z is not the server version $2. Build metadata (+), not
+# a pre-release (-): a pre-release sorts below X.Y.Z, and the patch fits X.Y.Z exactly.
+web_patch() {
+  if [[ ! "$1" =~ ^web-v(([0-9]+\.[0-9]+\.[0-9]+)\+web\.[1-9][0-9]*)$ ]]; then
+    echo "app_version: '$1' is not web-vX.Y.Z+web.N" >&2; return 1
+  fi
+  if [[ "${BASH_REMATCH[2]}" != "$2" ]]; then
+    echo "app_version: $1 patches ${BASH_REMATCH[2]}, but the workspace version is $2" >&2; return 1
+  fi
+  echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+}
+
 if [[ "${1:-}" == --self-test ]]; then
+  [[ "$(web_patch web-v3.33.0+web.2 3.33.0)" == "3.33.0+web.2 3.33.0" ]]
+  web_patch web-v3.33.0+web.0 3.33.0 2>/dev/null && exit 1
+  web_patch web-v3.33.0-web.1 3.33.0 2>/dev/null && exit 1
+  web_patch web-v3.33.1+web.1 3.33.0 2>/dev/null && exit 1
   [[ "$(build_number 3.33.0)" == 33300 ]]
   [[ "$(build_number 3.33.1)" == 33301 ]]
   [[ "$(build_number 4.0.0)" -gt "$(build_number 3.99.99)" ]]
@@ -43,6 +63,9 @@ if [[ "${1:-}" == --self-test ]]; then
 fi
 
 version=$(workspace_version "$cargo_toml")
+if [[ "${1:-}" == --web ]]; then
+  web_patch "${2:-}" "$version"; exit
+fi
 # A pre-release tag (v3.33.0-rc1) builds the version it leads up to.
 if [[ -n "${1:-}" && "$1" != "v$version" ]] && [[ "$1" != "v$version-"* ]]; then
   echo "app_version: tag $1 does not match the workspace version $version" >&2; exit 1

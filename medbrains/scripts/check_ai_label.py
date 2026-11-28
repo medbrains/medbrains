@@ -25,9 +25,10 @@ from __future__ import annotations
 import os
 import re
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CLIENT = os.path.join(ROOT, "packages/api/src/client.ts")
 WEB = os.path.join(ROOT, "apps/web/src")
 SERVICES = os.path.join(WEB, "services")
 
@@ -45,19 +46,18 @@ METHOD_SPAN = 25
 def ai_api_methods() -> set[str]:
     methods: set[str] = set()
     current, since = None, 0
-    with open(CLIENT, encoding="utf-8") as fh:
-        for line in fh:
-            match = METHOD.match(line)
-            if match:
-                current, since = match.group(1), 0
-            since += 1
-            if current and since <= METHOD_SPAN and AI_PATH.search(line):
-                methods.add(current)
+    for line in api_client_source().splitlines(keepends=True):
+        match = METHOD.match(line)
+        if match:
+            current, since = match.group(1), 0
+        since += 1
+        if current and since <= METHOD_SPAN and AI_PATH.search(line):
+            methods.add(current)
     return methods - NOT_AI_OUTPUT
 
 
 def ai_service_functions(methods: set[str]) -> set[str]:
-    wrapped = re.compile(r"api\.(" + "|".join(sorted(methods)) + r")\b")
+    wrapped = re.compile(api_object_pattern() + r"\.(" + "|".join(sorted(methods)) + r")\b")
     names: set[str] = set()
     for dirpath, _dirs, files in os.walk(SERVICES):
         for name in files:
@@ -75,7 +75,7 @@ def offenders() -> list[tuple[str, str]]:
     methods = ai_api_methods()
     services = ai_service_functions(methods)
     source = re.compile(
-        r"\bapi\.(" + "|".join(sorted(methods)) + r")\b"
+        r"\b" + api_object_pattern() + r"\.(" + "|".join(sorted(methods)) + r")\b"
         r"|\.(" + "|".join(sorted(services) or ["$^"]) + r")\("
         r"|\b(" + "|".join(ASSISTANT_PIECES) + r")\b"
     )

@@ -1,7 +1,7 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { TFunction } from "i18next";
-import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
+import { PatientPrintMenu } from "@/components/Print/PatientPrintMenu";
 
 /**
  * Long enough to reach for the printer while the patient is still at the
@@ -41,7 +41,11 @@ export function showRegisteredNotice({
       <Stack gap="xs">
         <Text size="sm">{message}</Text>
         <Group>
-          <OpdCardPrintMenu patientId={patientId} encounterId={encounterId} token={tokenNumber} />
+          <PatientPrintMenu
+            patientId={patientId}
+            encounterId={encounterId}
+            token={tokenNumber ?? null}
+          />
         </Group>
       </Stack>
     ),

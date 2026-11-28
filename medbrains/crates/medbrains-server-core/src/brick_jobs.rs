@@ -12,7 +12,7 @@ use std::sync::{Mutex, PoisonError};
 
 use medbrains_authz::decision::Outcome;
 use medbrains_core::bricks::{self, BRICK_JOBS, BRICKS, BrickJob};
-use medbrains_core::onboarding::{BackgroundJobStatus, ModuleConfig};
+use medbrains_core::onboarding::{BackgroundJobStatus, ModuleConfig, ModuleStatus};
 use sqlx::PgPool;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
@@ -139,13 +139,101 @@ pub fn fill_from_bricks(row: &mut ModuleConfig) {
         .collect();
 }
 
+/// The Modules screen's list: every brick this server knows, set up or not.
+///
+/// Bricks come in table order, then any other stored row by name, each filled from the brick
+/// table and with `on` set to what the module check answers. A brick the hospital never set up
+/// has no row but is served all the same, so it is listed as `available` (which the check reads
+/// exactly as no row) with a nil id.
+#[must_use]
+pub fn every_brick(tenant_id: Uuid, stored: Vec<ModuleConfig>) -> Vec<ModuleConfig> {
+    let by_code: HashMap<String, String> = stored
+        .iter()
+        .map(|row| (row.code.clone(), row.status.as_str().to_owned()))
+        .collect();
+    let mut by_id: HashMap<String, ModuleConfig> = stored
+        .into_iter()
+        .map(|row| (row.code.clone(), row))
+        .collect();
+    let mut rows: Vec<ModuleConfig> = BRICKS
+        .iter()
+        .map(|brick| {
+            by_id
+                .remove(brick.id)
+                .unwrap_or_else(|| never_set_up(tenant_id, brick))
+        })
+        .collect();
+    let mut rest: Vec<ModuleConfig> = by_id.into_values().collect();
+    rest.sort_by(|a, b| a.name.cmp(&b.name));
+    rows.extend(rest);
+    for row in &mut rows {
+        fill_from_bricks(row);
+        row.on = effective_outcome(&row.code, &by_code) == Outcome::Allow;
+    }
+    rows
+}
+
+/// The row a brick with no `module_config` row is listed as.
+fn never_set_up(tenant_id: Uuid, brick: &bricks::Brick) -> ModuleConfig {
+    let now = chrono::Utc::now();
+    ModuleConfig {
+        id: Uuid::nil(),
+        tenant_id,
+        code: brick.id.to_owned(),
+        name: brick.name.to_owned(),
+        description: None,
+        status: ModuleStatus::Available,
+        config: serde_json::json!({}),
+        depends_on: Vec::new(),
+        created_at: now,
+        updated_at: now,
+        background_jobs: Vec::new(),
+        on: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
 
     use uuid::Uuid;
 
-    use super::{bricks_on, is_running, reconcile};
+    use medbrains_core::onboarding::ModuleStatus;
+
+    use super::{bricks_on, every_brick, is_running, never_set_up, reconcile};
+
+    /// A Registration + OPD hospital that set up only those two lists every brick: the ones it
+    /// never set up as on, the add-on as off, and a disabled brick's dependents as off.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn every_brick_lists_the_ones_with_no_row_by_what_the_check_answers() {
+        let t = Uuid::nil();
+        let stored = |code: &str, status| {
+            let brick = medbrains_core::bricks::find(code).expect("brick");
+            let mut row = never_set_up(t, brick);
+            row.status = status;
+            row
+        };
+        let rows = every_brick(
+            t,
+            vec![
+                stored("opd", ModuleStatus::Enabled),
+                stored("registration", ModuleStatus::Enabled),
+                stored("ipd", ModuleStatus::Disabled),
+            ],
+        );
+        assert_eq!(rows.len(), medbrains_core::bricks::BRICKS.len());
+        assert_eq!(rows[0].code, "registration", "table order");
+        let get = |code: &str| rows.iter().find(|r| r.code == code).expect(code);
+        assert!(get("opd").on && get("registration").on);
+        assert_eq!(get("dental").status, ModuleStatus::Available);
+        assert!(get("dental").on, "no row: on, never set up");
+        assert!(
+            !get("ipd").on && !get("nursing").on,
+            "IPD off takes Nursing with it"
+        );
+        assert!(!get("companion").on, "an add-on with no row is off");
+    }
 
     /// A stand-in job that runs until aborted.
     fn idle(_: &medbrains_core::bricks::BrickJob) -> Option<tokio::task::JoinHandle<()>> {

@@ -7,9 +7,7 @@
 // numbers and a complaint already attached.
 
 import { Group, Stack, Text } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
 import type { CreateVitalRequest, QueueEntry } from "@medbrains/types";
-import { P } from "@medbrains/types";
 import { IconDeviceHeartMonitor } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -20,7 +18,8 @@ import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { ClinicalText, RecordAccessNotice } from "@/components/RecordAccess";
 import { Button, Modal, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
-import { formatQueueToken } from "./shared";
+import { queueTokenLabel } from "./shared";
+import { useRecordOpdVitals } from "./use-record-opd-vitals";
 
 /// A patient still waiting at the counter: in today's queue, no vitals yet, and
 /// not already finished or gone.
@@ -36,7 +35,7 @@ interface OpdVitalsCounterProps {
 export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) {
   const { t } = useTranslation("opd");
   const queryClient = useQueryClient();
-  const canRecord = useHasPermission(P.OPD.VITALS.CREATE);
+  const { canRecord, recordVitals } = useRecordOpdVitals();
   const [active, setActive] = useState<QueueEntry | null>(null);
 
   const params = useMemo(() => {
@@ -58,7 +57,7 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
 
   const record = useMutation({
     mutationFn: ({ encounterId, vitals }: { encounterId: string; vitals: CreateVitalRequest }) =>
-      opdService.createVital(encounterId, vitals),
+      recordVitals(encounterId, vitals),
     onSuccess: () => {
       // The department's other screens are nudged over the live stream; this
       // one refreshes directly because it is the tab that just acted.
@@ -77,13 +76,13 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
       label: t("queueColumns.token"),
       sortable: true,
       sortValue: (row: QueueEntry) => row.token_number,
-      accessor: (row: QueueEntry) => formatQueueToken(row.token_number),
+      accessor: (row: QueueEntry) => queueTokenLabel(row),
       render: (row: QueueEntry) => (
         <OperationalSignal
           label={t("queueSignals.token")}
           shape="token"
           tone="ready"
-          value={formatQueueToken(row.token_number)}
+          value={queueTokenLabel(row)}
         />
       ),
     },
@@ -167,7 +166,7 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
         title={
           active
             ? t("vitalsCounter.modalTitle", {
-                token: formatQueueToken(active.token_number),
+                token: queueTokenLabel(active),
                 patient: active.patient_name ?? t("queueFallback.patient"),
               })
             : ""

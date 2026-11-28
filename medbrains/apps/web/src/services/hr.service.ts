@@ -1,88 +1,93 @@
-import { api } from "@medbrains/api";
+import { aebasApi } from "@medbrains/api/modules/aebas";
+import { hrApi } from "@medbrains/api/modules/hr";
 
 export const hrService = {
-  listDutyHours: (...args: Parameters<typeof api.listDutyHours>) => api.listDutyHours(...args),
-  getMyShift: (...args: Parameters<typeof api.getMyShift>) => api.getMyShift(...args),
-  startShift: (...args: Parameters<typeof api.startShift>) => api.startShift(...args),
-  extendShift: (...args: Parameters<typeof api.extendShift>) => api.extendShift(...args),
-  pauseShift: (...args: Parameters<typeof api.pauseShift>) => api.pauseShift(...args),
-  resumeShift: (...args: Parameters<typeof api.resumeShift>) => api.resumeShift(...args),
-  endShift: (...args: Parameters<typeof api.endShift>) => api.endShift(...args),
-  getGeofenceSettings: () => api.getGeofenceSettings(),
-  setGeofenceMode: (...args: Parameters<typeof api.setGeofenceMode>) =>
-    api.setGeofenceMode(...args),
-  setCampusFence: (...args: Parameters<typeof api.setCampusFence>) => api.setCampusFence(...args),
-  acknowledgeFatigue: (...args: Parameters<typeof api.acknowledgeFatigue>) =>
-    api.acknowledgeFatigue(...args),
-  importAebasPeriodSummary: (...args: Parameters<typeof api.importAebasPeriodSummary>) =>
-    api.importAebasPeriodSummary(...args),
-  listEmployees: (...args: Parameters<typeof api.listEmployees>) => api.listEmployees(...args),
-  getEmployee: (...args: Parameters<typeof api.getEmployee>) => api.getEmployee(...args),
-  createEmployee: (...args: Parameters<typeof api.createEmployee>) => api.createEmployee(...args),
-  listSalaryStructures: () => api.listSalaryStructures(),
-  upsertSalaryStructure: (...args: Parameters<typeof api.upsertSalaryStructure>) =>
-    api.upsertSalaryStructure(...args),
-  listPayrollRuns: () => api.listPayrollRuns(),
-  createPayrollRun: (...args: Parameters<typeof api.createPayrollRun>) =>
-    api.createPayrollRun(...args),
-  finalizePayrollRun: (id: string) => api.finalizePayrollRun(id),
-  listPayslips: (runId: string) => api.listPayslips(runId),
-  listDesignations: (...args: Parameters<typeof api.listDesignations>) =>
-    api.listDesignations(...args),
-  createDesignation: (...args: Parameters<typeof api.createDesignation>) =>
-    api.createDesignation(...args),
-  listCredentials: (...args: Parameters<typeof api.listCredentials>) =>
-    api.listCredentials(...args),
-  createCredential: (...args: Parameters<typeof api.createCredential>) =>
-    api.createCredential(...args),
-  updateCredential: (...args: Parameters<typeof api.updateCredential>) =>
-    api.updateCredential(...args),
-  listLeaveBalances: (...args: Parameters<typeof api.listLeaveBalances>) =>
-    api.listLeaveBalances(...args),
-  listAttendance: (...args: Parameters<typeof api.listAttendance>) => api.listAttendance(...args),
-  createAttendance: (...args: Parameters<typeof api.createAttendance>) =>
-    api.createAttendance(...args),
-  listLeaveRequests: (...args: Parameters<typeof api.listLeaveRequests>) =>
-    api.listLeaveRequests(...args),
-  createLeaveRequest: (...args: Parameters<typeof api.createLeaveRequest>) =>
-    api.createLeaveRequest(...args),
-  leaveAction: (...args: Parameters<typeof api.leaveAction>) => api.leaveAction(...args),
-  cancelLeave: (...args: Parameters<typeof api.cancelLeave>) => api.cancelLeave(...args),
-  previewLeaveDays: (...args: Parameters<typeof api.previewLeaveDays>) =>
-    api.previewLeaveDays(...args),
-  listHolidays: (...args: Parameters<typeof api.listHolidays>) => api.listHolidays(...args),
-  createHoliday: (...args: Parameters<typeof api.createHoliday>) => api.createHoliday(...args),
-  updateHoliday: (...args: Parameters<typeof api.updateHoliday>) => api.updateHoliday(...args),
-  deleteHoliday: (...args: Parameters<typeof api.deleteHoliday>) => api.deleteHoliday(...args),
-  setWeeklyOffs: (...args: Parameters<typeof api.setWeeklyOffs>) => api.setWeeklyOffs(...args),
-  getMyProfile: () => api.getMyProfile(),
-  listMyLeaveRequests: () => api.listMyLeaveRequests(),
-  createMyLeaveRequest: (...args: Parameters<typeof api.createMyLeaveRequest>) =>
-    api.createMyLeaveRequest(...args),
-  listMyLeaveBalances: () => api.listMyLeaveBalances(),
-  listMyTeamLeaves: () => api.listMyTeamLeaves(),
-  listShifts: (...args: Parameters<typeof api.listShifts>) => api.listShifts(...args),
-  createShift: (...args: Parameters<typeof api.createShift>) => api.createShift(...args),
-  listRosters: (...args: Parameters<typeof api.listRosters>) => api.listRosters(...args),
-  createRoster: (...args: Parameters<typeof api.createRoster>) => api.createRoster(...args),
-  listOnCall: (...args: Parameters<typeof api.listOnCall>) => api.listOnCall(...args),
-  createOnCall: (...args: Parameters<typeof api.createOnCall>) => api.createOnCall(...args),
-  approveSwap: (...args: Parameters<typeof api.approveSwap>) => api.approveSwap(...args),
-  listTrainingPrograms: (...args: Parameters<typeof api.listTrainingPrograms>) =>
-    api.listTrainingPrograms(...args),
-  createTrainingProgram: (...args: Parameters<typeof api.createTrainingProgram>) =>
-    api.createTrainingProgram(...args),
-  listTrainingRecords: (...args: Parameters<typeof api.listTrainingRecords>) =>
-    api.listTrainingRecords(...args),
-  createTrainingRecord: (...args: Parameters<typeof api.createTrainingRecord>) =>
-    api.createTrainingRecord(...args),
-  trainingCompliance: (...args: Parameters<typeof api.trainingCompliance>) =>
-    api.trainingCompliance(...args),
-  createAppraisal: (...args: Parameters<typeof api.createAppraisal>) =>
-    api.createAppraisal(...args),
-  listAppraisals: (...args: Parameters<typeof api.listAppraisals>) => api.listAppraisals(...args),
-  createStatutoryRecord: (...args: Parameters<typeof api.createStatutoryRecord>) =>
-    api.createStatutoryRecord(...args),
-  listStatutoryRecords: (...args: Parameters<typeof api.listStatutoryRecords>) =>
-    api.listStatutoryRecords(...args),
+  listDutyHours: (...args: Parameters<typeof hrApi.listDutyHours>) => hrApi.listDutyHours(...args),
+  getMyShift: (...args: Parameters<typeof hrApi.getMyShift>) => hrApi.getMyShift(...args),
+  startShift: (...args: Parameters<typeof hrApi.startShift>) => hrApi.startShift(...args),
+  extendShift: (...args: Parameters<typeof hrApi.extendShift>) => hrApi.extendShift(...args),
+  pauseShift: (...args: Parameters<typeof hrApi.pauseShift>) => hrApi.pauseShift(...args),
+  resumeShift: (...args: Parameters<typeof hrApi.resumeShift>) => hrApi.resumeShift(...args),
+  endShift: (...args: Parameters<typeof hrApi.endShift>) => hrApi.endShift(...args),
+  getGeofenceSettings: () => hrApi.getGeofenceSettings(),
+  setGeofenceMode: (...args: Parameters<typeof hrApi.setGeofenceMode>) =>
+    hrApi.setGeofenceMode(...args),
+  setCampusFence: (...args: Parameters<typeof hrApi.setCampusFence>) =>
+    hrApi.setCampusFence(...args),
+  acknowledgeFatigue: (...args: Parameters<typeof hrApi.acknowledgeFatigue>) =>
+    hrApi.acknowledgeFatigue(...args),
+  importAebasPeriodSummary: (...args: Parameters<typeof aebasApi.importAebasPeriodSummary>) =>
+    aebasApi.importAebasPeriodSummary(...args),
+  listEmployees: (...args: Parameters<typeof hrApi.listEmployees>) => hrApi.listEmployees(...args),
+  getEmployee: (...args: Parameters<typeof hrApi.getEmployee>) => hrApi.getEmployee(...args),
+  createEmployee: (...args: Parameters<typeof hrApi.createEmployee>) =>
+    hrApi.createEmployee(...args),
+  listSalaryStructures: () => hrApi.listSalaryStructures(),
+  upsertSalaryStructure: (...args: Parameters<typeof hrApi.upsertSalaryStructure>) =>
+    hrApi.upsertSalaryStructure(...args),
+  listPayrollRuns: () => hrApi.listPayrollRuns(),
+  createPayrollRun: (...args: Parameters<typeof hrApi.createPayrollRun>) =>
+    hrApi.createPayrollRun(...args),
+  finalizePayrollRun: (id: string) => hrApi.finalizePayrollRun(id),
+  listPayslips: (runId: string) => hrApi.listPayslips(runId),
+  listDesignations: (...args: Parameters<typeof hrApi.listDesignations>) =>
+    hrApi.listDesignations(...args),
+  createDesignation: (...args: Parameters<typeof hrApi.createDesignation>) =>
+    hrApi.createDesignation(...args),
+  listCredentials: (...args: Parameters<typeof hrApi.listCredentials>) =>
+    hrApi.listCredentials(...args),
+  createCredential: (...args: Parameters<typeof hrApi.createCredential>) =>
+    hrApi.createCredential(...args),
+  updateCredential: (...args: Parameters<typeof hrApi.updateCredential>) =>
+    hrApi.updateCredential(...args),
+  listLeaveBalances: (...args: Parameters<typeof hrApi.listLeaveBalances>) =>
+    hrApi.listLeaveBalances(...args),
+  listAttendance: (...args: Parameters<typeof hrApi.listAttendance>) =>
+    hrApi.listAttendance(...args),
+  createAttendance: (...args: Parameters<typeof hrApi.createAttendance>) =>
+    hrApi.createAttendance(...args),
+  listLeaveRequests: (...args: Parameters<typeof hrApi.listLeaveRequests>) =>
+    hrApi.listLeaveRequests(...args),
+  createLeaveRequest: (...args: Parameters<typeof hrApi.createLeaveRequest>) =>
+    hrApi.createLeaveRequest(...args),
+  leaveAction: (...args: Parameters<typeof hrApi.leaveAction>) => hrApi.leaveAction(...args),
+  cancelLeave: (...args: Parameters<typeof hrApi.cancelLeave>) => hrApi.cancelLeave(...args),
+  previewLeaveDays: (...args: Parameters<typeof hrApi.previewLeaveDays>) =>
+    hrApi.previewLeaveDays(...args),
+  listHolidays: (...args: Parameters<typeof hrApi.listHolidays>) => hrApi.listHolidays(...args),
+  createHoliday: (...args: Parameters<typeof hrApi.createHoliday>) => hrApi.createHoliday(...args),
+  updateHoliday: (...args: Parameters<typeof hrApi.updateHoliday>) => hrApi.updateHoliday(...args),
+  deleteHoliday: (...args: Parameters<typeof hrApi.deleteHoliday>) => hrApi.deleteHoliday(...args),
+  setWeeklyOffs: (...args: Parameters<typeof hrApi.setWeeklyOffs>) => hrApi.setWeeklyOffs(...args),
+  getMyProfile: () => hrApi.getMyProfile(),
+  listMyLeaveRequests: () => hrApi.listMyLeaveRequests(),
+  createMyLeaveRequest: (...args: Parameters<typeof hrApi.createMyLeaveRequest>) =>
+    hrApi.createMyLeaveRequest(...args),
+  listMyLeaveBalances: () => hrApi.listMyLeaveBalances(),
+  listMyTeamLeaves: () => hrApi.listMyTeamLeaves(),
+  listShifts: (...args: Parameters<typeof hrApi.listShifts>) => hrApi.listShifts(...args),
+  createShift: (...args: Parameters<typeof hrApi.createShift>) => hrApi.createShift(...args),
+  listRosters: (...args: Parameters<typeof hrApi.listRosters>) => hrApi.listRosters(...args),
+  createRoster: (...args: Parameters<typeof hrApi.createRoster>) => hrApi.createRoster(...args),
+  listOnCall: (...args: Parameters<typeof hrApi.listOnCall>) => hrApi.listOnCall(...args),
+  createOnCall: (...args: Parameters<typeof hrApi.createOnCall>) => hrApi.createOnCall(...args),
+  approveSwap: (...args: Parameters<typeof hrApi.approveSwap>) => hrApi.approveSwap(...args),
+  listTrainingPrograms: (...args: Parameters<typeof hrApi.listTrainingPrograms>) =>
+    hrApi.listTrainingPrograms(...args),
+  createTrainingProgram: (...args: Parameters<typeof hrApi.createTrainingProgram>) =>
+    hrApi.createTrainingProgram(...args),
+  listTrainingRecords: (...args: Parameters<typeof hrApi.listTrainingRecords>) =>
+    hrApi.listTrainingRecords(...args),
+  createTrainingRecord: (...args: Parameters<typeof hrApi.createTrainingRecord>) =>
+    hrApi.createTrainingRecord(...args),
+  trainingCompliance: (...args: Parameters<typeof hrApi.trainingCompliance>) =>
+    hrApi.trainingCompliance(...args),
+  createAppraisal: (...args: Parameters<typeof hrApi.createAppraisal>) =>
+    hrApi.createAppraisal(...args),
+  listAppraisals: (...args: Parameters<typeof hrApi.listAppraisals>) =>
+    hrApi.listAppraisals(...args),
+  createStatutoryRecord: (...args: Parameters<typeof hrApi.createStatutoryRecord>) =>
+    hrApi.createStatutoryRecord(...args),
+  listStatutoryRecords: (...args: Parameters<typeof hrApi.listStatutoryRecords>) =>
+    hrApi.listStatutoryRecords(...args),
 };

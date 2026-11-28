@@ -37,25 +37,15 @@ case "${2:-}" in
     *) echo "unknown option $2" >&2; exit 2 ;;
 esac
 RECIPIENTS="${TENANT_EXPORT_RECIPIENTS:-/etc/medbrains/backup-recipients.txt}"
-CONTAINER=medbrains-postgres
 URL="${DATABASE_URL:?DATABASE_URL (the app role) must be set; run with /etc/medbrains/env}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
-# psql as the app role: through the container on the dedicated tier (the
-# host has no client there; the password travels in the environment, never
-# argv), straight over DATABASE_URL elsewhere.
+# psql as the app role, over DATABASE_URL.
 app_psql() {
-    if command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1; then
-        [[ "$URL" =~ ^postgres(ql)?://([^:@/]+):([^@]*)@[^/]+/([^?]+) ]] \
-            || die "DATABASE_URL is not postgres://user:password@host/db"
-        PGPASSWORD="${BASH_REMATCH[3]}" docker exec -i -e PGPASSWORD "$CONTAINER" \
-            psql -XAtq -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "${BASH_REMATCH[2]}" -d "${BASH_REMATCH[4]}" "$@"
-    else
-        psql -XAtq -v ON_ERROR_STOP=1 "$URL" "$@"
-    fi
+    psql -XAtq -v ON_ERROR_STOP=1 "$URL" "$@"
 }
 
 # Refuses a role that row level security would not hold.

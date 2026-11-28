@@ -170,7 +170,7 @@ async fn file_reaction_incident(
            (tenant_id, incident_number, title, description, incident_type, \
             severity, patient_id, immediate_action, incident_date) \
          SELECT $1, \
-                COALESCE((SELECT prefix || lpad(current_val::text, pad_width, '0') \
+                COALESCE((SELECT prefix || lpad(current_val::text, GREATEST(pad_width, length(current_val::text)), '0') \
                             FROM seq), \
                          'INC-' || to_char(now(), 'YYYYMMDDHH24MISS') || '-' || substr(md5(random()::text), 1, 4)), \
                 $2, $3, 'transfusion_reaction', $4::text::incident_severity, \

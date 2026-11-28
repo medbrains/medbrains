@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { nhcxApi } from "@medbrains/api/modules/nhcx";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxParticipant } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -27,13 +27,13 @@ export function NhcxPayerDirectory() {
     isError,
   } = useQuery({
     queryKey: ["nhcx-participants"],
-    queryFn: () => api.listNhcxParticipants(),
+    queryFn: () => nhcxApi.listNhcxParticipants(),
     enabled: canView,
   });
 
   const upsert = useMutation({
     mutationFn: () =>
-      api.upsertNhcxParticipant({
+      nhcxApi.upsertNhcxParticipant({
         participant_code: draft.code.trim(),
         participant_name: draft.name.trim(),
         role: draft.role,

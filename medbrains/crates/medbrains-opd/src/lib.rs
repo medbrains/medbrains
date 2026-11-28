@@ -19,6 +19,7 @@ mod routes;
 pub mod rx_policy;
 pub mod rx_terms;
 pub mod transfer;
+mod visit_number;
 
 pub use routes::{opd_only_router, router};
 
@@ -26,8 +27,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use chrono::DateTime;
-use chrono::{NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::consultation::{
     ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket,
@@ -48,6 +48,7 @@ use uuid::Uuid;
 use medbrains_kernel::authz::{require_any_permission, require_permission};
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::hospital_time::tenant_local_today;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
@@ -140,6 +141,11 @@ pub struct CreateEncounterRequest {
     /// Tagged rows must be excluded from regulator-facing reports.
     #[serde(default)]
     pub is_dummy: Option<bool>,
+    /// The hospital OPD number the desk typed for this visit (or, per patient,
+    /// for a patient who has none yet).
+    pub opd_number: Option<String>,
+    /// Its register date, for a patient numbered at this visit (old records).
+    pub opd_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Serialize)]
@@ -772,9 +778,7 @@ pub async fn create_encounter(
         ));
     }
 
-    let today =
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
-            .await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct AppointmentLink {
@@ -940,7 +944,7 @@ pub async fn create_encounter(
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
 
-    let encounter = sqlx::query_as::<_, Encounter>(
+    let mut encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
           encounter_date, notes, attributes, visit_type, is_dummy, chief_complaints, created_by) \
@@ -960,6 +964,7 @@ pub async fn create_encounter(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+    visit_number::apply(&mut tx, &claims, &mut encounter, &body).await?;
 
     let token = generate_opd_token(&mut tx, &claims.tenant_id).await?;
 
@@ -1275,8 +1280,7 @@ pub async fn queue_rows(
     let queue_date = if let Some(date) = params.date {
         date
     } else {
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *conn, claims.tenant_id)
-            .await?
+        tenant_local_today(&mut *conn, claims.tenant_id).await?
     };
 
     let mut conditions = vec![
@@ -3825,7 +3829,7 @@ pub async fn create_certificate(
     let issued = if let Some(date) = body.issued_date {
         date
     } else {
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+        tenant_local_today(&mut *tx, claims.tenant_id).await?
     };
 
     // Generate certificate number from sequence
@@ -5010,7 +5014,7 @@ pub async fn get_doctor_docket(
     let docket_date = if let Some(date) = q.date {
         date
     } else {
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+        tenant_local_today(&mut *tx, claims.tenant_id).await?
     };
 
     let row = sqlx::query_as::<_, DoctorDocket>(
@@ -5044,7 +5048,7 @@ pub async fn generate_doctor_docket(
     let docket_date = if let Some(date) = q.date {
         date
     } else {
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+        tenant_local_today(&mut *tx, claims.tenant_id).await?
     };
 
     let row = sqlx::query_as::<_, DoctorDocket>(
@@ -6013,9 +6017,7 @@ pub async fn get_wait_estimate(
     // patients' phones; no patient row is read out (DECISIONS 2026-11-19).
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let today =
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
-            .await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     // Count waiting patients in queue
     let waiting: (i64,) = sqlx::query_as(
@@ -6183,9 +6185,7 @@ pub async fn admit_from_opd(
         .doctor_id
         .or(opd_encounter.doctor_id)
         .unwrap_or(claims.sub);
-    let today =
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
-            .await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
     let ipd_attributes = serde_json::json!({
         "source": "opd",
         "opd_encounter_id": encounter_id,
@@ -6573,9 +6573,7 @@ pub async fn followup_compliance(
     let can_view_patient_identity = record_access::sees_patient_identity(&claims);
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let today =
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
-            .await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FollowupComplianceRow>(
         "SELECT e.patient_id, \

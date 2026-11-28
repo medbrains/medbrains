@@ -1,5 +1,7 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { setupApi } from "@medbrains/api/modules/setup";
+import { stationsApi } from "@medbrains/api/modules/stations";
 import { useHasAnyPermission } from "@medbrains/stores";
 import type { DevicePairingRequest } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -60,7 +62,7 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
   const isCounter = board === COUNTER_DISPLAY;
   const decide = useMutation({
     mutationFn: (deny: boolean) =>
-      api.approveDevicePairingRequest({
+      adminApi.approveDevicePairingRequest({
         request_id: request.id,
         user_code: deny ? undefined : code,
         deny,
@@ -162,13 +164,13 @@ export function PendingScreensCard() {
   const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const requests = useQuery({
     queryKey: ["device-pairing-requests"],
-    queryFn: () => api.listDevicePairingRequests(),
+    queryFn: () => adminApi.listDevicePairingRequests(),
     // A TV is waiting on the other side of the room; show it promptly.
     refetchInterval: 5_000,
   });
   const departments = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => setupApi.listDepartments(),
     enabled: canListDepartments,
     staleTime: 600_000,
   });
@@ -176,7 +178,7 @@ export function PendingScreensCard() {
   const canListStations = useHasAnyPermission(STATION_LIST_CODES);
   const stations = useQuery({
     queryKey: ["stations"],
-    queryFn: () => api.listStations(),
+    queryFn: () => stationsApi.listStations(),
     enabled: canListStations,
     staleTime: 600_000,
   });

@@ -8,6 +8,7 @@ OnFailure=medbrains-alert@%n.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
+EnvironmentFile=-/etc/medbrains/postgres.env
 ExecStart=/usr/local/bin/medbrains-daily-report
 StandardOutput=journal
 StandardError=journal

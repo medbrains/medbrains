@@ -182,8 +182,12 @@ export interface AbhaVerificationStep {
   profile: AbhaVerifiedProfile | null;
   /** Another patient here already carries this ABHA. */
   already_linked: AbhaLinkedPatient | null;
-  /** ABHA addresses ABDM suggests, when creating an ABHA. */
+  /** ABHA addresses ABDM suggests, when creating an ABHA (at least 3, CRT_ABHA_112). */
   suggestions: string[];
+  /** The masked mobile the OTP went to, e.g. `******1234` (CRT_ABHA_105). */
+  sent_to: string | null;
+  /** `sbx` or `abdm`: what follows the `@` of a new ABHA address. */
+  address_domain: string | null;
 }
 
 /** ABDM's reply to an ABHA mobile or email change — where the OTP or link went. */

@@ -13,6 +13,7 @@ import { statSync } from "node:fs";
 import { authStatePath, getE2EIdentity } from "./e2e-identities";
 import { login, provisionIdentity } from "./identities";
 import type { ApiCallOptions, AuthContext } from "./types";
+import { ownClientHeaders } from "./worker-tenant";
 
 export const E2E_BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
@@ -46,6 +47,7 @@ export async function loginAsRoleApi(
 ): Promise<AuthContext> {
   const identity = getE2EIdentity(role);
   const resp = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username: identity.username, password: identity.password },
   });
   expect(resp.status(), `${role} login expected 200, got ${resp.status()}`).toBe(200);

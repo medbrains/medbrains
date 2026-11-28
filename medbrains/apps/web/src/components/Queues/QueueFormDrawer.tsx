@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Chip, Group, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
 import { previewQueueNumber, type QueueFormInput, queueFormSchema } from "@medbrains/schemas";
 import type { QueueConfig, QueueInput } from "@medbrains/types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,7 +73,7 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
   const [placeQuery] = useDebouncedValue(placeSearch.split(" · ")[0]?.trim() ?? "", 300);
   const places = useQuery({
     queryKey: ["queue-places", placeQuery],
-    queryFn: () => api.listQueuePlaces(placeQuery || undefined),
+    queryFn: () => queuesApi.listQueuePlaces(placeQuery || undefined),
     enabled: opened,
     placeholderData: keepPreviousData,
   });
@@ -115,7 +115,7 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
         number_pool_size: values.reset_rule === "recycle" ? values.number_pool_size : null,
         reuse_cooloff_minutes: values.reuse_cooloff_minutes,
       };
-      return queue ? api.updateQueue(queue.id, input) : api.createQueue(input);
+      return queue ? queuesApi.updateQueue(queue.id, input) : queuesApi.createQueue(input);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queues"] });

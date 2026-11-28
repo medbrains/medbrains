@@ -14,7 +14,7 @@ OnFailure=medbrains-alert@%n.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
-EnvironmentFile=-/etc/medbrains/.compose-env
+EnvironmentFile=-/etc/medbrains/postgres.env
 ExecStart=/usr/local/bin/medbrains-backup-report --%i
 StandardOutput=journal
 StandardError=journal

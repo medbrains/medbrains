@@ -1,16 +1,18 @@
-import { api } from "@medbrains/api";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
+import { procurementApi } from "@medbrains/api/modules/procurement";
+import { uploadApi } from "@medbrains/api/modules/upload";
 
 export const grnScanService = {
-  listScans: api.listGrnScans,
-  createScan: api.createGrnScan,
-  getReview: api.getGrnScanReview,
-  saveDraft: api.saveGrnScanDraft,
-  submitScan: api.submitGrnScan,
-  discardScan: api.discardGrnScan,
-  commitScan: api.commitGrnScan,
-  searchItems: api.searchGrnScanItems,
-  getAccuracy: api.getGrnScanAccuracy,
-  presignUpload: api.presignUpload,
-  listCatalogDuplicates: api.listPharmacyCatalogDuplicates,
-  mergeCatalogItems: api.mergePharmacyCatalogItems,
+  listScans: procurementApi.listGrnScans,
+  createScan: procurementApi.createGrnScan,
+  getReview: procurementApi.getGrnScanReview,
+  saveDraft: procurementApi.saveGrnScanDraft,
+  submitScan: procurementApi.submitGrnScan,
+  discardScan: procurementApi.discardGrnScan,
+  commitScan: procurementApi.commitGrnScan,
+  searchItems: procurementApi.searchGrnScanItems,
+  getAccuracy: procurementApi.getGrnScanAccuracy,
+  presignUpload: uploadApi.presignUpload,
+  listCatalogDuplicates: pharmacyApi.listPharmacyCatalogDuplicates,
+  mergeCatalogItems: pharmacyApi.mergePharmacyCatalogItems,
 };

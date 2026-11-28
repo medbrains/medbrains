@@ -70,10 +70,15 @@ async fn a_patients_visit_count_follows_their_encounters() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let (patient, first) = encounter(&app, &csrf, None).await;
-    let today: String = sqlx::query_scalar("SELECT CURRENT_DATE::text")
-        .fetch_one(&app.db)
-        .await
-        .expect("today");
+    // The visit is dated by the hospital's clock, not the database's (UTC on CI).
+    let today: String = sqlx::query_scalar(
+        "SELECT (timezone(COALESCE((SELECT t.timezone FROM tenants t \
+           JOIN patients p ON p.tenant_id = t.id WHERE p.id = $1), 'UTC'), now()))::date::text",
+    )
+    .bind(patient)
+    .fetch_one(&app.db)
+    .await
+    .expect("today");
     assert_eq!(totals(&app, patient).await, (1, Some(today.clone())));
 
     encounter(&app, &csrf, Some(patient)).await;

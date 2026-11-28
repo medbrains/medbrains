@@ -74,3 +74,15 @@ native_fmt 'medbrains/apps/android/*.kts' ktlint ktlint --format --relative
 if [ -x "$TOP/medbrains/.githooks/pre-commit-migrations.sh" ]; then
     (cd "$TOP/medbrains" && ./.githooks/pre-commit-migrations.sh)
 fi
+
+# Pull request size (ENGINEERING.md): the whole branch so far, staged changes included,
+# against the newest release branch. MB_MECHANICAL=1 for a pure move or generated change.
+# Only release/X.Y.Z branches; MB_PR_BASE overrides.
+base="${MB_PR_BASE:-$(git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/release/*' \
+    | grep -E '^origin/release/[0-9]+\.[0-9]+\.[0-9]+$' | sort -t/ -k3 -V | tail -1)}"
+if [ -n "$base" ] && mb="$(git merge-base HEAD "$base" 2>/dev/null)"; then
+    git diff --cached --numstat "$mb" | python3 "$TOP/medbrains/scripts/check_pr_size.py" >&2 || {
+        echo "[pre-commit] this branch is over the pull request size limit; split it, or MB_MECHANICAL=1 for a mechanical change." >&2
+        exit 1
+    }
+fi

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { navigateTo } from "../helpers";
+import { getAuthContextFromCookies } from "../helpers/api";
+import { admitPatientToOpen, createPatientApi } from "../helpers/journey-steps";
 
 /**
  * The statutory consent forms, reachable at last.
@@ -9,8 +11,9 @@ import { navigateTo } from "../helpers";
  * could not be produced by the system holding the consent.
  */
 test.describe("consent forms print from the admission", () => {
-  test("the admission offers its statutory consent forms", async ({ page }) => {
-    await navigateTo(page, "/ipd/admissions/b052afe0-bc1c-48e2-9260-a7ead7a48ab0");
+  test("the admission offers its statutory consent forms", async ({ page, request }) => {
+    const { admissionId } = await admitPatientToOpen(await getAuthContextFromCookies(request));
+    await navigateTo(page, `/ipd/admissions/${admissionId}`);
     await expect(page.getByRole("button", { name: /general consent/i })).toBeVisible({
       timeout: 15000,
     });
@@ -18,8 +21,9 @@ test.describe("consent forms print from the admission", () => {
     await expect(page.getByRole("button", { name: /DNR/i })).toBeVisible();
   });
 
-  test("the patient chart offers its patient-scoped consents", async ({ page }) => {
-    await navigateTo(page, "/patients/db7bc0cc-7d77-4a0d-9844-cc9ffcbe703f");
+  test("the patient chart offers its patient-scoped consents", async ({ page, request }) => {
+    const patient = await createPatientApi(await getAuthContextFromCookies(request));
+    await navigateTo(page, `/patients/${patient.id}`);
     await page.getByRole("tab", { name: "Documents" }).click();
     await expect(page.getByRole("button", { name: /HIV testing consent/i })).toBeVisible({
       timeout: 15000,

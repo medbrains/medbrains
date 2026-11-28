@@ -19,19 +19,12 @@ cat > "$TMP/bin/pg_dump" <<'STUB'
 printf 'PGDMP-fake-archive'
 STUB
 chmod +x "$TMP/bin/pg_dump"
-# Hide docker so the script takes the DATABASE_URL branch deterministically.
-cat > "$TMP/bin/docker" <<'STUB'
-#!/bin/sh
-exit 1
-STUB
-chmod +x "$TMP/bin/docker"
 # Every dump is sealed: no recipients is a refusal on both destinations.
 ln -s "$(command -v age)" "$TMP/bin/age"
 age-keygen 2>/dev/null | age-keygen -y > "$TMP/recipients.txt"
 
 run() { # run <BACKUP_DIR> [extra env assignments...]
     env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$TMP" \
-        POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
         DATABASE_URL="postgres://u:p@127.0.0.1:5432/medbrains" \
         BACKUP_AGE_RECIPIENTS_FILE="$TMP/recipients.txt" BACKUP_SECRETS_DIR="$TMP/nosecrets" \
         BACKUP_IDENTITY_FILE="$TMP/no-identity.txt" BACKUP_DIR="$1" "${@:2}" bash "$SCRIPT" 2>&1
@@ -49,7 +42,7 @@ for dangerous in / /var /etc /root relative/path ""; do
 done
 
 # 3. No destination at all is an error, not a silent skip.
-out="$(env -i PATH="$TMP/bin:/usr/bin:/bin" POSTGRES_USER=u POSTGRES_DB=d \
+out="$(env -i PATH="$TMP/bin:/usr/bin:/bin" DATABASE_URL=postgres://u:p@127.0.0.1/d \
         bash "$SCRIPT" 2>&1)"; rc=$?
 if [[ $rc -ne 0 && "$out" == *"no backup destination"* ]]; then
     ok "no destination fails loudly"
@@ -145,7 +138,6 @@ STUB
 chmod +x "$TMP/bin/psql"
 mkdir -p "$TMP/files/objects" "$TMP/files/pgdata"
 out="$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$TMP" \
-        POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
         DATABASE_URL="postgres://u:p@127.0.0.1:5432/medbrains" \
         BACKUP_BUCKET=bkt BACKUP_FILES_ROOTS="$TMP/files $TMP/nope" \
         BACKUP_AGE_RECIPIENTS_FILE="$TMP/recipients.txt" BACKUP_SECRETS_DIR="$TMP/nosecrets" \

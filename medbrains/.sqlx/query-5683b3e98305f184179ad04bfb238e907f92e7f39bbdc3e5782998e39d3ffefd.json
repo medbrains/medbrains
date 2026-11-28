@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE uhi_transactions SET pin_hash = $2, pin_failed_attempts = 0, slot_held_until = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5683b3e98305f184179ad04bfb238e907f92e7f39bbdc3e5782998e39d3ffefd"
+}

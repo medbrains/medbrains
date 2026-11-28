@@ -8,7 +8,7 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import type { KanidmPerson } from "@medbrains/types";
 import { IconLink, IconLinkOff, IconSearch } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,10 +36,10 @@ export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
   const [search, setSearch] = useState("");
   const [query] = useDebouncedValue(search.trim(), SEARCH_DELAY_MS);
   const linkKey = ["sso-link", user.id];
-  const link = useQuery({ queryKey: linkKey, queryFn: () => api.getUserSsoLink(user.id) });
+  const link = useQuery({ queryKey: linkKey, queryFn: () => adminApi.getUserSsoLink(user.id) });
   const people = useQuery({
     queryKey: ["kanidm-people", query],
-    queryFn: () => api.listKanidmPeople(query),
+    queryFn: () => adminApi.listKanidmPeople(query),
   });
   /** Says the change worked and re-reads the link and the people, whose "linked to" has changed. */
   const done = (title: string) => {
@@ -51,12 +51,12 @@ export function KanidmLinkModal({ user, onClose }: KanidmLinkModalProps) {
   const fail = (err: Error) =>
     notifications.show({ title: "The link did not change", message: err.message, color: "danger" });
   const linkTo = useMutation({
-    mutationFn: (person: KanidmPerson) => api.linkUserSso(user.id, person.uuid),
+    mutationFn: (person: KanidmPerson) => adminApi.linkUserSso(user.id, person.uuid),
     onSuccess: () => done("Linked to the sign-in person"),
     onError: fail,
   });
   const unlink = useMutation({
-    mutationFn: () => api.unlinkUserSso(user.id),
+    mutationFn: () => adminApi.unlinkUserSso(user.id),
     onSuccess: () => done("Link removed"),
     onError: fail,
   });

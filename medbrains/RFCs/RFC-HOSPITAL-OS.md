@@ -258,6 +258,9 @@ Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (bas
 | Web app first load | budgeted per screen | 1,060,297 bytes gzip for the JS `index.html` loads up front, one entry rather than per screen; ceiling 10% above it, checked after the CI web build |
 
 ### How we get small
+> **2026-11-22: SM2 and step 1 below are retired.** Every hospital gets one signed release and
+> switches bricks on in core; see `RFC-ONE-RELEASE-LEGO-BRICKS.md` and DECISIONS.md. The text is kept as history.
+
 1. **Profiles at compile time:** modules become Cargo features grouped into profiles (`clinic`,
    `hospital`, `full`); the Pi image builds `clinic` (patients, OPD, billing, pharmacy, lab basics),
    so specialties, marketing, research and similar are not even in the binary. Runtime module
@@ -1131,6 +1134,64 @@ rather than pretend to install.
 **Phases:** **B1** network, time and role screens with administrator setup; **B2** join as a workstation,
 and the Nodes screen; **B3** update check against the signed channel, then installing it once D4 lands;
 **B4** display; **B5** ward backup, last, because sync and failover are the hardest and riskiest part.
+
+## 8t. Hardware I/O: ports and pins for machines (owner goal, 2026-11-19)
+
+Owner direction: the OS should have hardware connections — "pins for treadmills etc." Hospitals
+run on machines: analysers, stress-test systems, scales, printers, card terminals, gas panels,
+queue bells. The OS gives drivers (RFC-OS-ECOSYSTEM) safe, audited access to them.
+
+### What the box offers
+| Port | Used for |
+|---|---|
+| Serial (RS-232, RS-485) | lab analysers (16 of 31 catalogued models are serial-only), stress-test systems, older monitors |
+| USB (HID, CDC, printer) | barcode scanners, card terminals, label and receipt printers, weighing scales |
+| GPIO pins and relays | queue bells and lamps, door locks, nurse-call lamps, oxygen-alarm sensors, UPS signals |
+| Modbus, CAN | medical-gas panels, generators, building systems |
+| Bluetooth LE | BP monitors, pulse oximeters, glucometers |
+
+Everything runs in userspace through what Linux already has — serial ttys, hidraw/libusb, the GPIO
+character device (`libgpiod`), BlueZ — with no kernel modules and no driver of ours in the kernel
+(§8o). The device-capability probe (§8p) records which ports a box has.
+
+### How access works
+- **A port or pin is a capability, granted to one driver.** The driver's manifest names the ports
+  it needs (e.g. `serial:/dev/ttyS1`, `gpio:chip0/17`); the hospital approves it at install; the
+  OS hands that driver only those, through systemd `DeviceAllow` and the AppArmor profile (T1.1).
+  Two drivers never share a port.
+- **Every use is an action.** A driver that changes the outside world (a relay, a lock, a printer)
+  goes through the kernel action broker with effect class **Device**: module on, permission
+  checked with three outcomes, audited with the person, the driver and the machine. The assistant
+  cannot run Device actions without a person's confirmation (RFC-AI-NATIVE-OS).
+- **Reading is the default.** Most drivers only read (results, weights, vitals) and post them
+  as observations under the patient's consent and data class.
+
+### The safety line (binding)
+MedBrains **never controls anything that moves, doses or supports a patient**: treadmill belts,
+infusion pumps, ventilators, beds, defibrillators. Driving one from our pins would make MedBrains a
+medical-device manufacturer (India: Medical Devices Rules 2017, CDSCO; IEC 60601-1 electrical
+safety, IEC 62304 software life cycle) and puts a patient at risk if our software stalls.
+
+- **Treadmill example:** the certified stress-ECG system controls the treadmill. MedBrains talks
+  to that system (serial, DICOM waveform, HL7, or its PDF/XML report) and records the stages,
+  speed and grade, ECG, report and alarms into the visit.
+- The **emergency stop is always a physical switch** on the device, never software.
+- Pumps, ventilators and monitors: read and show alarms only, unless the device itself is certified
+  for remote control and its maker documents the interface — and then only as a Device action
+  with a person's confirmation.
+- Patient-connected equipment plugs into ports with **galvanic isolation** (an isolated RS-232
+  adapter or USB isolator); a non-isolated port is never cabled to such a device.
+- GPIO and relays drive **non-patient** things only: bells, lamps, locks, signage, alarms.
+
+### Reference box
+For hospitals buying a box from us or a partner: one isolated RS-232 port, one RS-485 port, a
+GPIO/relay header (4 relays, 4 inputs, opto-isolated), a UPS signal input (NUT), and at least
+4 USB ports — on top of the clinic profile (§8o: NVMe, active cooling, watchdog).
+
+### First pilots
+1. Stress-ECG reports into the OPD visit (read only).
+2. Queue bell and lamp on GPIO when a token is called (non-patient).
+3. One serial lab analyser end to end, through the driver kit (RFC-OS-ECOSYSTEM phase 1).
 
 ## 9. Identity: groups and directories (built in)
 

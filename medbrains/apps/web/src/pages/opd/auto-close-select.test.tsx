@@ -5,7 +5,7 @@ import { queueStatusLabel } from "./shared";
 
 /**
  * The OPD auto-close setting and the label a visit closed by it carries.
- * Rishi Hospital's doctors never press "complete"; the setting closes started
+ * At a hospital whose doctors never press "complete", the setting closes started
  * visits for them, and the queue must say so rather than "Completed".
  */
 const getOpdAutoClose = vi.fn(async () => ({ after_minutes: 60 as number | null }));

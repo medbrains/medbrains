@@ -19,19 +19,35 @@ use crate::{MatchResult, filter_match_result, filter_patient_response, find_matc
 /// The desk lookup: every patient in the tenant matching `query`.
 ///
 /// Name, phone, UHID or Aadhaar; identity only, masked for the caller. Under
-/// three characters it matches nothing: a lookup is for someone, not a browse.
+/// three characters it matches nothing (a lookup is for someone, not a browse),
+/// except one or two bare digits, looked up as an exact UHID or OPD number.
 pub async fn find(
     conn: &mut PgConnection,
     state: &AppState,
     claims: &Claims,
     query: &str,
 ) -> Result<Vec<MatchResult>, AppError> {
+    find_by(conn, (state, claims), query, search::SearchBy::All).await
+}
+
+/// [`find`], searching only the field `by` names.
+///
+/// All fields need three characters, so two do not list half the register,
+/// except one or two bare digits, an exact UHID / OPD number lookup. One field
+/// takes what was typed for it, a UHID or OPD number matched exactly
+/// (`search::too_short` holds the rule per field).
+pub async fn find_by(
+    conn: &mut PgConnection,
+    (state, claims): (&AppState, &Claims),
+    query: &str,
+    by: search::SearchBy,
+) -> Result<Vec<MatchResult>, AppError> {
     let query = query.trim();
-    if query.chars().count() < 3 {
+    if search::too_short(query, by) {
         return Ok(Vec::new());
     }
     let Some(matcher) =
-        search::PatientSearch::for_request(state, claims.tenant_id, Some(query)).await?
+        search::PatientSearch::for_query(state, claims.tenant_id, Some(query), by).await?
     else {
         return Ok(Vec::new());
     };

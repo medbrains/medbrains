@@ -1,5 +1,5 @@
 import { Skeleton, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { aiApi } from "@medbrains/api/modules/ai";
 import { useQuery } from "@tanstack/react-query";
 import { Alert } from "@/components/ui";
 import type { AiWidget } from "../transport/types";
@@ -19,7 +19,7 @@ export interface ReplayWidgetProps {
 export function ReplayWidget({ messageId, index, title }: ReplayWidgetProps) {
   const query = useQuery({
     queryKey: ["ai-replay-widget", messageId, index],
-    queryFn: () => api.aiReplayWidget(messageId, index),
+    queryFn: () => aiApi.aiReplayWidget(messageId, index),
     retry: false,
   });
   if (query.isLoading) return <Skeleton height={120} aria-label={`Loading ${title}`} />;
