@@ -271,6 +271,29 @@ In one target dir, in this order, stopping at the first failure:
 own target dir: a shared one runs another branch's code and reports passes that are not real.
 The PR body names the commands that ran and their results; "should pass" is not a result.
 
+#### Pull request guidelines (MANDATORY)
+
+A pull request is work in progress, and work in progress is a cost: every open PR conflicts
+with the others, reruns CI when the base moves, and waits for somebody's attention. 126 were
+open on 2026-11-26; most were waiting for a read nobody had time for.
+
+1. **Limits.** At most 30 open PRs, and at most 10 waiting on the owner. Above either limit,
+   nobody (person or agent) opens a new PR except a security fix or a fix to the release branch
+   itself; finish and merge first.
+2. **One change per PR**, at most 400 hand-written lines, with a linked issue, a `Risk class:`
+   line, `## Not verified` first, and proof (test output; screenshots for a screen).
+3. **Checked before it is pushed** (the section above). CI is a confirmation, not a search.
+4. **Every open PR waits on one named thing:** CI, a fix, the owner, a clinician, an accountant,
+   or merge. A PR that waits on nothing is merged.
+5. **Seven days without movement** and it is triaged: merge it, fix it, or propose closing it.
+   Closing needs the owner's yes for that PR.
+6. **Stacks are at most two deep.** A child is retargeted to the release branch when its parent
+   merges, and its CI runs again.
+7. **Drafts are for designs being discussed,** at most 5 at a time; an idea with no design yet
+   is an issue, not a draft PR.
+8. **Avoid shared hot spots:** a decision is a file in `docs/decisions/`, never a row in a shared
+   table; `Cargo.lock` is regenerated, never hand-merged.
+
 #### Cross-compilation
 
 - **`cargo-zigbuild` is the only cross-compile path.** No `cross` (cross-rs), no docker emulation, no QEMU. Operator's mac (arm64) → server (x86_64) is the common direction; zigbuild handles glibc ABI cleanly.
