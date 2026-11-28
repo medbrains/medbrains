@@ -33,4 +33,12 @@ describe("the vitals recorder is usable without sight of the screen", () => {
     });
     expect(result.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
+
+  it("says in words that a blood pressure of 70/40 is critical", async () => {
+    render(<VitalsRecorder />);
+    await userEvent.type(screen.getByTestId("bp-systolic"), "70");
+    expect(screen.queryByText(/: Critical low$/)).not.toBeInTheDocument();
+    await userEvent.type(screen.getByTestId("bp-diastolic"), "40");
+    expect(screen.getByText(/pressure: Critical low$/i)).toBeInTheDocument();
+  });
 });
