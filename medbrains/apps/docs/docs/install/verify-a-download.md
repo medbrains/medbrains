@@ -75,7 +75,16 @@ cosign verify-blob SHA256SUMS \
   ```
 
 - **Software bill of materials.** `medbrains-source.cdx.json` (CycloneDX) is in
-  `SHA256SUMS`, so step 1 covers it.
+  `SHA256SUMS`, so step 1 covers it. Newer container images carry
+  their own, as a signed attestation on the image (older images have
+  none):
+
+  ```bash
+  cosign verify-attestation --type cyclonedx ghcr.io/medbrains/medbrains:X.Y.Z \
+    --certificate-identity-regexp '^https://github.com/medbrains/medbrains/.github/workflows/release.yml@refs/tags/v' \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    | jq -r '.payload | @base64d | fromjson | .predicate' > medbrains-image.cdx.json
+  ```
 
 ## If a check fails
 
