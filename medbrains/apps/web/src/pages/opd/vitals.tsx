@@ -12,7 +12,7 @@ import { useClinicalEmit, VitalsRecorder } from "@/components";
 import { Badge, Button } from "@/components/ui";
 import { useVitalsSource } from "@/hooks/useVitalsSource";
 import { opdService } from "@/services/opd.service";
-import { bloodPressureSeverity, severityTone, spo2Severity } from "./vitals-thresholds";
+import { VitalChips } from "./vital-chip";
 
 export function VitalsTab({
   encounterId,
@@ -79,13 +79,6 @@ export function VitalsTab({
           styles={{ item: { marginBottom: 8 } }}
         >
           {vitals.map((v: Vital, idx: number) => {
-            const prev = vitals[idx + 1] as Vital | undefined;
-            const trend = (curr: number | null, prevVal: number | null) => {
-              if (!curr || !prevVal) return "";
-              if (curr > prevVal) return " ↑";
-              if (curr < prevVal) return " ↓";
-              return " →";
-            };
             return (
               <Timeline.Item
                 key={v.id}
@@ -104,44 +97,7 @@ export function VitalsTab({
                 }
               >
                 <Group gap="md" mt={4} wrap="wrap">
-                  {v.temperature != null && (
-                    <Badge tone={Number(v.temperature) > 37.5 ? "danger" : "primary"} size="md">
-                      Temp {v.temperature}°C
-                      {trend(
-                        Number(v.temperature),
-                        prev?.temperature ? Number(prev.temperature) : null,
-                      )}
-                    </Badge>
-                  )}
-                  {v.pulse != null && (
-                    <Badge
-                      tone={
-                        Number(v.pulse) > 100
-                          ? "danger"
-                          : Number(v.pulse) < 60
-                            ? "warning"
-                            : "primary"
-                      }
-                      size="md"
-                    >
-                      Pulse {v.pulse} bpm
-                      {trend(Number(v.pulse), prev?.pulse ? Number(prev.pulse) : null)}
-                    </Badge>
-                  )}
-                  {v.systolic_bp != null && v.diastolic_bp != null && (
-                    <Badge
-                      tone={severityTone(bloodPressureSeverity(v.systolic_bp, v.diastolic_bp))}
-                      size="md"
-                    >
-                      BP {v.systolic_bp}/{v.diastolic_bp} mmHg
-                    </Badge>
-                  )}
-                  {v.spo2 != null && (
-                    <Badge tone={severityTone(spo2Severity(v.spo2))} size="md">
-                      SpO₂ {v.spo2}%
-                    </Badge>
-                  )}
-                  {v.respiratory_rate != null && <Badge size="sm">RR {v.respiratory_rate}</Badge>}
+                  <VitalChips size="md" vitals={v} previous={vitals[idx + 1]} />
                   {v.weight_kg != null && (
                     <Badge variant="outline" size="md">
                       Weight {v.weight_kg} kg
@@ -187,26 +143,7 @@ export function VitalsTab({
                 }
               >
                 <Group gap="xs" mt={4} wrap="wrap">
-                  {v.temperature != null && (
-                    <Badge tone={Number(v.temperature) > 37.5 ? "danger" : "primary"}>
-                      Temp {v.temperature}°C
-                    </Badge>
-                  )}
-                  {v.pulse != null && (
-                    <Badge tone={v.pulse > 100 ? "danger" : v.pulse < 60 ? "warning" : "primary"}>
-                      Pulse {v.pulse}
-                    </Badge>
-                  )}
-                  {v.systolic_bp != null && v.diastolic_bp != null && (
-                    <Badge
-                      tone={severityTone(bloodPressureSeverity(v.systolic_bp, v.diastolic_bp))}
-                    >
-                      BP {v.systolic_bp}/{v.diastolic_bp}
-                    </Badge>
-                  )}
-                  {v.spo2 != null && (
-                    <Badge tone={severityTone(spo2Severity(v.spo2))}>SpO₂ {v.spo2}%</Badge>
-                  )}
+                  <VitalChips vitals={v} />
                   {v.weight_kg != null && <Badge variant="outline">Weight {v.weight_kg} kg</Badge>}
                   {v.bmi != null && <Badge variant="outline">BMI {v.bmi}</Badge>}
                 </Group>
