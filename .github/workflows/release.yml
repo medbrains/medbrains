@@ -517,7 +517,7 @@ jobs:
       # Boots a smoke copy of the image just built, with a software TPM, and stops the job before upload
       # unless first boot reaches the recovery key screen (os/tests/smoke-boot.py says what is and is not
       # covered). x86-64 only: the arm64 runner has no KVM, and an emulated arm64 boot with a TPM is not
-      # one we have seen work. Measured: 1.4 minutes under TCG on a laptop; KVM, where the runner has it, less.
+      # one we have seen work. Measured: about 2 minutes under TCG on a laptop; KVM, where the runner has it, less.
       - name: Smoke boot (x86-64, TPM)
         if: matrix.arch == 'x86-64'
         timeout-minutes: 20

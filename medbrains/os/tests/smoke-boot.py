@@ -5,7 +5,7 @@ recovery key screen.
   os/tests/smoke-boot.py IMAGE.raw [--minutes 15] [--work DIR]
 
 Linux only (the release's os-image container): needs qemu-system-x86, ovmf, swtpm and
-e2fsprogs. Uses KVM when /dev/kvm is writable, else TCG (1.4 minutes to the
+e2fsprogs. Uses KVM when /dev/kvm is writable, else TCG (about 2 minutes to the
 recovery key on a laptop).
 
 A release image has no shell and prints nothing on its serial port, so this boots a smoke copy: the
