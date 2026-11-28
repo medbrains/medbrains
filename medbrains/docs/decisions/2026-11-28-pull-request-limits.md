@@ -6,7 +6,7 @@ area: engineering
 ---
 ## What
 
-Pull request guidelines in ENGINEERING.md: at most 30 open PRs and 10 waiting on the owner, above which only security and release-branch fixes are opened; one change per PR; every open PR waits on one named thing; a PR unmoved for seven days is triaged; stacks at most two deep; at most five drafts.
+Pull request guidelines in ENGINEERING.md: at most 30 open PRs and 10 waiting on the owner, above which only security and release-branch fixes are opened; one change per PR of about 200 and at most 400 hand-written lines and at most 10 files (Google's small-CL guidance), with refactors in their own PR; every open PR waits on one named thing; a PR unmoved for seven days is triaged; stacks at most two deep; at most five drafts.
 
 ## Why
 

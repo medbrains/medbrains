@@ -280,8 +280,24 @@ open on 2026-11-26; most were waiting for a read nobody had time for.
 1. **Limits.** At most 30 open PRs, and at most 10 waiting on the owner. Above either limit,
    nobody (person or agent) opens a new PR except a security fix or a fix to the release branch
    itself; finish and merge first.
-2. **One change per PR**, at most 400 hand-written lines, with a linked issue, a `Risk class:`
-   line, `## Not verified` first, and proof (test output; screenshots for a screen).
+2. **One change per PR, small enough to review well**, with a linked issue, a `Risk class:`
+   line, `## Not verified` first, and proof (test output; screenshots for a screen). Size,
+   following Google's small-CL guidance and the review studies behind it (reviewers find
+   fewer defects once a change passes a few hundred lines):
+
+   | Measure (hand-written: excludes lockfiles, `.sqlx`, generated code, snapshots) | Aim | Hard limit |
+   |---|---|---|
+   | Lines changed (added + removed) | about 200 | 400 |
+   | Files changed | 5 or fewer | 10 |
+   | Concerns | one | one |
+
+   - **Refactor apart from behaviour.** A move, rename or split goes in its own PR, before the
+     change that uses it, so the behaviour change is small and readable.
+   - **Tests count toward the limit** but may take it to 500 when the test is most of the diff.
+   - **Over the limit** only for a pure move, a generated file or a mechanical rename, said in
+     the body ("mechanical: <how it was produced>"); never for a safety, money or security change.
+   - **Too big?** Split it: schema first, then the server, then the screen; or feature-flag the
+     unfinished part.
 3. **Checked before it is pushed** (the section above). CI is a confirmation, not a search.
 4. **Every open PR waits on one named thing:** CI, a fix, the owner, a clinician, an accountant,
    or merge. A PR that waits on nothing is merged.
