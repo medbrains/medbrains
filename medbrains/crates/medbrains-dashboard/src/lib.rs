@@ -2237,7 +2237,9 @@ async fn resolve_module_query(
         }
         ("lab", "phlebotomy_queue") => {
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
-                "SELECT COALESCE(json_agg(r ORDER BY r.created_at), '[]'::json) FROM (
+                // The inner row names its time `ordered_at`; ordering by
+                // `r.created_at` failed on every read of the tile.
+                "SELECT COALESCE(json_agg(r ORDER BY r.ordered_at), '[]'::json) FROM (
                  SELECT lo.id::text, p.first_name || ' ' || p.last_name AS patient_name,
                         lo.status::text, lo.created_at::text AS ordered_at
                  FROM lab_orders lo
@@ -2271,19 +2273,28 @@ async fn resolve_module_query(
         }
         ("pharmacy", "stock_alerts") => {
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                // Each half has its own bound, expiring first: one LIMIT over
+                // the union let twenty low-stock drugs hide every expiry.
                 "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
-                 SELECT generic_name AS label, 'Low Stock' AS subtitle,
-                        'alert-circle' AS icon, 'orange' AS color
-                 FROM pharmacy_catalog
-                 WHERE current_stock <= reorder_level AND is_active = true
+                 (-- A batch has no name or `quantity` of its own: the drug's
+                  -- name is on the catalogue row, the count is quantity_on_hand.
+                  SELECT pc.generic_name AS label,
+                         'Expiring ' || TO_CHAR(b.expiry_date, 'DD Mon YYYY') AS subtitle,
+                         'clock' AS icon, 'red' AS color
+                  FROM pharmacy_batches b
+                  JOIN pharmacy_catalog pc ON pc.id = b.catalog_item_id
+                  WHERE b.expiry_date <= CURRENT_DATE + INTERVAL '90 days'
+                    AND b.expiry_date > CURRENT_DATE AND b.quantity_on_hand > 0
+                    AND b.deleted_at IS NULL
+                  ORDER BY b.expiry_date
+                  LIMIT 10)
                  UNION ALL
-                 SELECT generic_name AS label,
-                        'Expiring ' || TO_CHAR(expiry_date, 'DD Mon YYYY') AS subtitle,
-                        'clock' AS icon, 'red' AS color
-                 FROM pharmacy_batches
-                 WHERE expiry_date <= CURRENT_DATE + INTERVAL '90 days'
-                   AND expiry_date > CURRENT_DATE AND quantity > 0
-                 LIMIT 20
+                 (SELECT generic_name AS label, 'Low Stock' AS subtitle,
+                         'alert-circle' AS icon, 'orange' AS color
+                  FROM pharmacy_catalog
+                  WHERE current_stock <= reorder_level AND is_active = true
+                  ORDER BY current_stock
+                  LIMIT 10)
                  ) r",
             )
             .fetch_one(&mut **tx)
@@ -2309,7 +2320,9 @@ async fn resolve_module_query(
         // ── Role-specific: Billing ──
         ("billing", "today_collections") => {
             let total = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
-                "SELECT SUM(amount) FROM payments WHERE payment_date >= CURRENT_DATE",
+                // `payments` records when money came in as `paid_at`; it has
+                // no `payment_date`, so this tile answered 500 on every read.
+                "SELECT SUM(amount) FROM payments WHERE paid_at >= CURRENT_DATE",
             )
             .fetch_one(&mut **tx)
             .await?

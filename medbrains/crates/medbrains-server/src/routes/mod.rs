@@ -10,7 +10,6 @@ pub mod debug;
 pub mod health;
 pub mod immunizations;
 pub mod message_simulator;
-pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
 pub mod portal_health;
@@ -22,35 +21,19 @@ pub mod portal_tele;
 pub mod rx_verify;
 pub mod store_public;
 pub mod uhi;
-pub use medbrains_nabh as nabh_evidence;
-// scheduling routes moved to the medbrains-scheduling leaf; re-exported so
-// reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
 pub use medbrains_identity::sso;
 pub use medbrains_notifications as notifications;
-pub use medbrains_platform::ckb;
-pub use medbrains_print_data::billing as print_data_billing;
-pub use medbrains_print_data::clinical as print_data_clinical;
-pub use medbrains_scheduling::scheduling;
 pub use medbrains_server_core::step_up;
-pub use medbrains_signing::signed_documents;
-pub use medbrains_telehealth::cds;
-// order_basket reaches diet's order-creation helper via super::diet
-pub use medbrains_diet as diet;
-// opd/order_basket reach radiology order helpers via super::radiology; public viewer route too
+// the public viewer routes below are radiology's share-link handlers
 pub use medbrains_radiology as radiology;
-// opd/order_basket reach lab order helpers via super::lab
-pub use medbrains_lab as lab;
-// ai/ipd_post_discharge/order_basket reach pharmacy order + med-safety helpers via super::pharmacy
-pub use medbrains_pharmacy as pharmacy;
-// case_sheet_scan/mrd/appointments reach opd helpers via super::opd
+// appointments reach the OPD token helper via crate::routes::opd
 pub use medbrains_opd as opd;
-// ai/appointments reach patients helpers via super::patients
+// appointments reach generate_uhid via crate::routes::patients
 pub use medbrains_patients as patients;
 // payment_gateway webhook routes stay in the no-auth public chain in mod.rs
 pub use medbrains_payment_gateway as payment_gateway;
 pub use medbrains_setup as setup;
-pub use medbrains_vpn as vpn;
-// billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
+// appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod orchestration;
 

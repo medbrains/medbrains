@@ -1,0 +1,5 @@
+# Ceiling for crates/medbrains-server/src, checked by scripts/check_shell_size.py.
+# Lowered with --update by the PR that moves code out of the shell. Never raised:
+# the script will not do it, and a hand edit upward needs the owner.
+lines 39726
+routes 199
