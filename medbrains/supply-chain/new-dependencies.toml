@@ -729,3 +729,85 @@ ecosystem = "cargo"
 name = "actix-http"
 version = "3.21.3"
 reason = "RUSTSEC-2026-0552, RUSTSEC-2026-0553, RUSTSEC-2026-0554: request-smuggling and header-timeout fixes against actix-http 3.20.3"
+
+[[review]]
+ecosystem = "cargo"
+name = "archery"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-19"
+why = "pointer-kind abstraction (Rc/Arc) imbl is generic over; via imbl <- loro-internal 1.18 (edge CRDT sync)"
+checked = "archery@1.2.3: owner orium (since 2019), repository https://github.com/orium/archery, MIT; no build.rs; 35M downloads"
+
+[[review]]
+ecosystem = "cargo"
+name = "imbl"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-19"
+why = "the maintained fork of im that loro 1.18 moved to; replaces im 15.1 (RUSTSEC-2026-0248, RUSTSEC-2023-0126) under loro-internal (edge CRDT sync)"
+checked = "imbl@7.0.2: owners jneem, arthurprs, repository https://github.com/jneem/imbl, MPL-2.0+; no build.rs; 14M downloads"
+
+[[review]]
+ecosystem = "cargo"
+name = "imbl-sized-chunks"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-19"
+why = "imbl's chunk storage, the maintained fork of sized-chunks (RUSTSEC-2026-0251, RUSTSEC-2026-0255); via imbl <- loro-internal 1.18"
+checked = "imbl-sized-chunks@0.2.0: owners jneem, arthurprs, repository https://github.com/jneem/imbl-sized-chunks, MPL-2.0+; no build.rs; 14M downloads"
+
+[[review]]
+ecosystem = "cargo"
+name = "wide"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-19"
+why = "portable SIMD types imbl uses for its hashing; via imbl <- loro-internal 1.18"
+checked = "wide@0.7.33: owner Lokathor (since 2019), repository https://github.com/Lokathor/wide, Zlib OR Apache-2.0 OR MIT; no build.rs; 100M downloads"
+
+[[review]]
+ecosystem = "cargo"
+name = "safe_arch"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-19"
+why = "safe wrappers over CPU intrinsics; via wide <- imbl <- loro-internal 1.18"
+checked = "safe_arch@0.7.4: owner Lokathor (since 2020), repository https://github.com/Lokathor/safe_arch, Zlib OR Apache-2.0 OR MIT; no build.rs; 98M downloads"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "generic-btree"
+version = "0.10.8"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; generic-btree 0.10.8 moves with it (edge CRDT sync)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "loro"
+version = "1.18.0"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; loro 1.18.0 moves with it (edge CRDT sync)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "loro-common"
+version = "1.18.0"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; loro-common 1.18.0 moves with it (edge CRDT sync)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "loro-delta"
+version = "1.18.0"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; loro-delta 1.18.0 moves with it (edge CRDT sync)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "loro-internal"
+version = "1.18.0"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; loro-internal 1.18.0 moves with it (edge CRDT sync)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "loro-kv-store"
+version = "1.18.0"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; loro-kv-store 1.18.0 moves with it (edge CRDT sync)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "loro_fractional_index"
+version = "1.18.0"
+reason = "RUSTSEC-2023-0126, RUSTSEC-2026-0247, RUSTSEC-2026-0248, RUSTSEC-2026-0251, RUSTSEC-2026-0255: loro 1.18.0 (2026-11-16) is the release that drops im, bitmaps and sized-chunks for imbl; loro_fractional_index 1.18.0 moves with it (edge CRDT sync)"
