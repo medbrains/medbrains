@@ -1,6 +1,8 @@
 //! A complaint that reads like a medico-legal case never blocks care: the
-//! receptionist's visit and the nurse's triage save, and the visit is flagged
-//! as a possible MLC for a doctor. No MLC case comes from text alone.
+//! receptionist's visit and the nurse's triage save, the visit is flagged as a
+//! possible MLC, and only a holder of `emergency.mlc.review_suspected`
+//! decides it. A case registered without naming a visit lands on the
+//! patient's open ER visit.
 
 use crate::common;
 
@@ -51,7 +53,9 @@ async fn visit(app: &common::TestApp, staff: &common::Staff, id: &Value) -> Valu
 /// Given a receptionist and a nurse without `emergency.mlc.create`, When one
 /// registers a road-accident arrival and the other triages an assault, Then
 /// both save and the visits are flagged as suspected, with no MLC case and an
-/// audit row naming who saved.
+/// audit row; the nurse cannot decide the flag; the doctor's dismissal needs a
+/// reason; the doctor's confirmation registers the case on that visit; and a
+/// case registered from the MLC tab lands on the patient's open visit.
 #[tokio::test]
 async fn a_trauma_complaint_saves_and_waits_for_a_doctor() {
     let app = common::spawn_app().await;
@@ -118,4 +122,88 @@ async fn a_trauma_complaint_saves_and_waits_for_a_doctor() {
     let seen = visit(&app, &nurse, &second["id"]).await;
     assert_eq!(seen["mlc_suspicion"], "suspected", "{seen}");
     assert_eq!(seen["is_mlc"], false);
+
+    let decide = format!("{visits}/{first_id}/mlc-suspicion");
+    let confirm = json!({ "decision": "confirm" });
+    let (status, _) = send(&nurse.csrf, nurse.client.put(&decide).json(&confirm)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "the nurse cannot confirm");
+    let dismiss = json!({ "decision": "dismiss" });
+    let (status, _) = send(&doctor.csrf, doctor.client.put(&decide).json(&dismiss)).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "a dismissal needs a reason"
+    );
+    let (status, decided) = send(&doctor.csrf, doctor.client.put(&decide).json(&confirm)).await;
+    assert_eq!(status, StatusCode::OK, "the doctor confirms: {decided}");
+    assert_eq!(decided["is_mlc"], true);
+    let linked: Uuid = sqlx::query_scalar("SELECT id FROM mlc_cases WHERE er_visit_id = $1")
+        .bind(first_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("the case is linked to the visit");
+    assert_eq!(decided["mlc_case_id"], json!(linked));
+    let (status, _) = send(&doctor.csrf, doctor.client.put(&decide).json(&confirm)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "nothing left to decide");
+
+    let (status, case) = send(
+        &doctor.csrf,
+        doctor
+            .client
+            .post(app.url("/api/emergency/mlc"))
+            .json(&json!({
+                "patient_id": second_patient, "case_type": "assault",
+            })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{case}");
+    assert_eq!(
+        case["er_visit_id"], second["id"],
+        "linked to the open visit"
+    );
+    let seen = visit(&app, &doctor, &second["id"]).await;
+    assert_eq!(seen["is_mlc"], true, "{seen}");
+    assert_eq!(seen["mlc_suspicion"], "confirmed");
+}
+
+/// Given a possible MLC a doctor dismissed, When an MLC case is later
+/// registered on that visit from the MLC tab, Then the visit reads confirmed,
+/// decided by whoever registered it, never "dismissed" beside a live case.
+#[tokio::test]
+async fn a_case_registered_after_a_dismissal_confirms_the_visit() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
+    let desk = common::provision_staff(&app, &csrf, "receptionist", &[]).await;
+    let patient = patient_of(&app, &csrf, doctor.user_id).await;
+    let visits = app.url("/api/emergency/visits");
+    let (status, arrival) = send(
+        &desk.csrf,
+        desk.client.post(&visits).json(&json!({
+            "patient_id": patient, "chief_complaint": "Road traffic accident, cut on arm",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{arrival}");
+    let id = arrival["id"].as_str().expect("id");
+    let dismiss = json!({ "decision": "dismiss", "reason": "Fell from own bicycle at home" });
+    let decide = format!("{visits}/{id}/mlc-suspicion");
+    let (status, _) = send(&doctor.csrf, doctor.client.put(&decide).json(&dismiss)).await;
+    assert_eq!(status, StatusCode::OK, "the doctor dismisses");
+
+    let (status, case) = send(
+        &doctor.csrf,
+        doctor
+            .client
+            .post(app.url("/api/emergency/mlc"))
+            .json(&json!({
+                "patient_id": patient, "er_visit_id": id, "case_type": "assault",
+            })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{case}");
+    let seen = visit(&app, &doctor, &arrival["id"]).await;
+    assert_eq!(seen["is_mlc"], true, "{seen}");
+    assert_eq!(seen["mlc_suspicion"], "confirmed", "{seen}");
+    assert_eq!(seen["mlc_suspicion_decided_by"], json!(doctor.user_id));
 }

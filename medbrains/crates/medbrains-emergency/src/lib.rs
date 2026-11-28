@@ -1654,27 +1654,13 @@ pub async fn create_mlc_case(
     mlc_record::ensure_examining_doctor(&mut tx, claims.tenant_id, record.examining_doctor_id)
         .await?;
 
-    if let Some(er_visit_id) = body.er_visit_id {
-        ensure_er_visit_matches_patient(&mut tx, claims.tenant_id, er_visit_id, body.patient_id)
-            .await?;
-        let existing = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM mlc_cases WHERE er_visit_id = $1 AND tenant_id = $2)",
-        )
-        .bind(er_visit_id)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if existing {
-            return Err(AppError::Conflict(
-                "An MLC case is already linked to this ER visit".to_owned(),
-            ));
-        }
-        sqlx::query("UPDATE er_visits SET is_mlc = true, updated_at = now() WHERE id = $1 AND tenant_id = $2")
-            .bind(er_visit_id)
-            .bind(claims.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-    }
+    let er_visit_id = mlc_suspicion::link_case_to_visit(
+        &mut tx,
+        (claims.tenant_id, claims.sub),
+        body.er_visit_id,
+        body.patient_id,
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, MlcCase>(
         "INSERT INTO mlc_cases (tenant_id, er_visit_id, patient_id, mlc_number, case_type, fir_number, police_station,
@@ -1693,7 +1679,7 @@ pub async fn create_mlc_case(
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(body.er_visit_id)
+    .bind(er_visit_id)
     .bind(body.patient_id)
     // NULL: the MLC_NUMBER sequence trigger allocates the number (1067).
     .bind(None::<String>)
@@ -3264,4 +3250,8 @@ pub fn router() -> axum::Router<AppState> {
             put(update_mass_casualty_event),
         )
         .route("/api/emergency/visits/{id}/admit", post(admit_from_er))
+        .route(
+            "/api/emergency/visits/{id}/mlc-suspicion",
+            put(mlc_suspicion::decide_suspected_mlc),
+        )
 }

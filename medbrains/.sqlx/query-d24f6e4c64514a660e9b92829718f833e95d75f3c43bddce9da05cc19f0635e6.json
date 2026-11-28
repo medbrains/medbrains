@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT v.id FROM er_visits v\n          WHERE v.tenant_id = $1 AND v.patient_id = $2 AND v.deleted_at IS NULL\n            AND v.status IN ('registered', 'triaged', 'in_treatment', 'observation')\n            AND NOT EXISTS (SELECT 1 FROM mlc_cases m\n                             WHERE m.er_visit_id = v.id AND m.tenant_id = v.tenant_id)\n          ORDER BY v.arrival_time DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d24f6e4c64514a660e9b92829718f833e95d75f3c43bddce9da05cc19f0635e6"
+}
