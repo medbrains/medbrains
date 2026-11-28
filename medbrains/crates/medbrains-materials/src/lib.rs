@@ -19,6 +19,7 @@ pub mod grn_validate;
 pub mod housekeeping;
 pub mod ops;
 pub mod procurement;
+pub mod vendor_ledger;
 
 pub fn router() -> Router<AppState> {
     Router::new()

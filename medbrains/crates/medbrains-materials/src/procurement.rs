@@ -1635,123 +1635,16 @@ pub async fn update_supplier_payment(
 // (debit) into a single chronological ledger so finance can close the
 // month per-supplier without joining four tables by hand.
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct VendorLedgerEntry {
-    pub txn_date: chrono::DateTime<chrono::Utc>,
-    pub txn_type: String, // 'grn' | 'payment' | 'return'
-    pub reference_number: Option<String>,
-    pub debit: Decimal,           // money owed BY vendor (returns, overpayments)
-    pub credit: Decimal,          // money owed TO vendor (received goods)
-    pub running_balance: Decimal, // negative = vendor owes us
-    pub note: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct VendorLedgerResponse {
-    pub vendor_id: Uuid,
-    pub opening_balance: Decimal,
-    pub closing_balance: Decimal,
-    pub total_purchases: Decimal,
-    pub total_payments: Decimal,
-    pub total_returns: Decimal,
-    pub entries: Vec<VendorLedgerEntry>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct LedgerRow {
-    txn_date: chrono::DateTime<chrono::Utc>,
-    txn_type: String,
-    reference_number: Option<String>,
-    debit: Decimal,
-    credit: Decimal,
-    note: Option<String>,
-}
-
 /// GET /api/procurement/vendors/{id}/ledger
 pub async fn vendor_ledger(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
-) -> Result<Json<VendorLedgerResponse>, AppError> {
+) -> Result<Json<crate::vendor_ledger::VendorLedgerResponse>, AppError> {
     require_permission(&claims, permissions::procurement::vendors::LIST)?;
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Posted GRNs = goods received → vendor credit (we owe them). A draft
-    // is not yet owed.
-    // Payments = money out → vendor debit (paid down)
-    // Returns (supplier_return type credit notes) → debit (vendor owes us)
-    let rows = sqlx::query_as::<_, LedgerRow>(
-        "SELECT posted_at AS txn_date, 'grn'::text AS txn_type, \
-                grn_number AS reference_number, \
-                0::numeric(14,2) AS debit, \
-                total_amount AS credit, \
-                COALESCE(invoice_number, notes) AS note \
-         FROM goods_receipt_notes \
-         WHERE vendor_id = $1 AND tenant_id = $2 \
-           AND posted_at IS NOT NULL AND deleted_at IS NULL \
-         UNION ALL \
-         SELECT COALESCE(payment_date::timestamptz, created_at) AS txn_date, \
-                'payment'::text AS txn_type, \
-                payment_number AS reference_number, \
-                paid_amount AS debit, \
-                0::numeric(14,2) AS credit, \
-                notes AS note \
-         FROM supplier_payments \
-         WHERE vendor_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
-         UNION ALL \
-         SELECT created_at AS txn_date, 'return'::text AS txn_type, \
-                credit_note_number AS reference_number, \
-                total_amount AS debit, \
-                0::numeric(14,2) AS credit, \
-                notes AS note \
-         FROM pharmacy_credit_notes \
-         WHERE vendor_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
-           AND note_type = 'supplier_return' AND status <> 'cancelled' \
-         ORDER BY txn_date ASC LIMIT 5000",
-    )
-    .bind(vendor_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
+    let ledger = crate::vendor_ledger::ledger(&mut tx, claims.tenant_id, vendor_id).await?;
     tx.commit().await?;
-
-    let mut running = Decimal::ZERO;
-    let mut total_purchases = Decimal::ZERO;
-    let mut total_payments = Decimal::ZERO;
-    let mut total_returns = Decimal::ZERO;
-    let entries: Vec<VendorLedgerEntry> = rows
-        .into_iter()
-        .map(|r| {
-            // Running balance: positive = we owe vendor.
-            running += r.credit - r.debit;
-            match r.txn_type.as_str() {
-                "grn" => total_purchases += r.credit,
-                "payment" => total_payments += r.debit,
-                "return" => total_returns += r.debit,
-                _ => {}
-            }
-            VendorLedgerEntry {
-                txn_date: r.txn_date,
-                txn_type: r.txn_type,
-                reference_number: r.reference_number,
-                debit: r.debit,
-                credit: r.credit,
-                running_balance: running,
-                note: r.note,
-            }
-        })
-        .collect();
-
-    Ok(Json(VendorLedgerResponse {
-        vendor_id,
-        opening_balance: Decimal::ZERO,
-        closing_balance: running,
-        total_purchases,
-        total_payments,
-        total_returns,
-        entries,
-    }))
+    Ok(Json(ledger))
 }
