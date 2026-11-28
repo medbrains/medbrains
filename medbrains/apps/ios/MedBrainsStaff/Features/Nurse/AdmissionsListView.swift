@@ -5,7 +5,7 @@ import SwiftUI
 /// Active admissions worklist. Pick a bed to enter the bedside workspace.
 struct AdmissionsListView: View {
     @Environment(\.apiClient) private var client
-    @State private var remote = Remote<[AdmissionRow]>()
+    @State private var remote = Remote<PagedRows<AdmissionRow>>()
 
     var body: some View {
         ScrollView {
@@ -16,19 +16,17 @@ struct AdmissionsListView: View {
                     state: remote.state,
                     unavailableTitle: "Couldn't load admissions",
                     unavailableMessage: "The ward list could not be loaded. Do not read this as an empty ward.",
-                    isEmpty: \.isEmpty,
+                    isEmpty: \.rows.isEmpty,
                     emptyTitle: "No active admissions",
                     emptyMessage: "Nobody is admitted on your wards right now.",
                     retry: { Task { await load() } }
-                ) { rows in
-                    LazyVStack(spacing: 0) {
-                        ForEach(rows) { row in
-                            NavigationLink(value: NurseRoute.workspace(row)) {
-                                CarbonRow(row.patientName, detail: row.bedLine) { CarbonTag("active", tone: .success) }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("admission-\(row.id)")
+                ) { paged in
+                    AdmissionWorklist(paged: paged) { row in
+                        NavigationLink(value: NurseRoute.workspace(row)) {
+                            CarbonRow(row.patientName, detail: row.bedLine) { CarbonTag("active", tone: .success) }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("admission-\(row.id)")
                     }
                 }
             }

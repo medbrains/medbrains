@@ -24,9 +24,17 @@ struct AdmissionRow: Codable, Hashable, Identifiable, Sendable {
     var bedLine: String {
         (admissionNumber.map { "\($0) · " } ?? "") + "UHID \(uhid)" + (bedLabel.map { " · BED \($0)" } ?? "")
     }
+
+    /// Whether the worklist search keeps this row: name, UHID, IP number, bed or ward.
+    func matches(_ query: String) -> Bool {
+        matchesSearch(query, in: [patientName, uhid, admissionNumber, bedLabel, wardName])
+    }
 }
 
-private struct AdmissionList: Decodable { let admissions: [AdmissionRow] }
+private struct AdmissionList: Decodable {
+    let admissions: [AdmissionRow]
+    let total: Int
+}
 
 struct MarRow: Codable, Hashable, Identifiable, Sendable {
     let id: String
@@ -255,13 +263,33 @@ private struct CompleteBody: Encodable { let totalVolumeInfusedMl: Int? }
 struct NurseApi: Sendable {
     let client: ApiClient
 
-    func listActiveAdmissions() async throws -> [AdmissionRow] {
-        let page: AdmissionList = try await client.request(.get, "/api/ipd/admissions?status=admitted&per_page=100")
-        return page.admissions.map { row in
-            var r = row
-            if r.bedLabel == nil { r.bedLabel = row.wardName }
-            return r
+    /// The server's largest page. ponytail: 10 pages caps a worklist at 1,000
+    /// admissions; past that the screen says it stopped short.
+    static let admissionPageSize = 100
+    static let admissionPageCap = 10
+
+    /// Every admitted patient the caller may see, read page by page until the
+    /// server's total, so a big hospital's list never stops silently at 100.
+    func listActiveAdmissions() async throws -> PagedRows<AdmissionRow> {
+        try await fetchAllPages(maxPages: Self.admissionPageCap) { page in
+            let list = try await admissionsPage(page, size: Self.admissionPageSize)
+            return ListPage(rows: list.admissions.map(Self.labelBed), total: list.total)
         }
+    }
+
+    /// How many patients are admitted that the caller may see; reads one row.
+    func countActiveAdmissions() async throws -> Int { try await admissionsPage(1, size: 1).total }
+
+    /// One page of admitted patients, with the server's total.
+    private func admissionsPage(_ page: Int, size: Int) async throws -> AdmissionList {
+        try await client.request(.get, "/api/ipd/admissions?status=admitted&per_page=\(size)&page=\(page)")
+    }
+
+    /// A row without a bed shows its ward where the bed would be.
+    private static func labelBed(_ row: AdmissionRow) -> AdmissionRow {
+        var r = row
+        if r.bedLabel == nil { r.bedLabel = row.wardName }
+        return r
     }
 
     func listNurseCalls() async throws -> NurseCallBoard { try await client.request(.get, "/api/bedside/nurse-calls/active") }
