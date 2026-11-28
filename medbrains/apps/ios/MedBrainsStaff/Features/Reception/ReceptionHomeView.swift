@@ -28,8 +28,10 @@ final class ReceptionSession {
     var source = "walk_in"
     var referredByName = ""
     var departments: [DepartmentRow] = []
-    /// The department list could not be loaded — an outage, never an empty hospital.
-    var departmentsFailed = false
+    /// The picker lists that could not be loaded ("departments", "doctors",
+    /// "camps", "campaigns"): an outage the screens say, never an empty hospital.
+    var unloadedLists: [String] = []
+    var departmentsFailed: Bool { unloadedLists.contains("departments") }
     var doctors: [DoctorRow] = []
     /// Camps a registration can name, for a desk allowed to list them.
     var camps: [CampSummary] = []
@@ -40,18 +42,21 @@ final class ReceptionSession {
     func doctorName(_ id: String?) -> String? { doctors.first { $0.id == id }?.fullName }
 
     /// The pickers' rows for a registration desk: departments, doctors, and
-    /// the open camps and running campaigns when the role may list them.
-    /// An unloadable department list is an outage, never an empty hospital.
+    /// the open camps and running campaigns when the role may list them. A
+    /// list that could not be loaded is named in `unloadedLists`.
     @MainActor
     func load(_ api: ReceptionApi, identity: TenantIdentity?) async {
         async let d = try? api.departments()
         async let r = try? api.doctors()
-        let loaded = await d
-        departments = loaded ?? []
-        if identity?.can("camp.list") ?? false { camps = ((try? await api.camps()) ?? []).filter(\.isOpen) }
-        if identity?.can("marketing.campaigns.lookup") ?? false { campaigns = (try? await api.campaigns()) ?? [] }
-        departmentsFailed = loaded == nil
-        doctors = await r ?? []
+        let c: [CampSummary]? = identity?.can("camp.list") ?? false ? try? await api.camps() : []
+        let m: [CampaignOption]? = identity?.can("marketing.campaigns.lookup") ?? false ? try? await api.campaigns() : []
+        let (dep, doc) = await (d, r)
+        departments = dep ?? []
+        doctors = doc ?? []
+        camps = (c ?? []).filter(\.isOpen)
+        campaigns = m ?? []
+        let missing = [("departments", dep == nil), ("doctors", doc == nil), ("camps", c == nil), ("campaigns", m == nil)]
+        unloadedLists = missing.filter(\.1).map(\.0)
     }
 }
 

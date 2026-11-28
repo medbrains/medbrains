@@ -70,17 +70,16 @@ enum LaunchArguments {
     }
 }
 
-/// A module home not yet converted: says so, and shows what the role will get.
+/// A module home not on the phone yet: points to the web app, and shows what the role will get.
 struct PlaceholderModuleHome: View {
     let module: AppModule
-    let phase: Int
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Eyebrow("Converting in phase \(phase)")
-                    Text("\(module.displayName) keeps running on the current app until this screen lands natively.")
+                    Eyebrow("Not on the phone yet")
+                    Text("\(module.displayName) is not on this app yet. Use it on the web app, at your hospital's MedBrains address.")
                         .font(CarbonType.body)
                         .foregroundStyle(MedBrainsTheme.inkSecondary)
                 }

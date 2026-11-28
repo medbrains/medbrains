@@ -59,14 +59,20 @@ extension ReceptionApi {
     func checkOutVisitor(_ passId: String) async throws -> VisitorLogRow { try await client.request(.put, "/api/front-office/visitor-logs/\(passId)/check-out") }
 }
 
+/// The desk's three lists, loaded together or not at all: passes without
+/// their check-in logs would count the wrong people inside.
+struct VisitorDeskLists: Sendable {
+    let passes: [PassRow]
+    let visitors: [VisitorRow]
+    let logs: [VisitorLogRow]
+}
+
 /// Who is in the building, and who should not be any more. Overdue first,
 /// because a pass whose hours ran out is the one the desk has to act on.
 struct VisitorDeskView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(\.apiClient) private var client
-    @State private var passes = Remote<[PassRow]>()
-    @State private var visitors: [VisitorRow] = []
-    @State private var logs: [VisitorLogRow] = []
+    @State private var desk = Remote<VisitorDeskLists>()
     @State private var busyId: String?
     @State private var failure: String?
     @State private var revoking: PassRow?
@@ -74,9 +80,10 @@ struct VisitorDeskView: View {
     private var now: String { ServerTime.format(Date()) }
 
     var body: some View {
-        let rows = passes.value ?? []
-        let inside = rows.filter { isInside($0) }.count
-        let overdue = rows.filter { state($0) == "overdue" && isInside($0) }.count
+        // Counts only from a loaded desk: an outage shows a dash, never "0 inside".
+        let rows = desk.value?.passes
+        let inside = rows?.filter { isInside($0) }.count
+        let overdue = rows?.filter { state($0) == "overdue" && isInside($0) }.count
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 CarbonPageHeader(eyebrow: "Reception", title: "Visitor desk", subtitle: "Passes, and who is still inside.")
@@ -93,10 +100,10 @@ struct VisitorDeskView: View {
                     .accessibilityIdentifier("visitor-register")
                 }
                 if let failure { CarbonNotification(kind: .error, title: "Not recorded", message: failure).padding(.horizontal, 16) }
-                RemoteContentView(id: "passes", state: passes.state, unavailableTitle: "Couldn't load the passes", unavailableMessage: "The hospital server did not answer. Do not read this as an empty building.", isEmpty: \.isEmpty, emptyTitle: "No passes today", emptyMessage: "Nobody has been issued a visitor pass yet.", retry: { Task { await load() } }) { rows in
+                RemoteContentView(id: "passes", state: desk.state, unavailableTitle: "Couldn't load the visitor desk", unavailableMessage: "The hospital server did not answer. Do not read this as an empty building. Try again.", isEmpty: \.passes.isEmpty, emptyTitle: "No passes today", emptyMessage: "Nobody has been issued a visitor pass yet.", retry: { Task { await load() } }) { lists in
                     LazyVStack(spacing: 1) {
                         // Overdue first: they are the ones somebody has to chase.
-                        ForEach(rows.sorted { rank($0) < rank($1) }) { pass in
+                        ForEach(lists.passes.sorted { rank($0) < rank($1) }) { pass in
                             row(pass)
                         }
                     }
@@ -160,7 +167,7 @@ struct VisitorDeskView: View {
 
     private func state(_ pass: PassRow) -> String { passState(status: pass.status, validUntil: pass.validUntil, now: now) }
     private func isInside(_ pass: PassRow) -> Bool {
-        let open = logs.contains { $0.passId == pass.id && $0.checkOutAt == nil }
+        let open = desk.value?.logs.contains { $0.passId == pass.id && $0.checkOutAt == nil } ?? false
         return passIsInside(state: state(pass), checkedOut: !open)
     }
     private func rank(_ pass: PassRow) -> Int {
@@ -178,17 +185,19 @@ struct VisitorDeskView: View {
         }
     }
     private func name(of pass: PassRow) -> String {
-        visitors.first { $0.id == pass.registrationId }?.visitorName ?? "Visitor"
+        desk.value?.visitors.first { $0.id == pass.registrationId }?.visitorName ?? "Visitor"
     }
 
+    /// Loads passes, visitors and logs side by side; any one failing fails the desk.
     private func load() async {
         guard let client else { return }
         let api = ReceptionApi(client: client)
-        async let v = try? api.visitors()
-        async let l = try? api.visitorLogs()
-        visitors = await v ?? []
-        logs = await l ?? []
-        await passes.load { try await api.passes() }
+        await desk.load {
+            async let p = api.passes()
+            async let v = api.visitors()
+            async let l = api.visitorLogs()
+            return try await VisitorDeskLists(passes: p, visitors: v, logs: l)
+        }
     }
 
     private func move(_ pass: PassRow, in checkingIn: Bool) async {
