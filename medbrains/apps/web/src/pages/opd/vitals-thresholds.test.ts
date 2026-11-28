@@ -5,6 +5,7 @@ import {
   gradeLabel,
   gradeTone,
   gradeVital,
+  type VitalGrade,
 } from "./vitals-thresholds";
 
 describe("bloodPressureGrade", () => {
@@ -32,11 +33,18 @@ describe("bloodPressureGrade", () => {
     expect(bloodPressureGrade(130, 89)).toBe("normal");
   });
 
-  /** 70/40 was amber with no word. NEWS2's red band is a systolic of 90 or less, inclusive. */
-  it("grades a systolic of 90 or less as critical low", () => {
+  /** 70/40 was amber with no word. NEWS2 scores a systolic of 90 or less 3 (red), 91-110 amber. */
+  it("grades low systolic pressure by its NEWS2 score", () => {
     expect(bloodPressureGrade(70, 40)).toBe("critical_low");
     expect(bloodPressureGrade(90, 60)).toBe("critical_low");
-    expect(bloodPressureGrade(91, 60)).toBe("normal");
+    expect(bloodPressureGrade(91, 60)).toBe("low");
+    expect(bloodPressureGrade(110, 70)).toBe("low");
+    expect(bloodPressureGrade(111, 70)).toBe("normal");
+  });
+
+  /** NEWS2 scores a systolic of 220 or more 3; the crisis rule already reaches it at 180. */
+  it("grades a systolic of 220 or more as critical high", () => {
+    expect(bloodPressureGrade(220, 80)).toBe("critical_high");
   });
 
   it("grades a hypertensive crisis as critical high, on either number", () => {
@@ -75,14 +83,69 @@ describe("bloodPressureGrade", () => {
 });
 
 describe("gradeVital", () => {
-  /** The entry form's bands, now the doctor's too: RR 32 was not flagged at all there. */
-  it("grades the readings the walk-through entered the same on every screen", () => {
-    expect(gradeVital(32, ADULT_VITAL_BANDS.respiratory_rate)).toBe("critical_high");
-    expect(gradeVital(85, ADULT_VITAL_BANDS.spo2)).toBe("critical_low");
-    expect(gradeVital(92, ADULT_VITAL_BANDS.spo2)).toBe("low");
-    expect(gradeVital(110, ADULT_VITAL_BANDS.pulse)).toBe("high");
-    expect(gradeVital(72, ADULT_VITAL_BANDS.pulse)).toBe("normal");
-  });
+  /**
+   * Every NEWS2 (RCP 2017, Chart 1) boundary, both sides: 0 is normal, 1-2
+   * amber (low/high), 3 red (critical). [reading, grade] per row.
+   */
+  const boundaries: Record<keyof typeof ADULT_VITAL_BANDS, [number, VitalGrade][]> = {
+    respiratory_rate: [
+      [8, "critical_low"],
+      [9, "low"],
+      [11, "low"],
+      [12, "normal"],
+      [20, "normal"],
+      [21, "high"],
+      [24, "high"],
+      [25, "critical_high"],
+    ],
+    spo2: [
+      [91, "critical_low"],
+      [92, "low"],
+      [93, "low"],
+      [94, "low"],
+      [95, "low"],
+      [96, "normal"],
+      [100, "normal"],
+    ],
+    systolic_bp: [
+      [90, "critical_low"],
+      [91, "low"],
+      [100, "low"],
+      [101, "low"],
+      [110, "low"],
+      [111, "normal"],
+      [219, "normal"],
+      [220, "critical_high"],
+    ],
+    pulse: [
+      [40, "critical_low"],
+      [41, "low"],
+      [50, "low"],
+      [51, "normal"],
+      [90, "normal"],
+      [91, "high"],
+      [110, "high"],
+      [111, "high"],
+      [130, "high"],
+      [131, "critical_high"],
+    ],
+    temperature: [
+      [35.0, "critical_low"],
+      [35.1, "low"],
+      [36.0, "low"],
+      [36.1, "normal"],
+      [38.0, "normal"],
+      [38.1, "high"],
+      [39.0, "high"],
+      [39.1, "high"],
+      [42.0, "high"],
+    ],
+  };
+  for (const [param, rows] of Object.entries(boundaries)) {
+    it.each(rows)(`grades ${param} %s as %s`, (reading, grade) => {
+      expect(gradeVital(reading, ADULT_VITAL_BANDS[param as keyof typeof boundaries])).toBe(grade);
+    });
+  }
 
   /** 226 real registrations have no SpO2. Absent is not hypoxic. */
   it("says nothing when it was never measured", () => {

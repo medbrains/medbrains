@@ -89,24 +89,31 @@ describe("display unit to storage unit", () => {
 });
 
 describe("unit configs", () => {
-  it("temperature config switches range with the unit", () => {
+  /** NEWS2 temperature: 36.1-38.0 °C scores 0, 35.1-36.0 and 38.1 upward amber, <=35.0 red. */
+  it("temperature config grades by the NEWS2 bands in either unit", () => {
     const c = getTemperatureConfig("celsius");
     const f = getTemperatureConfig("fahrenheit");
     expect(c.unit).toBe("°C");
     expect(f.unit).toBe("°F");
-    expect(c.normalRange).toEqual([36.1, 37.2]);
-    expect(f.normalRange).toEqual([97.0, 99.0]);
+    expect(c.normalRange).toEqual([36.1, 38.0]);
+    expect(c.borderlineRange).toEqual([35.1, Number.POSITIVE_INFINITY]);
+    expect(f.normalRange).toEqual([96.9, 100.4]);
+    expect(f.borderlineRange).toEqual([95.1, Number.POSITIVE_INFINITY]);
   });
 
-  it("the two temperature ranges describe the same physical band", () => {
+  /**
+   * A °F reading falls in the band its °C value, charted to one decimal, does:
+   * so a patient is not normal in one unit and amber in the other.
+   */
+  it("puts each °F reading in the band of its charted °C value", () => {
     const c = getTemperatureConfig("celsius");
     const f = getTemperatureConfig("fahrenheit");
-    // Converting the Celsius normal band lands inside the Fahrenheit one,
-    // so a patient is not "normal" in one unit and "abnormal" in the other.
-    expect(celsiusToFahrenheit(c.normalRange[0])).toBeCloseTo(96.98, 1);
-    expect(celsiusToFahrenheit(c.normalRange[1])).toBeCloseTo(98.96, 1);
-    expect(celsiusToFahrenheit(c.normalRange[0])).toBeGreaterThanOrEqual(f.borderlineRange[0]);
-    expect(celsiusToFahrenheit(c.normalRange[1])).toBeLessThanOrEqual(f.borderlineRange[1]);
+    const band = (x: number, r: readonly [number, number]) => x >= r[0] && x <= r[1];
+    for (let tenths = 900; tenths <= 1100; tenths += 1) {
+      const charted = Math.round(fahrenheitToCelsius(tenths / 10) * 10) / 10;
+      expect(band(tenths / 10, f.normalRange)).toBe(band(charted, c.normalRange));
+      expect(band(tenths / 10, f.borderlineRange)).toBe(band(charted, c.borderlineRange));
+    }
   });
 
   it("weight and height ranges are plausible and unit-appropriate", () => {

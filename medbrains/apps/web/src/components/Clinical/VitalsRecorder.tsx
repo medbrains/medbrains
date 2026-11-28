@@ -67,10 +67,11 @@ function getRangeLevel(config: VitalConfig, value: number | undefined): RangeLev
   return value === undefined ? null : gradeLevel(gradeVital(value, config.ranges));
 }
 
+/** The normal range as text ("12–20", "≥96"); empty when the vital has none. */
 function getRangeLabel(config: VitalConfig): string {
   const { normal } = config.ranges;
   if (normal[0] === 0 && normal[1] >= 999) return "";
-  return `${normal[0]}–${normal[1]}`;
+  return normal[1] === Number.POSITIVE_INFINITY ? `≥${normal[0]}` : `${normal[0]}–${normal[1]}`;
 }
 
 /** The reading's grade in words and its tone, by the rule the doctor's view uses. */

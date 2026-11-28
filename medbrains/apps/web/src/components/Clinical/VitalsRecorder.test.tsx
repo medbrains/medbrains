@@ -14,12 +14,12 @@ describe("the vitals recorder is usable without sight of the screen", () => {
       expect(screen.getByRole("textbox", { name })).toHaveAccessibleName();
     }
     expect(screen.getByRole("textbox", { name: /pulse/i })).toHaveAccessibleName(/bpm/);
-    expect(screen.getByRole("textbox", { name: /pulse/i })).toHaveAccessibleDescription(/60–100/);
+    expect(screen.getByRole("textbox", { name: /pulse/i })).toHaveAccessibleDescription(/51–90/);
   });
 
   it("announces a reading's status as it is typed", async () => {
     render(<VitalsRecorder />);
-    await userEvent.type(screen.getByRole("textbox", { name: /pulse/i }), "130");
+    await userEvent.type(screen.getByRole("textbox", { name: /pulse/i }), "131");
     const statuses = screen.getAllByRole("status");
     expect(statuses.some((s) => /pulse.*critical high/i.test(s.textContent ?? ""))).toBe(true);
   });

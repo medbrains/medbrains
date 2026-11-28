@@ -17,25 +17,21 @@
  * because clinicians round to the nearest 5 or 10.
  */
 
-import { isHypertensiveCrisis } from "@medbrains/schemas";
+import { isHypertensiveCrisis, NEWS2_BANDS } from "@medbrains/schemas";
 import type { BadgeTone } from "@/components/ui";
 
-/** Stage 2 hypertension. Inclusive — 140/90 is stage 2, not "nearly". */
+/**
+ * Stage 2 hypertension, inclusive: 140/90 is stage 2, not "nearly".
+ *
+ * Source: Whelton et al., 2017 ACC/AHA Guideline for the Prevention, Detection,
+ * Evaluation, and Management of High Blood Pressure in Adults, Table 6 (stage 2:
+ * systolic >=140 or diastolic >=90). A separate rule from NEWS2, which grades
+ * low systolic pressure only and has no diastolic row. Shown amber; a crisis
+ * (`isHypertensiveCrisis`, >=180/120, the guideline's "hypertensive crisis")
+ * is red.
+ */
 export const SYSTOLIC_HIGH = 140;
 export const DIASTOLIC_HIGH = 90;
-
-/**
- * Systolic at or below this is critical.
- *
- * Source: Royal College of Physicians, National Early Warning Score (NEWS) 2
- * (2017) observation chart, where a systolic of 90 mmHg or less scores 3 — the
- * chart's red band, which alone calls for urgent clinical review. It is the
- * band this server already scores with (`score_sbp` in
- * `crates/medbrains-clinical-scores/src/news2.rs`). Adult band; NEWS2 does not
- * apply to children or in pregnancy. Before this, 70/40 was only "low", in
- * amber with no word. TO CONFIRM by the hospital's clinical lead.
- */
-export const SYSTOLIC_CRITICAL_LOW = 90;
 
 export type VitalGrade = "normal" | "low" | "high" | "critical_low" | "critical_high";
 
@@ -45,14 +41,24 @@ export interface VitalBands {
 }
 
 /**
- * The entry form's adult bands, here so the doctor's view grades the same
- * reading the same way. (Temperature's depend on the unit: `getTemperatureConfig`.)
+ * Adult bands: NEWS2, Royal College of Physicians 2017, Chart 1, SpO2 Scale 1,
+ * generated from the table the server scores with
+ * (`crates/medbrains-clinical-scores/src/ews/news2_table.rs`). A parameter's
+ * NEWS2 score is 0 inside `normal`, 1-2 inside `borderline` (amber), 3 outside
+ * it (red):
+ *
+ *   * respiratory rate: <=8 (3), 9-11 (1), 12-20 (0), 21-24 (2), >=25 (3);
+ *   * SpO2 Scale 1: <=91 (3), 92-93 (2), 94-95 (1), >=96 (0). Scale 2 is for
+ *     hypercapnic respiratory failure on a clinician's prescription, which the
+ *     vitals form does not carry, so it is not used here;
+ *   * systolic: <=90 (3), 91-100 (2), 101-110 (1), 111-219 (0), >=220 (3);
+ *   * pulse: <=40 (3), 41-50 (1), 51-90 (0), 91-110 (1), 111-130 (2), >=131 (3);
+ *   * temperature (°C): <=35.0 (3), 35.1-36.0 (1), 36.1-38.0 (0),
+ *     38.1-39.0 (1), >=39.1 (2).
+ *
+ * NEWS2 is for adults (16 and over), not in pregnancy.
  */
-export const ADULT_VITAL_BANDS = {
-  pulse: { normal: [60, 100], borderline: [50, 120] },
-  spo2: { normal: [95, 100], borderline: [90, 100] },
-  respiratory_rate: { normal: [12, 20], borderline: [10, 25] },
-} as const satisfies Record<string, VitalBands>;
+export const ADULT_VITAL_BANDS = NEWS2_BANDS satisfies Record<string, VitalBands>;
 
 /** Grades a reading: inside normal, inside borderline (low/high), or beyond it (critical). */
 export function gradeVital(
@@ -66,9 +72,15 @@ export function gradeVital(
   return "normal";
 }
 
+/** How much a grade asks for: red over amber over normal. */
+function urgency(grade: VitalGrade): number {
+  if (grade === "normal") return 0;
+  return grade === "low" || grade === "high" ? 1 : 2;
+}
+
 /**
- * Blood pressure grade from both numbers. Critical wins over high: a crisis
- * (180/120 and above) or a systolic of 90 or less cannot wait.
+ * Blood pressure grade from both numbers: the worse of NEWS2's systolic grade
+ * and the ACC/AHA hypertension rule (`SYSTOLIC_HIGH`), NEWS2 winning a tie.
  */
 export function bloodPressureGrade(
   systolic: number | null | undefined,
@@ -76,12 +88,16 @@ export function bloodPressureGrade(
 ): VitalGrade {
   const sys = numeric(systolic);
   const dia = numeric(diastolic);
+  const news2 = gradeVital(sys, ADULT_VITAL_BANDS.systolic_bp);
+  const hypertension = hypertensionGrade(sys, dia);
+  return urgency(hypertension) > urgency(news2) ? hypertension : news2;
+}
+
+/** The ACC/AHA 2017 rule alone: crisis red, stage 2 amber, else normal. */
+function hypertensionGrade(sys: number | null, dia: number | null): VitalGrade {
   if (isHypertensiveCrisis(sys, dia)) return "critical_high";
-  if (sys !== null && sys <= SYSTOLIC_CRITICAL_LOW) return "critical_low";
-  if ((sys !== null && sys >= SYSTOLIC_HIGH) || (dia !== null && dia >= DIASTOLIC_HIGH)) {
-    return "high";
-  }
-  return "normal";
+  const stage2 = (sys !== null && sys >= SYSTOLIC_HIGH) || (dia !== null && dia >= DIASTOLIC_HIGH);
+  return stage2 ? "high" : "normal";
 }
 
 /** The grade in words, so the colour never carries the meaning alone. */
