@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_lines)]
 
+mod pack_expiry;
 pub mod release;
 
 use axum::{
@@ -566,14 +567,12 @@ pub async fn add_load_item(
                     .to_owned(),
             )
         })?;
-    if expiry < chrono::Utc::now().date_naive() {
-        return Err(AppError::BadRequest(
-            "The pack expiry date is in the past. Check the label.".to_owned(),
-        ));
-    }
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
+    pack_expiry::refuse_expired(expiry, today)?;
 
     let row = sqlx::query_as::<_, CssdLoadItem>(
         "INSERT INTO cssd_load_items (tenant_id, load_id, set_id, instrument_id, quantity, pack_expiry_date)
