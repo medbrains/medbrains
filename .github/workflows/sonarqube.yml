@@ -18,11 +18,13 @@
 name: SonarQube
 
 on:
+  # release/** as well as main: work lands on the release branch first, and main is only
+  # synced at release time, so analysing main alone left the code being built unchecked.
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
+    branches: [main, "release/**"]
   schedule:
     # Nightly, so Rust coverage stays current even on a day with no merge.
     - cron: "30 1 * * *"
