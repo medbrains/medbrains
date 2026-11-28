@@ -55,7 +55,22 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 ## Test an image
 
-`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
+`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI ([Tests in CI](#tests-in-ci)).
+
+### Tests in CI
+
+| Test | Where it runs | What it needs |
+|---|---|---|
+| `tests/check-units.sh` | `ci.yml`, job "OS image unit rules", on every pull request that touches `os/` or `deploy/`; again in `release.yml`'s OS image job | the source tree only |
+| `tests/check-image.sh <image.raw>` | `release.yml`'s OS image job, on the image it has just built, for both architectures. A FAIL stops the job before any file is uploaded | the built image; reads it with `debugfs`, no boot and no mount |
+| `medbrains-os-test` (the VM suite) | nowhere in CI; on a Mac before a release (`make os-test`) | a debug image, QEMU with hardware acceleration, swtpm |
+
+Why the VM suite is not in CI, so nobody assumes it is: it drives the machine through a root shell on the
+serial port, which only a debug image has, and the release job never builds one (`release` mode checks a
+release image from outside, and only that it offers no login). Its arm64 platform needs KVM on an arm64
+host, which GitHub's hosted arm64 runners do not offer; its x86-64 platform is written for a Mac host
+(emulation, every limit times eight) and has never run on Linux. `check-image.sh` covers the part of it
+that failed to catch the v3.35.6 Ctrl+Alt+Del defect; the rest still depends on someone running the suite.
 
 `cargo run -p medbrains-os-test -- <release image> release` checks a release image from outside, since it has no
 shell to check from: SSH does not answer, and its serial port shows no login and runs no command. Set
@@ -1078,7 +1093,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.finalize.chroot`: runs after mkosi's preset pass and fails the build if a unit the postinst masked is not masked.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
-- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
+- `tests/`: `check-units.sh` and `console-status.sh` run alone; `check-image.sh` checks a built image file from outside; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `tests/cis-check.sh`: the CIS-style hardening report (X16). `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.

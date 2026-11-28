@@ -68,6 +68,7 @@ jobs:
       rust: ${{ steps.diff.outputs.rust }}
       web: ${{ steps.diff.outputs.web }}
       docker: ${{ steps.diff.outputs.docker }}
+      os: ${{ steps.diff.outputs.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,17 +82,19 @@ jobs:
           set -u
           if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
              || ! files=$(git diff --name-only "$BASE" "$HEAD"); then
-            printf 'rust=true\nweb=true\ndocker=true\n' >> "$GITHUB_OUTPUT"; exit 0
+            printf 'rust=true\nweb=true\ndocker=true\nos=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           printf '%s\n' "$files"
           ci='^\.github/workflows/ci\.yml$'
           rust='^medbrains/(crates/|Cargo\.(toml|lock)|\.sqlx/|rust-toolchain|rustfmt|deny\.toml|clippy\.toml|\.cargo/)'
           web='^medbrains/(apps/web/|packages/|package\.json|pnpm-(lock|workspace)\.yaml|turbo\.json|biome\.json|\.nvmrc|tsconfig)'
           docker='^medbrains/(Dockerfile|\.dockerignore|rust-toolchain\.toml|Cargo\.lock)$'
+          os='^medbrains/(os|deploy)/'
           {
             echo "rust=$(grep -qE "$rust|$ci" <<<"$files" && echo true || echo false)"
             echo "web=$(grep -qE "$web|$ci" <<<"$files" && echo true || echo false)"
             echo "docker=$(grep -qE "$docker|$ci" <<<"$files" && echo true || echo false)"
+            echo "os=$(grep -qE "$os|$ci" <<<"$files" && echo true || echo false)"
           } >> "$GITHUB_OUTPUT"
 
   # ── Blocking: run against master and verified green ──────────────
@@ -354,6 +357,21 @@ jobs:
             echo "::error file=medbrains/Dockerfile::FROM rust:$have must match rust-toolchain.toml ($want)"
             exit 1
           fi
+
+  # The OS image's unit rules (os/tests/check-units.sh): nothing answers on the network before setup,
+  # a node opens no main-machine port, and the rest. A grep over the tree, no image and no boot, so
+  # it runs on every change to the image or the deploy kit. The checks that need a built image run
+  # in release.yml's OS image job; os/README.md "Tests in CI" says which, and what runs nowhere yet.
+  os-units:
+    needs: changes
+    if: needs.changes.outputs.os == 'true'
+    name: OS image unit rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: medbrains/os/tests/check-units.sh
 
   # Builds the release image without pushing, only when what it depends on changed.
   docker-build:
