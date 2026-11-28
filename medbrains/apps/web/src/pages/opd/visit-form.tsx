@@ -5,14 +5,20 @@ import { Group, Select, Stack, Textarea } from "@mantine/core";
 import type { OpdQueueVisitFormInput } from "@medbrains/schemas";
 import { opdQueueVisitFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { Camp, CreateEncounterResponse } from "@medbrains/types";
+import type { CreateEncounterResponse } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type BaseSyntheticEvent, useMemo } from "react";
+import { type BaseSyntheticEvent, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useEffectOnce } from "react-use";
 import { DoctorSearchSelect, PatientSearchSelect, useClinicalEmit } from "@/components";
+import { OPD_NUMBER_QUERY_KEY } from "@/components/Patient/OpdNumberRow";
+import {
+  type VisitOpdEntry,
+  VisitOpdNumberField,
+  visitOpdFieldsFromCache,
+} from "@/components/Patient/VisitOpdNumberField";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Button, toast } from "@/components/ui";
 import {
@@ -21,10 +27,10 @@ import {
   toCreateEncounterRequest,
 } from "@/forms/opd.form";
 import { soleOption } from "@/lib/sole-option";
-import { campService } from "@/services/camp.service";
 import { ipdService } from "@/services/ipd.service";
 import { opdService } from "@/services/opd.service";
 import { LastVisitHint } from "./LastVisitHint";
+import { useActiveCampOptions } from "./use-active-camp-options";
 import { useOpdDepartmentOptions } from "./use-opd-department-options";
 
 const lastVisitKey = (patientId: string) => ["opd-last-visit", patientId];
@@ -55,6 +61,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     },
   });
   const visitType = watch("visit_type");
+  const [opdEntry, setOpdEntry] = useState<VisitOpdEntry>({});
   const selectedPatientId = watch("patient_id");
 
   const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
@@ -106,24 +113,18 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     return handleSubmit((values) => createMutation.mutate(values))(event);
   };
 
-  const { data: campOptionsSource = [] } = useQuery<Camp[]>({
-    queryKey: ["camps", "active-for-opd"],
-    queryFn: () => campService.listCamps({ status: "active" }),
-    staleTime: 300_000,
-  });
-  const activeCampOptions = useMemo(
-    () =>
-      campOptionsSource.map((camp) => ({
-        value: camp.id,
-        label: `${camp.camp_code} - ${camp.name}`,
-      })),
-    [campOptionsSource],
-  );
+  const camps = useActiveCampOptions();
 
   const createMutation = useMutation({
     mutationFn: (values: OpdQueueVisitFormInput) =>
-      opdService.createEncounter(toCreateEncounterRequest(values)),
+      opdService.createEncounter({
+        ...toCreateEncounterRequest(values),
+        ...visitOpdFieldsFromCache(queryClient, values.patient_id, opdEntry),
+      }),
     onSuccess: (result) => {
+      setOpdEntry({});
+      void queryClient.invalidateQueries({ queryKey: OPD_NUMBER_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ["patient-context"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       // The desk reads the number out to the patient, so the toast carries it,
@@ -151,6 +152,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
       onCreated(result);
     },
     onError: (error: Error) => {
+      void queryClient.invalidateQueries({ queryKey: OPD_NUMBER_QUERY_KEY });
       toast.error(error.message || "Failed to create visit", { title: "Visit not created" });
     },
   });
@@ -191,10 +193,13 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
             <Select
               label="Camp"
               placeholder="Select active camp"
-              data={activeCampOptions}
+              data={camps.options}
               value={field.value ?? null}
               onChange={(value) => field.onChange(value ?? null)}
-              error={errors.camp_id?.message}
+              error={
+                errors.camp_id?.message ??
+                (camps.failed ? "The camp list did not load. Try again." : undefined)
+              }
               searchable
               required
             />
@@ -209,14 +214,17 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
             value={field.value}
             onChange={(value) => {
               field.onChange(value);
+              setOpdEntry({});
               void prefillFromLastVisit(value);
             }}
             error={errors.patient_id?.message}
             required
+            withSearchBy
           />
         )}
       />
       {selectedPatientId && <LastVisitHint visit={lastVisit.data} isError={lastVisit.isError} />}
+      <VisitOpdNumberField patientId={selectedPatientId} entry={opdEntry} onChange={setOpdEntry} />
       {!soleDepartment && (
         <Controller
           control={control}

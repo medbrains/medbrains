@@ -188,7 +188,7 @@ async fn a_second_referral_reuses_the_same_token() {
 
     let count: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM tokens WHERE patient_id = $1 AND module = 'opd' \
-           AND scope_id = $2 AND token_date = CURRENT_DATE",
+           AND scope_id = $2 AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date",
     )
     .bind(patient)
     .bind(room)

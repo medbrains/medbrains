@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE uhi_transactions SET slot_id = $2, state = 'initialised', order_details = $3,\n                slot_held_until = now() + make_interval(mins => $4),\n                customer_name = $5, customer_phone = $6, customer_abha = $7\n          WHERE id = $1 RETURNING slot_held_until AS \"until!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "until!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Jsonb",
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "85d7736cfa8648400efba7c34e2eefbef80bdd820198dd41db6098dfbfcfec1b"
+}

@@ -1,4 +1,5 @@
-import { api } from "@medbrains/api";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
+import { printDataApi } from "@medbrains/api/modules/print-data";
 import { P } from "@medbrains/types";
 import { GENERATED_PRINT_DOCUMENTS, type GeneratedPrintIdKind } from "./print-registry.generated";
 
@@ -56,77 +57,77 @@ export const PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     label: "General consent",
     idKind: "admission",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getGeneralConsentPrintData(id),
+    fetch: (id) => printDataApi.getGeneralConsentPrintData(id),
   },
   {
     key: "consent.surgical",
     label: "Surgical consent",
     idKind: "booking",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getSurgicalConsentPrintData(id),
+    fetch: (id) => printDataApi.getSurgicalConsentPrintData(id),
   },
   {
     key: "consent.anesthesia",
     label: "Anaesthesia consent",
     idKind: "booking",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getAnesthesiaConsentPrintData(id),
+    fetch: (id) => printDataApi.getAnesthesiaConsentPrintData(id),
   },
   {
     key: "consent.blood",
     label: "Blood transfusion consent",
     idKind: "admission",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getBloodConsentPrintData(id),
+    fetch: (id) => printDataApi.getBloodConsentPrintData(id),
   },
   {
     key: "consent.dnr",
     label: "DNR / DNAR",
     idKind: "admission",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getDnrConsentPrintData(id),
+    fetch: (id) => printDataApi.getDnrConsentPrintData(id),
   },
   {
     key: "consent.ama",
     label: "Discharge against medical advice",
     idKind: "admission",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getAmaConsentPrintData(id),
+    fetch: (id) => printDataApi.getAmaConsentPrintData(id),
   },
   {
     key: "consent.hiv",
     label: "HIV testing consent",
     idKind: "patient",
     permission: P.PATIENTS.VIEW,
-    fetch: (id) => api.getHivConsentPrintData(id),
+    fetch: (id) => printDataApi.getHivConsentPrintData(id),
   },
   {
     key: "consent.photo",
     label: "Photography consent",
     idKind: "patient",
     permission: P.PATIENTS.VIEW,
-    fetch: (id) => api.getPhotoConsentPrintData(id),
+    fetch: (id) => printDataApi.getPhotoConsentPrintData(id),
   },
   {
     key: "consent.organ_donation",
     label: "Organ donation consent",
     idKind: "patient",
     permission: P.PATIENTS.VIEW,
-    fetch: (id) => api.getOrganDonationConsentPrintData(id),
+    fetch: (id) => printDataApi.getOrganDonationConsentPrintData(id),
   },
   {
     key: "consent.abdm",
     label: "ABDM linkage consent",
     idKind: "patient",
     permission: P.PATIENTS.VIEW,
-    fetch: (id) => api.getAbdmConsentPrintData(id),
+    fetch: (id) => printDataApi.getAbdmConsentPrintData(id),
   },
   {
     key: "consent.teaching",
     label: "Teaching consent",
     idKind: "admission",
     permission: P.IPD.ADMISSIONS_VIEW,
-    fetch: (id) => api.getTeachingConsentPrintData(id),
+    fetch: (id) => printDataApi.getTeachingConsentPrintData(id),
   },
   {
     key: "gst-invoice",
@@ -135,7 +136,7 @@ export const PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     // The handler also requires patients.view, which every role holding
     // billing.invoices.view is granted.
     permission: P.BILLING.INVOICES_VIEW,
-    fetch: (id) => api.getGstInvoicePrintData(id),
+    fetch: (id) => printDataApi.getGstInvoicePrintData(id),
   },
   {
     key: "pharmacy-bill",
@@ -143,7 +144,7 @@ export const PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "invoice",
     // Literal until the permission catalogue is regenerated from Rust.
     permission: P.PHARMACY.BILLS_PRINT,
-    fetch: (id) => api.getPharmacyBillPrintData(id),
+    fetch: (id) => printDataApi.getPharmacyBillPrintData(id),
   },
   {
     key: "pharmacy-pos-receipt",
@@ -159,7 +160,10 @@ export const PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
  * bill cannot serve; this reads the sale and its lines.
  */
 async function fetchPosReceipt(saleId: string) {
-  const [sale, items] = await Promise.all([api.getPosSale(saleId), api.listPosSaleItems(saleId)]);
+  const [sale, items] = await Promise.all([
+    pharmacyApi.getPosSale(saleId),
+    pharmacyApi.listPosSaleItems(saleId),
+  ]);
   const mrpTotal = items.reduce((sum, item) => sum + Number(item.mrp) * item.quantity, 0);
   const savings = mrpTotal - Number(sale.total_amount);
   return {

@@ -13,7 +13,7 @@
 
 import { Accordion, Group, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import type { CustomRole, FieldAccessLevel } from "@medbrains/types";
 import { REDACTABLE_FIELDS } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
@@ -49,7 +49,7 @@ export function RoleFieldAccessDrawer({ role, opened, onClose }: Props) {
       // Only the exceptions go to the server. Sending `edit` for all 49 would
       // store 49 rows saying "no restriction", and the next reader would have
       // to work out that they mean nothing.
-      api.updateRoleFieldAccess(
+      setupApi.updateRoleFieldAccess(
         role.id,
         Object.fromEntries(Object.entries(rules).filter(([, level]) => level !== DEFAULT_LEVEL)),
       ),

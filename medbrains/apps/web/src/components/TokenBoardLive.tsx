@@ -1,5 +1,5 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { tokensApi } from "@medbrains/api/modules/tokens";
 import type { ModuleToken } from "@medbrains/types";
 import { IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -139,7 +139,7 @@ export function TokenBoardLive({
 
   const { data } = useQuery({
     queryKey,
-    queryFn: () => api.listTokenBoard({ module, scope, scope_id: scopeId }),
+    queryFn: () => tokensApi.listTokenBoard({ module, scope, scope_id: scopeId }),
     refetchInterval: 8000,
   });
 
@@ -148,7 +148,7 @@ export function TokenBoardLive({
   // How this place's queue speaks: its languages and repeat count.
   const { data: voice } = useQuery({
     queryKey: ["token-board-config", module, scope, scopeId],
-    queryFn: () => api.getBoardConfig({ module, scope, scope_id: scopeId }),
+    queryFn: () => tokensApi.getBoardConfig({ module, scope, scope_id: scopeId }),
     staleTime: 60_000,
   });
   const voiceRef = useRef(voice);

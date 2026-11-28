@@ -17,33 +17,20 @@ export const CORE_BRICKS: ReadonlySet<string> = new Set([
   "reports",
 ]);
 
-/** Whether a brick is switched on. */
+/** Whether the server serves a brick now: a brick never set up is on, an add-on not bought is off. */
 export function isOn(mod: ModuleConfig): boolean {
-  return mod.status === "enabled";
+  return mod.on;
+}
+
+/** A brick's state in words: "On", "On (never set up)" or "Off". */
+export function stateWords(mod: ModuleConfig): string {
+  if (!mod.on) return "Off";
+  return mod.status === "enabled" ? "On" : "On (never set up)";
 }
 
 /** The bricks that list `code` among what they need, directly. */
 export function neededBy(code: string, modules: readonly ModuleConfig[]): ModuleConfig[] {
   return modules.filter((m) => m.depends_on.includes(code));
-}
-
-/**
- * Bricks that are on and need `code`, directly or through another brick — what switching it off
- * would break. Bounded: each brick is visited once.
- */
-export function onDependents(code: string, modules: readonly ModuleConfig[]): ModuleConfig[] {
-  const seen = new Set<string>([code]);
-  const queue = [code];
-  const found: ModuleConfig[] = [];
-  for (let at = 0; at < queue.length; at++) {
-    for (const dependent of neededBy(queue[at] ?? "", modules)) {
-      if (seen.has(dependent.code)) continue;
-      seen.add(dependent.code);
-      queue.push(dependent.code);
-      if (isOn(dependent)) found.push(dependent);
-    }
-  }
-  return found;
 }
 
 /**

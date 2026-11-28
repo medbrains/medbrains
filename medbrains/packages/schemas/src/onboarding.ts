@@ -219,8 +219,8 @@ export const sequencesSchema = z.object({
   uhid_pad_width: z.coerce
     .number()
     .int()
-    .min(3, "Pad width must be 3-10")
-    .max(10, "Pad width must be 3-10"),
+    .min(0, "Pad width must be 0-10")
+    .max(10, "Pad width must be 0-10"),
   invoice_prefix: z
     .string()
     .max(10, "Prefix must be at most 10 characters")
@@ -228,8 +228,8 @@ export const sequencesSchema = z.object({
   invoice_pad_width: z.coerce
     .number()
     .int()
-    .min(3, "Pad width must be 3-10")
-    .max(10, "Pad width must be 3-10"),
+    .min(0, "Pad width must be 0-10")
+    .max(10, "Pad width must be 0-10"),
 });
 
 export type SequencesInput = z.infer<typeof sequencesSchema>;
@@ -312,8 +312,8 @@ export const additionalSequenceSchema = z.object({
   pad_width: z.coerce
     .number()
     .int()
-    .min(3, "Pad width must be 3-10")
-    .max(10, "Pad width must be 3-10"),
+    .min(0, "Pad width must be 0-10")
+    .max(10, "Pad width must be 0-10"),
 });
 
 export type AdditionalSequenceInput = z.infer<typeof additionalSequenceSchema>;

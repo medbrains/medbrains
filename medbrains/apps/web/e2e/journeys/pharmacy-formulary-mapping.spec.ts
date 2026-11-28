@@ -8,6 +8,7 @@
  */
 import { api, getAuthContextFromCookies, loginAsRoleApi, withStepUp } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
+import { receiveStock } from "./support/pos-counter";
 import { expect, test } from "./support/world";
 
 test("a pharmacist maps an unknown drug to the formulary and approves", async ({ hospital, request }) => {
@@ -28,12 +29,9 @@ test("a pharmacist maps an unknown drug to the formulary and approves", async ({
   );
   expect(rx.pharmacy_rx_queue_id, "the line reaches the pharmacist's queue").toBeTruthy();
   // The product the pharmacist will map to: on the shelf, and not a
-  // controlled drug (which brings its own register into the approval).
-  const catalog = await api<
-    { name: string; is_active: boolean; current_stock: number; is_controlled: boolean }[]
-  >(admin, "GET", "/api/pharmacy/catalog");
-  const product = catalog.find((c) => c.is_active && !c.is_controlled && c.current_stock >= 10);
-  if (!product) throw new Error("a stocked, uncontrolled product to map to");
+  // controlled drug (which brings its own register into the approval). A new
+  // hospital stocks nothing, so the test receives its own.
+  const product = await receiveStock(admin, { generic: "Montelukast", schedule: "H", price: 30, quantity: 50 });
 
   const page = await hospital.as("pharmacist");
   await page.goto("/pharmacy#rx-queue");

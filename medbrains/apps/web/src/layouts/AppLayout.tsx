@@ -61,6 +61,7 @@ import classes from "./AppLayout.module.scss";
 import { AppNavbar, hasSidePanel } from "./AppNavbar";
 import { panelFor } from "./appPanel";
 import { FavouriteStar } from "./FavouriteStar";
+import { HospitalMarks, useBrandingMarks } from "./HospitalMarks";
 import { OnDemandOverlays } from "./OnDemandOverlays";
 import { PanelHeader } from "./PanelHeader";
 import { PanelPages } from "./PanelPages";
@@ -95,6 +96,7 @@ function routeObjectLabel(previousSegment: string | undefined, nextSegment: stri
   return "Record";
 }
 
+/** The signed-in shell: header (with the hospital's marks), side panel and page. */
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -179,6 +181,8 @@ export function AppLayout() {
   }, []);
 
   const userInitial = user?.full_name?.charAt(0)?.toUpperCase() ?? "U";
+  // The hospital's emblem stands in as the profile picture; the initial shows without one.
+  const hospitalEmblem = useBrandingMarks()?.emblem ?? null;
 
   // Resolve config items to renderable items with translated labels
   const resolveItem = useCallback(
@@ -451,7 +455,10 @@ export function AppLayout() {
       {/* ── Header ── */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
+          {/* Each side takes only the room it needs and the hospital's marks sit
+              centred in the gap between them, so a full right side is never
+              squeezed while the left stands empty. */}
+          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "0 1 auto" }}>
             {hasPanel && (
               <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             )}
@@ -466,10 +473,23 @@ export function AppLayout() {
             </Group>
           </Group>
 
-          <Group gap="sm" wrap="nowrap" miw={0}>
+          <HospitalMarks />
+
+          <Group
+            gap="sm"
+            wrap="nowrap"
+            miw={0}
+            justify="flex-end"
+            className={classes.headerRight}
+            style={{ flex: "0 1 auto" }}
+          >
             <HeaderWidgets />
-            {/* The ticker gives way first when the bar is tight. */}
-            <Box visibleFrom="xl" miw={0} style={{ height: "100%", flex: "0 1 260px" }}>
+            {/* Only the ticker gives way when the bar is tight. */}
+            <Box
+              visibleFrom="xl"
+              miw={0}
+              style={{ height: "100%", flex: "0 1 260px", overflow: "hidden" }}
+            >
               <NewsMarquee />
             </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
@@ -479,7 +499,7 @@ export function AppLayout() {
               className={classes.searchTrigger}
               visibleFrom="sm"
             >
-              <Group gap={6}>
+              <Group gap={6} wrap="nowrap">
                 <AnimatedIcon icon={IconSearch} size={14} motion="float" />
                 <Text size="xs" c="dimmed">
                   Search...
@@ -534,10 +554,13 @@ export function AppLayout() {
               <Menu.Target>
                 <Group gap={8} wrap="nowrap" style={{ cursor: "pointer" }}>
                   <Avatar
+                    src={hospitalEmblem}
+                    alt=""
                     color="primary"
                     radius="lg"
                     size={30}
                     style={{ fontSize: 12, fontWeight: 600 }}
+                    styles={{ image: { objectFit: "contain" } }}
                   >
                     {userInitial}
                   </Avatar>

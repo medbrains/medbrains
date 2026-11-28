@@ -1,6 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const paediatricFluidService = {
-  computePaediatricFluid: (data: Parameters<typeof api.computePaediatricFluid>[0]) =>
-    api.computePaediatricFluid(data),
+  computePaediatricFluid: (data: Parameters<typeof clinicalApi.computePaediatricFluid>[0]) =>
+    clinicalApi.computePaediatricFluid(data),
 };

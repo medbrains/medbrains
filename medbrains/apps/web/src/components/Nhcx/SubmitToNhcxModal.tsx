@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxParticipant, PatientDocument } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -46,7 +46,7 @@ export function SubmitToNhcxModal({
   // Rendering makes the PDFs once per opening; refetching would make them again.
   const prepared = useQuery({
     queryKey: ["claim-nhcx-documents", claimId],
-    queryFn: () => api.prepareClaimNhcxDocuments(claimId),
+    queryFn: () => billingApi.prepareClaimNhcxDocuments(claimId),
     enabled: opened && isClaim && canSubmit && claimId !== "",
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
@@ -56,7 +56,7 @@ export function SubmitToNhcxModal({
 
   const submit = useMutation({
     mutationFn: () =>
-      api.submitClaimToNhcx(claimId, {
+      billingApi.submitClaimToNhcx(claimId, {
         recipient_code: recipientCode ?? "",
         use,
         documents:

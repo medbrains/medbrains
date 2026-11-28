@@ -104,10 +104,10 @@ impl RosterGate {
 impl PeerGatekeeper for RosterGate {
     fn admit(&self, node_id: &str, claimed_tenant: Uuid) -> Admission {
         let held = self.roster.read().unwrap_or_else(PoisonError::into_inner);
+        let now = ::time::OffsetDateTime::now_utc().unix_timestamp();
+        let admit = |roster: &PeerRoster| roster.admit_peer(node_id, claimed_tenant, now);
         held.as_ref()
-            .map_or(Admission::Refuse(RefusalReason::NotPaired), |roster| {
-                roster.admit_peer(node_id, claimed_tenant, chrono::Utc::now().timestamp())
-            })
+            .map_or(Admission::Refuse(RefusalReason::NotPaired), admit)
     }
 }
 

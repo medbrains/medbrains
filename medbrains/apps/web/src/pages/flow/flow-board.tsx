@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { flowApi } from "@medbrains/api/modules/flow";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Alert, Badge, FloorMap, FloorMapTable } from "@/components/ui";
@@ -19,7 +19,7 @@ const timeOf = (iso: string) =>
 export function FlowBoard({ floorId }: { floorId?: string }) {
   const board = useQuery({
     queryKey: ["flow", "board", floorId ?? "device"],
-    queryFn: () => api.getFlowBoard(floorId),
+    queryFn: () => flowApi.getFlowBoard(floorId),
     refetchInterval: BOARD_REFRESH_MS,
     retry: 2,
   });

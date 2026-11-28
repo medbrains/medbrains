@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { aiApi } from "@medbrains/api/modules/ai";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { DataTable } from "@/components/DataTable";
@@ -29,7 +29,7 @@ export function DrillPatients({ drill, value, label, onClose }: DrillPatientsPro
   const query = useQuery({
     queryKey: ["ai-aggregate-patients", drill.metric, value, drill.from, drill.to],
     queryFn: () =>
-      api.aiAggregatePatients(drill.metric, {
+      aiApi.aiAggregatePatients(drill.metric, {
         key: value ?? "",
         from: drill.from,
         to: drill.to,

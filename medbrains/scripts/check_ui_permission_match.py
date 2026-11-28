@@ -45,9 +45,10 @@ import os
 import re
 import sys
 from collections import defaultdict
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CLIENT_TS = os.path.join(ROOT, "packages", "api", "src", "client.ts")
 CRATES = os.path.join(ROOT, "crates")
 # The whole of `src`, not just `pages`. A gate does not have to live in the
 # component: `config/settings-tabs.ts` declares `requiredPermission` beside
@@ -114,7 +115,7 @@ RE_CALL_GATE = re.compile(
     r'permission:\s*"([a-z0-9_.]+)"[^}]{0,400}?'
     r"(?:run|queryFn|mutationFn):[^\n]*?\.(\w+)\("
 )
-RE_CALL = re.compile(r"\b(\w+Service|apiClient|api)\.(\w+)\s*\(")
+RE_CALL = re.compile(r"\b(\w+Service|apiClient|" + api_object_pattern() + r")\.(\w+)\s*\(")
 
 # Files that enumerate codes rather than enforce them.
 ENUMERATORS = ("medbrains-loadtest/src/generated.rs", "medbrains-seed/src")
@@ -157,7 +158,7 @@ def catalogue() -> dict[str, str]:
 
 
 SERVICES = os.path.join(WEB_SRC, "services")
-RE_ALIAS = re.compile(r"^\s*(\w+):\s*api\.(\w+)\s*,", re.M)
+RE_ALIAS = re.compile(r"^\s*(\w+):\s*" + api_object_pattern() + r"\.(\w+)\s*,", re.M)
 
 
 def service_aliases() -> dict[tuple[str, str], str]:
@@ -195,7 +196,7 @@ def service_aliases() -> dict[tuple[str, str], str]:
 
 def method_to_path() -> dict[str, tuple[str, str]]:
     """Frontend method name -> (API path, HTTP verb) it calls."""
-    text = open(CLIENT_TS, encoding="utf-8").read()
+    text = api_client_source()
     keys = [(m.start(), m.group(1)) for m in RE_KEY.finditer(text)]
     starts = [pos for pos, _ in keys]
     out: dict[str, tuple[str, str]] = {}

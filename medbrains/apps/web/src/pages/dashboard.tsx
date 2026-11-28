@@ -1,5 +1,6 @@
 import { Box, Center, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { dashboardApi } from "@medbrains/api/modules/dashboard";
+import { dashboardsApi } from "@medbrains/api/modules/dashboards";
 import { P } from "@medbrains/types";
 import { IconLayoutDashboard, IconLayoutGridAdd } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,7 +26,7 @@ export function DashboardPage() {
     isError,
   } = useQuery({
     queryKey: ["my-dashboard"],
-    queryFn: () => api.getMyDashboard(),
+    queryFn: () => dashboardsApi.getMyDashboard(),
     staleTime: 120_000,
   });
 
@@ -48,7 +49,7 @@ export function DashboardPage() {
   );
   const { data: widgetData, isLoading: dataLoading } = useQuery({
     queryKey: ["my-dashboard", "data", widgetIds, asOf, filters],
-    queryFn: () => api.batchWidgetData(widgetIds, asOf ?? undefined, filters),
+    queryFn: () => dashboardApi.batchWidgetData(widgetIds, asOf ?? undefined, filters),
     placeholderData: (previous) => previous,
     enabled: widgetIds.length > 0,
     staleTime: 60_000,

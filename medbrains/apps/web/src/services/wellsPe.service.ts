@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const wellsPeService = {
-  computeWellsPe: (data: Parameters<typeof api.computeWellsPe>[0]) => api.computeWellsPe(data),
+  computeWellsPe: (data: Parameters<typeof clinicalApi.computeWellsPe>[0]) =>
+    clinicalApi.computeWellsPe(data),
 };

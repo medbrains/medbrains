@@ -1,5 +1,5 @@
 import { Card, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { P, type SimulatorProfile, type SimulatorRun } from "@medbrains/types";
 import { IconFlask, IconListDetails, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,7 +57,7 @@ export function SimulatorPage() {
 
   const { data: runs = [] } = useQuery({
     queryKey: ["simulator-runs"],
-    queryFn: () => api.listSimulatorRuns({ limit: 10 }),
+    queryFn: () => adminApi.listSimulatorRuns({ limit: 10 }),
     // Keep the list fresh while a run is in progress (it's async).
     refetchInterval: (query) =>
       (query.state.data ?? []).some((r) => r.status === "running") ? 2000 : false,
@@ -65,12 +65,12 @@ export function SimulatorPage() {
 
   const generate = useMutation({
     mutationFn: async () => {
-      const schedule = await api.createSimulatorSchedule({
+      const schedule = await adminApi.createSimulatorSchedule({
         name: "Sample data",
         description: "One-off demo data generation",
         profile: demoProfile(Number(count) || 1),
       });
-      return api.runSimulatorNow(schedule.id);
+      return adminApi.runSimulatorNow(schedule.id);
     },
     onSuccess: () => {
       toast.success("Generating sample data…", {
@@ -82,7 +82,7 @@ export function SimulatorPage() {
   });
 
   const purge = useMutation({
-    mutationFn: (id: string) => api.rejectSimulatorRun(id),
+    mutationFn: (id: string) => adminApi.rejectSimulatorRun(id),
     onSuccess: (res) => {
       toast.success(`Removed ${res.deleted_rows} demo records`, { title: "Purged" });
       void queryClient.invalidateQueries({ queryKey: ["simulator-runs"] });

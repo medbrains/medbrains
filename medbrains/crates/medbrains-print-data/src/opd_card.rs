@@ -23,7 +23,7 @@ use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{OpdCardPrintData, OpdCardVisit};
 use medbrains_health_services::patient::require_patient_access;
-use medbrains_kernel::{Actor, require_permission};
+use medbrains_kernel::{self as kernel, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
@@ -36,9 +36,6 @@ pub async fn get_opd_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<OpdCardPrintData>, AppError> {
-    if !crate::general::holds_card_reprint(&claims) {
-        require_permission(&claims, permissions::patients::VIEW)?;
-    }
     print_card(&state, &claims, CardFor::Patient(patient_id))
         .await
         .map(Json)
@@ -54,9 +51,6 @@ pub async fn get_opd_visit_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdCardPrintData>, AppError> {
-    if !crate::general::holds_card_reprint(&claims) {
-        require_permission(&claims, permissions::patients::VIEW)?;
-    }
     print_card(&state, &claims, CardFor::Visit(encounter_id))
         .await
         .map(Json)
@@ -90,9 +84,7 @@ impl Via {
         };
         match ordinary {
             Ok(()) => Ok(Self::Relationship),
-            Err(AppError::NotFound | AppError::Forbidden)
-                if crate::general::holds_card_reprint(claims) =>
-            {
+            Err(AppError::NotFound | AppError::Forbidden) if holds_card_reprint(claims) => {
                 Ok(Self::DeskReprint)
             }
             Err(outcome) => Err(outcome),
@@ -119,7 +111,15 @@ async fn print_card(
     claims: &Claims,
     card_for: CardFor,
 ) -> Result<OpdCardPrintData, AppError> {
-    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await?;
+    // The desk enters on its reprint grant, everyone else on `patients.view`;
+    // which card it gets, and the relationship check, are `Via::decide`'s.
+    let entry = if holds_card_reprint(claims) {
+        permissions::patients::card::REPRINT
+    } else {
+        permissions::patients::VIEW
+    };
+    let permit = kernel::authz::permit(claims, entry)?;
+    let mut tx = kernel::actor_tx(&state.db, &permit, None).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (patient_id, visit) = match card_for {
@@ -149,9 +149,11 @@ async fn print_card(
     tx.commit().await?;
 
     let today = Utc::now().with_timezone(&tz).date_naive();
+    let (opd_number, opd_date) = opd_of(&patient, visit.as_ref());
     Ok(OpdCardPrintData {
         hospital_name: hospital.name,
         hospital_logo_url: hospital.logo_url,
+        hospital_name_banner_url: hospital.name_banner_url,
         hospital_address: hospital.address,
         hospital_phone: hospital.phone,
         hospital_registration_no: hospital.registration_no,
@@ -167,14 +169,17 @@ async fn print_card(
             .with_timezone(&tz)
             .format("%d-%b-%Y")
             .to_string(),
+        opd_number,
+        opd_date,
         visit: visit.map(|row| visit_of(row, tz)),
     })
 }
 
 /// The hospital's letterhead, from its own profile.
-struct HospitalRow {
-    name: String,
-    logo_url: Option<String>,
+pub(crate) struct HospitalRow {
+    pub(crate) name: String,
+    pub(crate) logo_url: Option<String>,
+    pub(crate) name_banner_url: Option<String>,
     address: Option<String>,
     phone: Option<String>,
     registration_no: Option<String>,
@@ -183,11 +188,19 @@ struct HospitalRow {
 /// Name, address and registration from `tenants`; the logo from the branding
 /// setting, which is where onboarding and the admin screen save it.
 /// `tenants.logo_url` is read only as a fallback: nothing in the app writes it.
-async fn hospital_row(conn: &mut PgConnection, tenant_id: Uuid) -> Result<HospitalRow, AppError> {
+/// The emblem and name banner are dropped past 280 000 characters, the cap the
+/// admin screen saves within, so a hand-edited row cannot swell every card.
+pub(crate) async fn hospital_row(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+) -> Result<HospitalRow, AppError> {
     sqlx::query_as!(
         HospitalRow,
         "SELECT t.name, \
-           COALESCE(NULLIF(btrim(s.value #>> '{}'), ''), t.logo_url) AS logo_url, \
+           (SELECT v FROM (SELECT COALESCE(NULLIF(btrim(s.value #>> '{}'), ''), t.logo_url) AS v) l \
+             WHERE length(v) <= 280000) AS logo_url, \
+           (SELECT v FROM (SELECT NULLIF(btrim(b.value #>> '{}'), '') AS v) n \
+             WHERE length(v) <= 280000) AS name_banner_url, \
            NULLIF(concat_ws(', ', NULLIF(btrim(t.address_line1), ''), \
              NULLIF(btrim(t.address_line2), ''), NULLIF(btrim(t.city), ''), gs.name, \
              NULLIF(btrim(t.pincode), '')), '') AS address, \
@@ -197,6 +210,8 @@ async fn hospital_row(conn: &mut PgConnection, tenant_id: Uuid) -> Result<Hospit
          LEFT JOIN geo_states gs ON gs.id = t.state_id \
          LEFT JOIN tenant_settings s ON s.tenant_id = t.id AND s.category = 'branding' \
            AND s.key = 'logo_url' AND s.deleted_at IS NULL \
+         LEFT JOIN tenant_settings b ON b.tenant_id = t.id AND b.category = 'branding' \
+           AND b.key = 'name_banner_url' AND b.deleted_at IS NULL \
          WHERE t.id = $1 AND t.deleted_at IS NULL",
         tenant_id,
     )
@@ -214,6 +229,8 @@ struct PatientRow {
     phone: String,
     address: Option<String>,
     created_at: DateTime<Utc>,
+    opd_number: Option<String>,
+    opd_date: Option<NaiveDate>,
 }
 
 /// One patient, or `NotFound` when the patient is not this tenant's or is deleted.
@@ -229,7 +246,7 @@ async fn patient_row(
            p.uhid, p.date_of_birth, p.gender::text AS \"gender!\", p.phone, \
            NULLIF(concat_ws(', ', NULLIF(btrim(p.address->>'line1'), ''), \
              NULLIF(btrim(p.address->>'city'), '')), '') AS address, \
-           p.created_at \
+           p.created_at, p.opd_number, p.opd_date \
          FROM patients p \
          WHERE p.id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL",
         patient_id,
@@ -248,6 +265,7 @@ struct VisitRow {
     doctor: Option<String>,
     token_number: Option<String>,
     is_repeat: bool,
+    encounter_number: Option<String>,
 }
 
 /// The visit, its department and doctor, and the token the board calls.
@@ -268,7 +286,8 @@ async fn visit_row(
            EXISTS (SELECT 1 FROM encounters prev \
              WHERE prev.tenant_id = e.tenant_id AND prev.patient_id = e.patient_id \
                AND prev.encounter_type = 'opd' AND prev.deleted_at IS NULL \
-               AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\" \
+               AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\", \
+           e.encounter_number \
          FROM encounters e \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          LEFT JOIN users doc ON doc.id = e.doctor_id AND doc.tenant_id = e.tenant_id \
@@ -288,6 +307,16 @@ async fn visit_row(
     .fetch_optional(conn)
     .await?
     .ok_or(AppError::NotFound)
+}
+
+/// The OPD number the card carries: the visit's when it numbers visits, else
+/// the patient's, with the patient's register date.
+fn opd_of(patient: &PatientRow, visit: Option<&VisitRow>) -> (Option<String>, Option<String>) {
+    let date = patient.opd_date.filter(|_| patient.opd_number.is_some());
+    let number = visit
+        .and_then(|v| v.encounter_number.clone())
+        .or_else(|| patient.opd_number.clone());
+    (number, date.map(|d| d.format("%d-%b-%Y").to_string()))
 }
 
 /// The visit block, its times in the hospital's zone.
@@ -375,6 +404,17 @@ pub fn router() -> axum::Router<AppState> {
             "/api/print-data/opd-visit-card/{encounter_id}",
             get(get_opd_visit_card_print_data),
         )
+}
+
+/// Whether these claims reprint cards as the desk: holding
+/// `patients.card.reprint` outright, not through a bypass role, which already
+/// reaches every patient through the ordinary path.
+pub(crate) fn holds_card_reprint(claims: &Claims) -> bool {
+    !medbrains_kernel::authz::is_bypass_role(claims)
+        && claims
+            .permissions
+            .iter()
+            .any(|code| code == permissions::patients::card::REPRINT)
 }
 
 #[cfg(test)]

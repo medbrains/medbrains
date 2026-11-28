@@ -30,7 +30,55 @@ pub struct Brick {
     /// The Settings sections (`pages/admin/settings.tsx` tab values) this brick plugs in; they
     /// are hidden while it is off.
     pub settings: &'static [&'static str],
+    /// The panels it plugs into other bricks' screens (`apps/web/src/components/panels`).
+    pub panels: &'static [Panel],
 }
+
+/// A panel one brick shows inside another brick's screen, such as Lab's orders tab on the
+/// patient record. The host screen never imports it: it is downloaded and shown only while its
+/// brick is on and the viewer holds `permission`, and left out otherwise, never greyed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Panel {
+    /// Where it plugs in: `patient.tabs` (a patient record tab) or `opd.encounter` (an action
+    /// on the OPD encounter).
+    pub slot: &'static str,
+    /// The web registry key of its component.
+    pub id: &'static str,
+    /// The permission its first call needs.
+    pub permission: &'static str,
+}
+
+/// Lab's orders tab on the patient record.
+const LAB_PANELS: &[Panel] = &[Panel {
+    slot: "patient.tabs",
+    id: "lab.patient_orders",
+    permission: p::lab::orders::LIST,
+}];
+/// Radiology's imaging tab on the patient record.
+const RADIOLOGY_PANELS: &[Panel] = &[Panel {
+    slot: "patient.tabs",
+    id: "radiology.patient_imaging",
+    permission: p::radiology::orders::LIST,
+}];
+/// Billing's tab on the patient record, and the bill on the OPD encounter.
+const BILLING_PANELS: &[Panel] = &[
+    Panel {
+        slot: "patient.tabs",
+        id: "billing.patient_bills",
+        permission: p::billing::invoices::LIST,
+    },
+    Panel {
+        slot: "opd.encounter",
+        id: "billing.encounter_bill",
+        permission: p::billing::invoices::LIST,
+    },
+];
+/// Sending an OPD patient to Emergency.
+const EMERGENCY_PANELS: &[Panel] = &[Panel {
+    slot: "opd.encounter",
+    id: "emergency.er_visit",
+    permission: p::emergency::visits::CREATE,
+}];
 
 /// The version of the brick manifest schema written to the web (`BRICK_MANIFEST_VERSION`).
 /// Raise it when a manifest field is added, removed or changes meaning.
@@ -74,6 +122,7 @@ const fn brick(
         add_on: false,
         editions,
         settings: &[],
+        panels: &[],
     }
 }
 
@@ -83,21 +132,27 @@ impl Brick {
     pub const fn with_settings(self, settings: &'static [&'static str]) -> Self {
         Self { settings, ..self }
     }
+
+    /// The same brick with the panels it plugs into other bricks' screens.
+    #[must_use]
+    pub const fn with_panels(self, panels: &'static [Panel]) -> Self {
+        Self { panels, ..self }
+    }
 }
 
 /// Every app brick. Order is the order setup and the Modules screen show them.
 #[rustfmt::skip]
 pub const BRICKS: &[Brick] = &[
     brick("registration", "Patient Registration", &[], &["patients", "front_office", "consent"], None),
-    brick("billing", "Billing & Finance", &["registration"], &["billing", "insurance", "patient_packages", "doctor_payouts"], None).with_settings(&["billing", "payment-terminals", "payment-exceptions"]),
+    brick("billing", "Billing & Finance", &["registration"], &["billing", "insurance", "patient_packages", "doctor_payouts"], None).with_settings(&["billing", "payment-terminals", "payment-exceptions"]).with_panels(BILLING_PANELS),
     brick("opd", "OPD / Outpatient", &["registration"], &["opd", "doctor", "scheduling", "order_basket", "clinical_notes", "notes", "chronic"], Some(EVERY_EDITION)).with_settings(&["consultation-templates"]),
     brick("ipd", "IPD / Inpatient", &["registration"], &["ipd", "bedside", "icu", "case_mgmt", "ur", "mrd"], Some(PUBLIC)).with_settings(&["bed-types", "early-warning"]),
-    brick("lab", "Laboratory (LIS)", &["registration"], &["lab"], Some(EVERY_EDITION)).with_settings(&["critical-values"]),
+    brick("lab", "Laboratory (LIS)", &["registration"], &["lab"], Some(EVERY_EDITION)).with_settings(&["critical-values"]).with_panels(LAB_PANELS),
     brick("pharmacy", "Pharmacy", &["registration"], &["pharmacy", "pharmacy_finance", "pharmacy_improvements"], Some(EVERY_EDITION)).with_settings(&["drug-interactions"]),
-    brick("radiology", "Radiology (RIS)", &["registration"], &["radiology"], Some(PUBLIC)),
+    brick("radiology", "Radiology (RIS)", &["registration"], &["radiology"], Some(PUBLIC)).with_panels(RADIOLOGY_PANELS),
     brick("blood_bank", "Blood Bank", &["registration", "lab"], &["blood_bank"], Some(FULL)),
     brick("ot", "Operation Theatre", &["registration", "ipd"], &["ot", "cssd"], Some(&["multi_specialty", "medical_college", "eye_hospital", "dental_college"])),
-    brick("emergency", "Emergency / Casualty", &["registration"], &["emergency", "ambulance"], Some(PUBLIC)),
+    brick("emergency", "Emergency / Casualty", &["registration"], &["emergency", "ambulance"], Some(PUBLIC)).with_panels(EMERGENCY_PANELS),
     brick("nursing", "Nursing Station", &["registration", "ipd"], &["nurse"], Some(PUBLIC)),
     brick("diet", "Diet & Nutrition", &["registration", "ipd"], &["diet"], Some(FULL)),
     brick("hr", "Human Resources", &[], &["hr", "lms"], Some(FULL)),
@@ -113,7 +168,7 @@ pub const BRICKS: &[Brick] = &[
     brick("pmr", "Physical Medicine & Rehabilitation", &["registration", "opd"], &["specialty.pmr"], Some(FULL)),
     brick("specialty_other", "Other Specialties", &["registration", "opd"], &["specialty.other", "specialty.health_packages", "specialty.clinical_trials"], Some(FULL)),
     brick("flow", "MedBrains Flow", &["opd"], &["flow", "flows", "automation"], Some(&[])),
-    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[] },
+    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[], panels: &[] },
 ];
 
 /// A background job that serves only some bricks.
@@ -203,6 +258,9 @@ pub const BASE_PLATE: &[&str] = &[
     // The care view is the ward worklist: IPD and nursing work from it, so it stays when the
     // EMR is switched off (an IPD-only hospital still needs its ward list).
     "care_view",
+    // The hospital's emblem and name in the header and on printed cards: every screen and
+    // print shows them, whatever apps are on.
+    "branding",
 ];
 
 /// Groups that are apps in their own right but have no module switch yet. Each one is a brick

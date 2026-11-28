@@ -6,57 +6,62 @@
  * to call one without a token and have it silently use the staff session.
  */
 
-import { api } from "@medbrains/api";
+import { portalApi } from "@medbrains/api/modules/portal";
+import { storeApi } from "@medbrains/api/modules/store";
 
 export const portalService = {
-  requestPortalOtp: (data: Parameters<typeof api.requestPortalOtp>[0]) =>
-    api.requestPortalOtp(data),
-  verifyPortalOtp: (data: Parameters<typeof api.verifyPortalOtp>[0]) => api.verifyPortalOtp(data),
-  getPortalBills: (token: string) => api.getPortalBills(token),
+  requestPortalOtp: (data: Parameters<typeof portalApi.requestPortalOtp>[0]) =>
+    portalApi.requestPortalOtp(data),
+  verifyPortalOtp: (data: Parameters<typeof portalApi.verifyPortalOtp>[0]) =>
+    portalApi.verifyPortalOtp(data),
+  getPortalBills: (token: string) => portalApi.getPortalBills(token),
   payPortalBill: (token: string, invoiceId: string, amount?: number) =>
-    api.payPortalBill(token, invoiceId, { amount }),
-  getPortalLabReports: (token: string) => api.getPortalLabReports(token),
-  getPortalPrescriptions: (token: string) => api.getPortalPrescriptions(token),
-  getPortalAppointments: (token: string) => api.getPortalAppointments(token),
-  getPortalTeleconsults: (token: string) => api.getPortalTeleconsults(token),
-  getPortalRefills: (token: string) => api.getPortalRefills(token),
-  requestPortalRefill: (...args: Parameters<typeof api.requestPortalRefill>) =>
-    api.requestPortalRefill(...args),
+    portalApi.payPortalBill(token, invoiceId, { amount }),
+  getPortalLabReports: (token: string) => portalApi.getPortalLabReports(token),
+  getPortalPrescriptions: (token: string) => portalApi.getPortalPrescriptions(token),
+  getPortalAppointments: (token: string) => portalApi.getPortalAppointments(token),
+  getPortalTeleconsults: (token: string) => portalApi.getPortalTeleconsults(token),
+  getPortalRefills: (token: string) => portalApi.getPortalRefills(token),
+  requestPortalRefill: (...args: Parameters<typeof portalApi.requestPortalRefill>) =>
+    portalApi.requestPortalRefill(...args),
   getPortalDeliveryOptions: (token: string, prescriptionId: string) =>
-    api.getPortalDeliveryOptions(token, prescriptionId),
-  getPortalDeliveries: (token: string) => api.getPortalDeliveries(token),
-  getPortalDelivery: (token: string, id: string) => api.getPortalDelivery(token, id),
-  getPortalPrivacy: (token: string) => api.getPortalPrivacy(token),
+    portalApi.getPortalDeliveryOptions(token, prescriptionId),
+  getPortalDeliveries: (token: string) => portalApi.getPortalDeliveries(token),
+  getPortalDelivery: (token: string, id: string) => portalApi.getPortalDelivery(token, id),
+  getPortalPrivacy: (token: string) => portalApi.getPortalPrivacy(token),
   // The storefront: public browsing and sign-in, then the patient's own cart.
-  getStoreAbout: (tenantCode: string) => api.getStoreAbout(tenantCode),
-  searchStore: (...args: Parameters<typeof api.searchStore>) => api.searchStore(...args),
-  getStoreItem: (tenantCode: string, id: string) => api.getStoreItem(tenantCode, id),
-  requestStoreCode: (tenantCode: string, phone: string) => api.requestStoreCode(tenantCode, phone),
-  storeSignIn: (...args: Parameters<typeof api.storeSignIn>) => api.storeSignIn(...args),
-  getStoreCart: (token: string) => api.getStoreCart(token),
-  setStoreCartQuantity: (...args: Parameters<typeof api.setStoreCartQuantity>) =>
-    api.setStoreCartQuantity(...args),
+  getStoreAbout: (tenantCode: string) => storeApi.getStoreAbout(tenantCode),
+  searchStore: (...args: Parameters<typeof storeApi.searchStore>) => storeApi.searchStore(...args),
+  getStoreItem: (tenantCode: string, id: string) => storeApi.getStoreItem(tenantCode, id),
+  requestStoreCode: (tenantCode: string, phone: string) =>
+    storeApi.requestStoreCode(tenantCode, phone),
+  storeSignIn: (...args: Parameters<typeof storeApi.storeSignIn>) => storeApi.storeSignIn(...args),
+  getStoreCart: (token: string) => portalApi.getStoreCart(token),
+  setStoreCartQuantity: (...args: Parameters<typeof portalApi.setStoreCartQuantity>) =>
+    portalApi.setStoreCartQuantity(...args),
   uploadStorePrescription: (token: string, dataBase64: string) =>
-    api.uploadStorePrescription(token, dataBase64),
-  getStoreDeliveryOptions: (token: string) => api.getStoreDeliveryOptions(token),
-  storeCheckout: (...args: Parameters<typeof api.storeCheckout>) => api.storeCheckout(...args),
-  getStoreOrders: (token: string) => api.getStoreOrders(token),
-  getStoreOrder: (token: string, id: string) => api.getStoreOrder(token, id),
+    portalApi.uploadStorePrescription(token, dataBase64),
+  getStoreDeliveryOptions: (token: string) => portalApi.getStoreDeliveryOptions(token),
+  storeCheckout: (...args: Parameters<typeof portalApi.storeCheckout>) =>
+    portalApi.storeCheckout(...args),
+  getStoreOrders: (token: string) => portalApi.getStoreOrders(token),
+  getStoreOrder: (token: string, id: string) => portalApi.getStoreOrder(token, id),
   orderPortalPrescription: (token: string, prescriptionId: string) =>
-    api.orderPortalPrescription(token, prescriptionId),
-  holdStoreCart: (...args: Parameters<typeof api.holdStoreCart>) => api.holdStoreCart(...args),
+    portalApi.orderPortalPrescription(token, prescriptionId),
+  holdStoreCart: (...args: Parameters<typeof portalApi.holdStoreCart>) =>
+    portalApi.holdStoreCart(...args),
   getStoreServiceability: (token: string, pincode?: string) =>
-    api.getStoreServiceability(token, pincode),
-  cancelStoreOrder: (token: string, id: string) => api.cancelStoreOrder(token, id),
-  requestStoreReturn: (...args: Parameters<typeof api.requestStoreReturn>) =>
-    api.requestStoreReturn(...args),
-  consentStoreSubstitution: (...args: Parameters<typeof api.consentStoreSubstitution>) =>
-    api.consentStoreSubstitution(...args),
-  printStoreOutside: (...args: Parameters<typeof api.printStoreOutside>) =>
-    api.printStoreOutside(...args),
-  getPortalExport: (token: string) => api.getPortalExport(token),
-  setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>
-    api.setPortalDpdpConsent(...args),
-  createPortalPrivacyRequest: (...args: Parameters<typeof api.createPortalPrivacyRequest>) =>
-    api.createPortalPrivacyRequest(...args),
+    portalApi.getStoreServiceability(token, pincode),
+  cancelStoreOrder: (token: string, id: string) => portalApi.cancelStoreOrder(token, id),
+  requestStoreReturn: (...args: Parameters<typeof portalApi.requestStoreReturn>) =>
+    portalApi.requestStoreReturn(...args),
+  consentStoreSubstitution: (...args: Parameters<typeof portalApi.consentStoreSubstitution>) =>
+    portalApi.consentStoreSubstitution(...args),
+  printStoreOutside: (...args: Parameters<typeof portalApi.printStoreOutside>) =>
+    portalApi.printStoreOutside(...args),
+  getPortalExport: (token: string) => portalApi.getPortalExport(token),
+  setPortalDpdpConsent: (...args: Parameters<typeof portalApi.setPortalDpdpConsent>) =>
+    portalApi.setPortalDpdpConsent(...args),
+  createPortalPrivacyRequest: (...args: Parameters<typeof portalApi.createPortalPrivacyRequest>) =>
+    portalApi.createPortalPrivacyRequest(...args),
 };

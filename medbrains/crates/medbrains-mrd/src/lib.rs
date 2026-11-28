@@ -954,6 +954,8 @@ struct CaseSheetAdmissionRefRow {
     status: String,
 }
 
+/// The next `seq_type` number, formatted with the row's own prefix and pad
+/// width; the row is created with `default_pad_width` on first use.
 async fn generate_sequence_number(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -986,10 +988,8 @@ async fn generate_sequence_number(
     .fetch_one(&mut **tx)
     .await?;
 
-    let pad = match usize::try_from(seq.pad_width) {
-        Ok(value) if value > 0 => value,
-        _ => default_pad_width,
-    };
+    // 0 is the hospital's choice of no padding, not a missing width.
+    let pad = usize::try_from(seq.pad_width).unwrap_or(default_pad_width);
 
     Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
 }
