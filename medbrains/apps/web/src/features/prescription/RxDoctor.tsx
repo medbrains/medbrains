@@ -25,6 +25,7 @@ import {
 import { type ReactNode, useRef, useState } from "react";
 import { Alert, Button, Modal, SegmentedControl } from "@/components/ui";
 import { Input } from "@/components/ui/Input";
+import { allergyScreenDetail } from "@/utils/allergyMatch";
 import { BuyOutsideModal } from "./BuyOutsideModal";
 import { FormularySearch } from "./FormularySearch";
 import classes from "./prescription.module.scss";
@@ -470,13 +471,7 @@ export function RxDoctor({
         <SafetyRow
           state={conflicts.length ? "flag" : "ok"}
           label="Allergy screen"
-          detail={
-            conflicts[0]
-              ? conflicts.map((c) => `${c.drug_name} × ${c.allergen_name}`).join(", ")
-              : patientAllergies.length
-                ? `On file: ${patientAllergies.join(", ")} · no conflict in order`
-                : "No allergies on file"
-          }
+          detail={allergyScreenDetail(conflicts, patientAllergies)}
         />
         <SafetyRow
           state={major.length ? "flag" : interactions.length ? "warn" : "ok"}

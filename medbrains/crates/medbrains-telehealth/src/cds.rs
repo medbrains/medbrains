@@ -16,6 +16,8 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::allergy_check::{AllergyConflict, AllergyRow, allergy_conflicts_for};
+
 use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
@@ -97,15 +99,6 @@ pub struct DrugInteractionAlert {
     pub severity: String,
     pub description: String,
     pub management: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AllergyConflict {
-    pub drug_name: String,
-    pub allergen_name: String,
-    pub allergy_type: String,
-    pub severity: Option<String>,
-    pub reaction: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -354,16 +347,7 @@ pub async fn check_drug_safety(
         interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &body.drug_names).await?;
 
     // Check allergy conflicts
-    let mut allergy_conflicts = Vec::new();
-    if let Some(patient_id) = body.patient_id {
-        #[derive(sqlx::FromRow)]
-        struct AllergyRow {
-            allergen_name: String,
-            allergy_type: String,
-            severity: Option<String>,
-            reaction: Option<String>,
-        }
-
+    let allergy_conflicts = if let Some(patient_id) = body.patient_id {
         let allergies = sqlx::query_as::<_, AllergyRow>(
             "SELECT allergen_name, allergy_type::text, severity::text, reaction \
              FROM patient_allergies \
@@ -374,24 +358,10 @@ pub async fn check_drug_safety(
         .bind(patient_id)
         .fetch_all(&mut *tx)
         .await?;
-
-        for allergy in &allergies {
-            let allergen_lower = allergy.allergen_name.to_lowercase();
-            for drug in &body.drug_names {
-                if drug.to_lowercase().contains(&allergen_lower)
-                    || allergen_lower.contains(&drug.to_lowercase())
-                {
-                    allergy_conflicts.push(AllergyConflict {
-                        drug_name: drug.clone(),
-                        allergen_name: allergy.allergen_name.clone(),
-                        allergy_type: allergy.allergy_type.clone(),
-                        severity: allergy.severity.clone(),
-                        reaction: allergy.reaction.clone(),
-                    });
-                }
-            }
-        }
-    }
+        allergy_conflicts_for(&body.drug_names, &allergies)
+    } else {
+        Vec::new()
+    };
 
     let dose_alerts = dose_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
 

@@ -5,6 +5,8 @@
  * server's 400 backstop, including class matches (e.g. penicillin → cephalosporin).
  */
 
+import type { AllergyConflict } from "@medbrains/types";
+
 const CLASSES: Record<string, string[]> = {
   "beta-lactam": [
     "penicillin",
@@ -91,4 +93,17 @@ export function findAllergyConflicts(drugs: string[], allergens: string[]): Alle
     }
   }
   return out;
+}
+
+/** "Amoxicillin × Penicillin (cross-reactive beta-lactam)" for a CDS-rail conflict. */
+export function allergyConflictLabel(c: AllergyConflict): string {
+  const cross = c.cross_reactive_class ? ` (cross-reactive ${c.cross_reactive_class})` : "";
+  return `${c.drug_name} × ${c.allergen_name}${cross}`;
+}
+
+/** The "Allergy screen" row: the conflicts, else what the order was screened against. */
+export function allergyScreenDetail(conflicts: AllergyConflict[], onFile: string[]): string {
+  if (conflicts.length) return conflicts.map(allergyConflictLabel).join(", ");
+  if (onFile.length) return `On file: ${onFile.join(", ")} · no conflict in order`;
+  return "No allergies on file";
 }

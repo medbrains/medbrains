@@ -77,6 +77,8 @@ export interface AllergyConflict {
   allergy_type: string;
   severity: string | null;
   reaction: string | null;
+  /** The shared class when the drug cross-reacts with the allergen (e.g. "beta-lactam"). */
+  cross_reactive_class: string | null;
 }
 
 export interface PregnancyAlert {

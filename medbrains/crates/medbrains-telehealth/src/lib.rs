@@ -7,6 +7,7 @@ use axum::{
 };
 use medbrains_server_core::state::AppState;
 
+mod allergy_check;
 pub mod cds;
 pub mod doctor_dashboard;
 pub mod doctor_profile;
