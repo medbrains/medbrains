@@ -1084,6 +1084,22 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 | `medbrains-bridge`, separate worker process | none: the server runs its workers in-process, and the bridge arrives with its first device |
 | Orthanc, rustenberg, SpiceDB, mail | off (§8a clinic profile) |
 
+## CVEs in the image
+
+Each release attaches `medbrains-os-<ver>-<arch>.cdx.json`: a CycloneDX SBOM of every Debian package in
+the image, made by syft from the image's own dpkg database (`package-db.sh` copies it out of the system
+partition with debugfs, nothing is mounted). The release job scans it with osv-scanner and adds a "Known
+critical CVEs" section to the draft notes for any CVSS 9+ advisory; it warns, it does not stop the release.
+Every night, and on demand, `security.yml` (`os-image-cves`) fetches the SBOMs of the newest published
+release, trusts them only after `SHA256SUMS` checks out against its sigstore bundle, scans them again, and
+uploads the result to Security > Code scanning under the `os-image` category, so a CVE published after the
+release still shows up. When Debian has a fix, the remedy is a rebuild: the next release installs Debian's
+current packages, and a site updates to it (`docs/architecture/OS-UPDATES.md`). When it has none yet (every
+finding in v3.35.6 on 2026-11-28), drop the package if the image can do without it, or wait. Not covered:
+files outside dpkg (the MedBrains server, Kanidm and the shell are in the source SBOM and the lockfile
+scans), the kernel (its packages name `linux-signed-<arch>` as source, which Debian's advisories,
+filed under `linux`, do not match), and a site that has not updated.
+
 ## Files
 
 - `mkosi.conf`, `mkosi.conf.d/`: packages and image settings.
@@ -1097,6 +1113,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `tests/cis-check.sh`: the CIS-style hardening report (X16). `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
+- `package-db.sh`: copies the dpkg database out of a built image, for its SBOM.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 - `build-iso.sh`, `installer/`: the installer `.iso`. `formats.sh`, `medbrains-os.ovf`: the VM and cloud disks. `release-files.md`: which file is for what, in the release notes. `tests/installer-test.py`: the installer in QEMU.
 - `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.
