@@ -84,17 +84,6 @@ pub async fn issue_credential(
     require_permission(&claims, permissions::admin::signature_credentials::ISSUE)?;
     let Json(body) = body?;
 
-    let (priv_key, pub_key) =
-        signing::generate_keypair().map_err(|e| AppError::Internal(format!("keygen: {e}")))?;
-    let key_encryption_key = signature_key_encryption_key(&state).await?;
-    let key_context = signature_key_context(&claims.tenant_id, &body.doctor_user_id);
-    let encrypted_private_key = medbrains_crypto::aead::encrypt_bytes(
-        &key_encryption_key,
-        key_context.as_bytes(),
-        priv_key.as_slice(),
-    )
-    .map_err(|_| AppError::Internal("signature key encryption failed".to_owned()))?;
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -113,28 +102,14 @@ pub async fn issue_credential(
         .await?;
     }
 
-    let row = sqlx::query_as::<_, SignatureCredentialPublic>(
-        "INSERT INTO doctor_signature_credentials ( \
-            tenant_id, doctor_user_id, credential_type, algorithm, \
-            public_key, encrypted_private_key, display_image_url, \
-            display_font, valid_until, is_default, created_by \
-         ) VALUES ($1,$2,'stored_key','Ed25519',$3,$4,$5,$6,$7,$8,$9) \
-         RETURNING id, tenant_id, doctor_user_id, credential_type, algorithm, \
-                   public_key, display_image_url, display_font, \
-                   valid_from, valid_until, revoked_at, revoked_reason, \
-                   is_default, created_at",
-    )
-    .bind(claims.tenant_id)
-    .bind(body.doctor_user_id)
-    .bind(pub_key.as_slice())
-    .bind(encrypted_private_key.as_slice())
-    .bind(&body.display_image_url)
-    .bind(&body.display_font)
-    .bind(body.valid_until)
-    .bind(body.make_default)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
+    let new = crate::signature_own::NewCredential {
+        owner: body.doctor_user_id,
+        image: body.display_image_url.as_deref(),
+        font: body.display_font.as_deref(),
+        valid_until: body.valid_until,
+        is_default: body.make_default,
+    };
+    let row = crate::signature_own::create_credential(&state, &mut tx, &claims, &new).await?;
 
     tx.commit().await?;
     Ok(Json(IssueCredentialResponse { credential: row }))
@@ -497,8 +472,7 @@ async fn write_signature(
 
     let (cred_id, priv_key_opt, display_image, stored_public) = cred_row.ok_or_else(|| {
         AppError::BadRequest(
-            "no active default signature credential for this user — admin must issue one"
-                .to_owned(),
+            "You have no signature yet. Set up your signature, then sign again.".to_owned(),
         )
     })?;
 
@@ -756,7 +730,7 @@ pub(crate) fn to_hex(bytes: &[u8]) -> String {
 }
 
 /// The server key that seals doctors' signing keys, by the shared sealing rule.
-async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+pub(crate) async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppError> {
     medbrains_core::secrets::sealing::sealing_key(
         state.secret_resolver.as_ref(),
         SIGNATURE_KEY_SECRET,
@@ -768,7 +742,7 @@ async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppEr
 
 /// The AEAD context a doctor's key is sealed under: bound to tenant and doctor,
 /// so a sealed key copied to another row will not open.
-fn signature_key_context(tenant_id: &Uuid, doctor_user_id: &Uuid) -> String {
+pub(crate) fn signature_key_context(tenant_id: &Uuid, doctor_user_id: &Uuid) -> String {
     format!("medbrains:doctor-signature-key:v1:{tenant_id}:{doctor_user_id}")
 }
 

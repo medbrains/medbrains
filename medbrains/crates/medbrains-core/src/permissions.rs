@@ -4318,6 +4318,19 @@ pub mod ai {
     }
 }
 
+/// A signer's own signature, which nobody else may set for them.
+pub mod signatures {
+    pub mod own {
+        /// Set up and replace your own signature.
+        ///
+        /// Draw or upload the signature image printed on the records you sign,
+        /// or choose none, and replace it later. Only for yourself, in your
+        /// own session, after re-entering your password. Asked for the first
+        /// time you click Sign on a record.
+        pub const MANAGE: &str = "signatures.own.manage";
+    }
+}
+
 pub mod nurse {
     pub mod signature {
         /// Sign own nursing entries.

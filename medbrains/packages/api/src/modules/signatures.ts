@@ -1,5 +1,7 @@
 /** The `/signatures` API area. Moved from `client.ts`; one module per first path segment. */
 import type {
+  SetMyCredentialRequest,
+  SetMyCredentialResponse,
   SignableTypeInfo,
   SignatureCredential,
   SignatureVerifyLink,
@@ -15,6 +17,12 @@ import { request } from "../client.js";
 
 export const signaturesApi = {
   getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
+  /** Set or replace the caller's own signature; asks for the password again (step-up). */
+  setMySignatureCredential: (data: SetMyCredentialRequest) =>
+    request<SetMyCredentialResponse>("/signatures/my-credentials", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   /** Open a record to sign it: its canonical snapshot, and the review is recorded. */
   reviewSignature: (data: SignPreviewRequest) =>
     request<SignPreviewResponse>("/signatures/review", {

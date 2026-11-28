@@ -344,6 +344,7 @@ mod sign_in_options_test;
 mod signable_author_test;
 mod signable_guard_test;
 mod signable_types_test;
+mod signature_own_test;
 mod signature_payload_test;
 mod signature_verify_test;
 mod signatures_test;
