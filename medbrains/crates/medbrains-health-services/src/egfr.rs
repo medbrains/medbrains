@@ -141,8 +141,9 @@ pub async fn patient_latest_egfr(
     let window_days = settings.window_days(inpatient);
     let now = Utc::now();
     let candidates = sqlx::query_as::<_, EgfrCandidate>(
-        // Verified only: an unverified value may be mid-correction. The time
-        // window is applied here to bound the read and again in Rust.
+        // Verified only: an unverified value may be mid-correction. The window,
+        // clearance, sign and unit rules are applied here, before the LIMIT, so
+        // non-qualifying rows cannot crowd a real eGFR out; and again in Rust.
         "SELECT lr.numeric_value::float8 AS value, lr.unit, lr.parameter_name, \
                 ltc.loinc_code AS test_loinc, \
                 COALESCE(lo.collected_at, lo.verified_at, lr.created_at) AS measured_at \
@@ -154,6 +155,8 @@ pub async fn patient_latest_egfr(
            AND COALESCE(lo.collected_at, lo.verified_at, lr.created_at) >= $3 \
            AND (ltc.loinc_code = ANY($4) OR lower(lr.parameter_name) LIKE '%gfr%' \
                 OR lower(lr.parameter_name) LIKE '%glomerular%') \
+           AND lower(lr.parameter_name) NOT LIKE '%clearance%' AND lr.numeric_value > 0 \
+           AND lower(translate(lr.unit, E'² \\t', '2')) LIKE 'ml/min/1.73%' \
          ORDER BY measured_at DESC LIMIT 20",
     )
     .bind(tenant_id)
