@@ -7,11 +7,12 @@
 # second matters because a machine with no TPM can choose to store data unencrypted, and that is still
 # dm-crypt, with an empty key. An answer we cannot read counts as not encrypted.
 #
-# GUARD_ROOT is for tests/kanidm-disk-guard-test.sh.
+# GUARD_ROOT and GUARD_SYS are for tests/kanidm-disk-guard-test.sh.
 set -uo pipefail
 
 ROOT="${GUARD_ROOT:-}"
 DATA="${GUARD_DATA_PATH:-/var/lib/kanidm}"
+SYS="${GUARD_SYS:-/sys}"
 DEBUG_MARKER="$ROOT/usr/lib/medbrains/debug-image"
 RECORD="$ROOT/var/lib/medbrains/config/disk-protection"
 
@@ -20,8 +21,21 @@ if [[ -e "$DEBUG_MARKER" ]]; then
     exit 0
 fi
 
-source_device="$(findmnt -no SOURCE --target "$DATA" 2>/dev/null)" || source_device=""
-if ! lsblk -sno TYPE "$source_device" 2>/dev/null | grep -qx crypt; then
+# True if block device MAJ:MIN $1, or one it is built on, is dm-crypt, read from sysfs. Not lsblk: it needs
+# /dev, which kanidmd's PrivateDevices hides even from a + command, so a sealed disk read as plain (MB-123).
+# Unreadable counts as plain. Bounded: a device stack is a few layers deep.
+is_on_crypt() {
+    local dev="$SYS/dev/block/$1" depth="${2:-0}" slave
+    ((depth <= 8)) || return 1
+    [[ "$(cat "$dev/dm/uuid" 2>/dev/null)" == CRYPT-* ]] && return 0
+    for slave in "$dev"/slaves/*; do
+        [[ -r "$slave/dev" ]] && is_on_crypt "$(cat "$slave/dev")" $((depth + 1)) && return 0
+    done
+    return 1
+}
+
+device="$(findmnt -no MAJ:MIN --target "$DATA" 2>/dev/null | tr -d '[:space:]')" || device=""
+if [[ -z "$device" ]] || ! is_on_crypt "$device"; then
     echo "Sign-in through the identity provider is off: $DATA is not on an encrypted disk." >&2
     exit 1
 fi
