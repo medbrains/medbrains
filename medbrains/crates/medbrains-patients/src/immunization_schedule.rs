@@ -266,6 +266,9 @@ pub async fn due_list(
     Query(params): Query<DueParams>,
 ) -> Result<Json<DueList>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::immunizations::DUE_LIST)?;
+    // authz: role-only — a public-health recall list (UIP schedule) the immunisation
+    // clinic works hospital-wide; vaccination is not a restricted data class, and a
+    // care-team filter would drop the children it exists to recall (DECISIONS 2026-11-19).
     let within = params.within_days.unwrap_or(7).clamp(0, 60);
     let page = params.page.unwrap_or(1).max(1);
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;

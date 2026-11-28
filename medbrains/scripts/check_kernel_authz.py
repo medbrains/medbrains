@@ -18,7 +18,11 @@ decision too, a named one; `--coverage` lists every use.
 `--coverage` splits the functions that reach the database into RBAC only and
 RBAC + ABAC (a per-record check: the clinical gate, `collapse`/`outcome_of`,
 `authorize`, a `require_*_access` / `*_viewer` helper), and names the RBAC-only
-ones whose SQL touches patient data: the follow-up list, not a failure.
+ones whose SQL touches patient data: the follow-up list, not a failure. A
+function that is correct with the role check alone says so in its body, with
+`// authz: role-only — <why>` (an aggregate, the caller's own rows, a
+hospital-wide desk lookup); `--coverage` lists those under their reason instead
+of as follow-ups, so the decision is written where the code is and reviewed with it.
 
 `kernel_authz.baseline.txt` holds the functions that already broke the rule when
 it was written (background passes and `kernel::begin(Actor::from_claims(..))`
@@ -49,6 +53,7 @@ ABAC = re.compile(
     r"\bgate::|\bpermit_outcome\(|\bcollapse\(|\boutcome_of\(|\bauthorize(_many)?\("
     r"|\.authz\b|\brequire_\w*(access|viewer|editor)\w*\(|\bpatient_filter\(|\bfield_access::"
 )
+ROLE_ONLY = re.compile(r"//\s*authz: role-only\W+(.*)")
 PHI = re.compile(r"\b(patients?|encounters?|opd_visits?|visits?|vitals|prescriptions?|diagnos\w*|allerg\w*)\b", re.I)
 FN_NAME = re.compile(r"\bfn (\w+)")
 STRING = re.compile(r'"(?:[^"\\]|\\.)*"', re.S)
@@ -89,7 +94,7 @@ def check(crates: list[str], coverage: bool, tighten: bool) -> int:
     failures = []
     for crate in crates:
         counts = {"none": 0, "rbac": 0, "abac": 0, "rbac+abac": 0}
-        rbac_phi, unattended = [], []
+        rbac_phi, unattended, role_only = [], [], []
         for path, name, text in functions(CRATES / crate / "src"):
             kind = classify(text)
             if kind is None:
@@ -98,6 +103,8 @@ def check(crates: list[str], coverage: bool, tighten: bool) -> int:
             where = f"{path.relative_to(CRATES)}::{name}"
             if kind == "none":
                 failures.append(where)
+            elif kind == "rbac" and (why := ROLE_ONLY.search(text)):
+                role_only.append(f"{where}: {why.group(1).strip()}")
             elif kind == "rbac" and PHI.search(" ".join(STRING.findall(text))):
                 rbac_phi.append(where)
             unattended += [f"{where}: {r}" for r in re.findall(r'Permit::unattended\([^"]*"([^"]*)"', text)]
@@ -105,6 +112,8 @@ def check(crates: list[str], coverage: bool, tighten: bool) -> int:
             print(f"{crate}: " + ", ".join(f"{k} {v}" for k, v in counts.items()))
             for line in rbac_phi:
                 print(f"  rbac-only on patient data: {line}")
+            for line in role_only:
+                print(f"  role-only by decision: {line}")
             for line in unattended:
                 print(f"  unattended: {line}")
     base = read_baseline()

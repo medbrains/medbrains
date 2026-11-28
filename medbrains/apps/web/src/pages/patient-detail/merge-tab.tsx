@@ -31,6 +31,7 @@ import {
   toMergePatientRequest,
 } from "@/forms/patient-detail.form";
 import { patientDetailService } from "@/services/patientDetail.service";
+import { UNMERGED_NOTICE, unmergeRefusal } from "./merge-notices";
 import { formatDate } from "./shared";
 
 export function MergeTab({ patient }: { patient: Patient }) {
@@ -73,12 +74,9 @@ export function MergeTab({ patient }: { patient: Patient }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      notifications.show({
-        title: "Unmerged",
-        message: "Patient records separated",
-        color: "success",
-      });
+      notifications.show(UNMERGED_NOTICE);
     },
+    onError: (error) => notifications.show(unmergeRefusal(error)),
   });
 
   if (isLoading) return <Loader size="sm" />;
