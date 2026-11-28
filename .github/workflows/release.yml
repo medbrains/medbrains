@@ -452,7 +452,7 @@ jobs:
           apt-get update -q
           apt-get install -yq --no-install-recommends git mkosi systemd-ukify systemd-repart systemd-boot-efi \
             systemd-container apt dpkg debian-archive-keyring dosfstools mtools e2fsprogs erofs-utils cpio \
-            kmod zstd xz-utils ca-certificates python3 bubblewrap uidmap openssl xorriso qemu-utils
+            kmod zstd xz-utils ca-certificates curl python3 bubblewrap uidmap openssl xorriso qemu-utils
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -469,6 +469,7 @@ jobs:
           name: kanidm-${{ matrix.arch }}
           path: kanidm
       - name: Build the image
+        id: image
         env:
           PCR_KEY: ${{ secrets.OS_PCR_KEY }}
           PCR_CERT: ${{ secrets.OS_PCR_CERT }}
@@ -507,6 +508,9 @@ jobs:
           medbrains/os/tests/check-units.sh
           medbrains/os/tests/check-image.sh "$raw"
           name="medbrains-os-$version-${{ matrix.arch }}$suffix"
+          # The image's dpkg database, for the SBOM step below (os/README.md, "CVEs in the image").
+          medbrains/os/package-db.sh "$raw" pkgdb
+          echo "sbom=img/$name.cdx.json" >> "$GITHUB_OUTPUT"
           zstd -T0 -19 "$raw" -o "img/$name.raw.zst"
           # The installer carries that same .raw.zst, so it writes exactly the image above.
           OS_WORK="$RUNNER_TEMP/os" medbrains/os/build-iso.sh --arch ${{ matrix.arch }} --image "img/$name.raw.zst" --out "img/$name.iso"
@@ -514,6 +518,16 @@ jobs:
           medbrains/os/formats.sh "$raw" "$name" ${{ matrix.arch }} img
           # The image, its padded Azure copy and every format pass through this disk at once.
           df -h "$PWD" "$RUNNER_TEMP"
+      # Every Debian package in the image, as pkg:deb/debian PURLs osv-scanner matches against
+      # Debian's advisories. Goes out with the image, so it is in the signed SHA256SUMS.
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          # In the workspace: in a container job runner.temp names the host's path, not the container's.
+          path: pkgdb
+          format: cyclonedx-json
+          output-file: ${{ steps.image.outputs.sbom }}
+          upload-artifact: false
+          upload-release-assets: false
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: os-${{ matrix.arch }}
@@ -665,6 +679,36 @@ jobs:
           done
           shopt -u nullglob
           cd dist && sha256sum -- * > SHA256SUMS
+      # Warns, never stops the release: the fix for a Debian CVE is usually a rebuild on current
+      # packages, which is this very release, and the owner decides whether to publish. Critical
+      # = a CVSS score of 9 or more. The nightly security.yml os-image-cves job tracks them after.
+      - name: Critical CVEs in the OS image, a line in the notes
+        env:
+          OSV_VERSION: v2.7.0 # the same pin as security.yml
+        run: |
+          # Any failure below (download, checksum, jq) warns and says so in the notes; never stops the release.
+          trap 'echo "::warning::OS image CVE scan failed"; printf "\n> The OS image CVE scan did not run for this release.\n" >> NOTES.md; exit 0' ERR
+          shopt -s nullglob
+          sboms=(dist/medbrains-os-*.cdx.json)
+          if [ ${#sboms[@]} -eq 0 ]; then echo "::warning::No OS image SBOM in this release"; exit 0; fi
+          base=https://github.com/google/osv-scanner/releases/download/$OSV_VERSION
+          curl -fsSL --retry 3 -O "$base/osv-scanner_linux_amd64" -O "$base/osv-scanner_SHA256SUMS"
+          grep ' osv-scanner_linux_amd64$' osv-scanner_SHA256SUMS | sha256sum -c -
+          install -m 755 osv-scanner_linux_amd64 /usr/local/bin/osv-scanner
+          args=(); for f in "${sboms[@]}"; do args+=(-L "$f"); done
+          # Exit 1 means "found some"; anything else means the scan itself failed (the trap above).
+          rc=0; osv-scanner scan source "${args[@]}" --format json --output-file osv.json || rc=$?
+          if [ "$rc" -gt 1 ]; then false; fi
+          crit=$(jq -r '[.results[]?.packages[]? | .package.name as $p | .groups[]?
+            | select((.max_severity // "0" | tonumber? // 0) >= 9)
+            | select([.experimental_analysis // {} | .[] | .unimportant] | any | not)
+            | "\($p) \(((.aliases // []) | map(select(startswith("CVE-"))) | first) // .ids[0])"] | unique | .[]' osv.json)
+          if [ -n "$crit" ]; then
+            echo "::warning::Known critical CVEs in the OS image: $(wc -l <<<"$crit")"
+            { echo; echo "## Known critical CVEs"; echo
+              echo "Debian packages in the OS image with a CVSS 9+ advisory at release time (package, advisory):"; echo
+              while read -r line; do echo "- $line"; done <<<"$crit"; } >> NOTES.md
+          fi
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the checksums (keyless)
         working-directory: dist
