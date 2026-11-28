@@ -2,7 +2,7 @@ import { Text } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@/components/ui";
-import { OWN_SIGNATURE_KEY } from "@/hooks/useOwnSignature";
+import { OWN_SIGNATURE_KEY, useOwnSignature } from "@/hooks/useOwnSignature";
 import { signoffService } from "@/services/signoff.service";
 import { SignatureSetupForm } from "./SignatureSetupForm";
 
@@ -32,6 +32,7 @@ function problemOf(error: Error | null): string | null {
 export function SignatureSetupModal({ opened, onClose }: SignatureSetupModalProps) {
   const isNarrow = useMediaQuery("(max-width: 48em)");
   const queryClient = useQueryClient();
+  const { current } = useOwnSignature();
   const save = useMutation({
     mutationFn: (image: string | null) => signoffService.setMySignature({ image }),
     onSuccess: async () => {
@@ -40,17 +41,23 @@ export function SignatureSetupModal({ opened, onClose }: SignatureSetupModalProp
     },
   });
 
+  /** Close, and forget a failed save so the next opening starts clean. */
+  const close = () => {
+    save.reset();
+    onClose();
+  };
+
   return (
     <Modal
       opened={opened}
-      onClose={onClose}
+      onClose={close}
       size="md"
       fullScreen={isNarrow}
       // The password prompt sits on top while saving; its Esc must not close this too.
       closeOnEscape={!save.isPending}
       title={
         <Text fw={600} tabIndex={-1} data-autofocus>
-          Set up your signature
+          {current ? "Replace your signature" : "Set up your signature"}
         </Text>
       }
     >
@@ -58,7 +65,7 @@ export function SignatureSetupModal({ opened, onClose }: SignatureSetupModalProp
         isSaving={save.isPending}
         problem={problemOf(save.error)}
         onSave={(image) => save.mutate(image)}
-        onLater={onClose}
+        onLater={close}
       />
     </Modal>
   );

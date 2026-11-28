@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { PageHeader } from "@/components";
+import { MySignatureCard } from "@/components/Signatures/MySignatureCard";
 import { Alert, Badge, Button, Input, Select } from "@/components/ui";
 import { AlertSoundsCard } from "./profile/alert-sounds-card";
 import { MyLeaveCard } from "./profile/my-leave-card";
@@ -82,6 +83,27 @@ function ReadField({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+/** What HR holds about the person's employment, read-only here. */
+function EmploymentCard({ employee }: { employee: Employee }) {
+  return (
+    <Card withBorder padding="lg">
+      <Text fw={600} mb="sm">
+        Employment — HR-managed
+      </Text>
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <ReadField label="Employee code" value={employee.employee_code} />
+        <ReadField
+          label="Name"
+          value={`${employee.first_name} ${employee.last_name ?? ""}`.trim()}
+        />
+        <ReadField label="Status" value={employee.status} />
+        <ReadField label="Employment type" value={employee.employment_type} />
+        <ReadField label="Date of joining" value={employee.date_of_joining} />
+      </SimpleGrid>
+    </Card>
+  );
+}
+
 export function ProfilePage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -151,27 +173,14 @@ export function ProfilePage() {
       )}
 
       <AlertSoundsCard />
+      <MySignatureCard />
 
       {employee && (
         <>
           <MyLeaveCard />
           <TeamLeaveCard />
 
-          <Card withBorder padding="lg">
-            <Text fw={600} mb="sm">
-              Employment — HR-managed
-            </Text>
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-              <ReadField label="Employee code" value={employee.employee_code} />
-              <ReadField
-                label="Name"
-                value={`${employee.first_name} ${employee.last_name ?? ""}`.trim()}
-              />
-              <ReadField label="Status" value={employee.status} />
-              <ReadField label="Employment type" value={employee.employment_type} />
-              <ReadField label="Date of joining" value={employee.date_of_joining} />
-            </SimpleGrid>
-          </Card>
+          <EmploymentCard employee={employee} />
 
           <Card withBorder padding="lg">
             <Text fw={600} mb="sm">
