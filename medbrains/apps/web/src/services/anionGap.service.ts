@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const anionGapService = {
-  computeAnionGap: (data: Parameters<typeof api.computeAnionGap>[0]) => api.computeAnionGap(data),
+  computeAnionGap: (data: Parameters<typeof clinicalApi.computeAnionGap>[0]) =>
+    clinicalApi.computeAnionGap(data),
 };

@@ -20,7 +20,7 @@
 //! - [`stock`] — Batch-level stock movement between store locations
 
 pub mod audit;
-pub mod beds;
 pub mod pool;
 pub mod sequence;
 pub mod stock;
+mod tenant_timezone;

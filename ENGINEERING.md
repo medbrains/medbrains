@@ -162,7 +162,7 @@ Six codes, fixed hexes, identical on every deployment regardless of theme:
 - Each feature developed in isolation, merged via PR
 - Do NOT commit directly to `master` — always use feature branches
 - Commit messages: imperative, concise, explain "why" not "what"
-- **Record decisions:** a PR that makes or reverses a decision adds a row to `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was rejected
+- **Record decisions:** a PR that makes or reverses a decision adds one file to `medbrains/docs/decisions/` in the same PR, named `YYYY-MM-DD-short-slug.md`: what, why, what was rejected. Never a row in `medbrains/docs/DECISIONS.md`: that file is the history up to 2026-11-22 and is closed
 
 ---
 
@@ -293,8 +293,8 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 
 ### API Contract Rule
 
-- **Every API method** added to `packages/api/src/client.ts` MUST have a corresponding route handler in the backend `routes/mod.rs`.
-- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in the frontend `client.ts`.
+- **Every API method** goes in its API area's module, `packages/api/src/modules/<area>.ts` (the area is the request path's first segment: `/pharmacy/...` → `pharmacy.ts`, `pharmacyApi`), and MUST have a corresponding route handler in the backend `routes/mod.rs`. `client.ts` holds only the transport (request, session, errors).
+- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in its area module.
 - Run `make check-api` to verify. This is a blocking check — no module is complete until the contract passes.
 - The script (`scripts/check_api_contract.py`) statically parses both files — no running server required.
 
@@ -316,9 +316,14 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
    Rust, TypeScript, Swift, Kotlin, Python. Say what the name cannot. Tests and generated files are
    exempt. `make check-docs` and CI fail on any function a branch adds or changes without one.
    Existing functions get theirs when they are touched.
-2. **Every decision** gets a row in `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was
-   rejected. Reversals add a new row; history is never edited.
-3. **Every failure that could recur** gets a row there too: what happened, the cause, the fix.
+2. **Every decision** gets its own file in `medbrains/docs/decisions/` in the same PR, named
+   `YYYY-MM-DD-short-slug.md`: a front section (`date`, `title`, `status`: `decided`, `proposed`
+   or `reversal-of:<file or row>`, `area`) and three headings, What, Why, Rejected. One file per
+   decision, so two PRs never edit the same lines. A reversal is a new file; history is never
+   edited. `make check-decisions` and CI check the shape; `make decisions-index` lists them.
+   `medbrains/docs/DECISIONS.md` holds everything up to 2026-11-22 and takes no new rows.
+3. **Every failure that could recur** gets a file there too, its title starting `Failure:`: what
+   happened and the fix under What, the cause under Why.
 4. **Every module and feature** has its RFC or guide updated in the same PR, and every build or setup
    has the exact commands to repeat it.
 
@@ -511,6 +516,8 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 ---
 
 ## Ticket / Story Execution Workflow
+
+**The whole lifecycle, stage by stage with its gates and evidence, is `medbrains/docs/AI-SDLC.md`.** This section is its Spec stage.
 
 When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
 
@@ -712,7 +719,7 @@ Every module follows this. No skipping.
 4. **Mark In Progress** in Excel via openpyxl script.
 5. **DB layer** — migration `crates/medbrains-db/src/migrations/NNN_<module>.sql`, masters first, RLS, indexes.
 6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
-7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
+7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/modules/<area>.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
    - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
    - **7c TV (if TV=Y)**: Compose for TV under `apps/android/` (per `RFCs/RFC-NATIVE-MOBILE.md`), D-pad focus nav, WebSocket realtime, large fonts.
 8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.

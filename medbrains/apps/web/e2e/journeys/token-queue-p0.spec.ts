@@ -10,6 +10,7 @@
  */
 import { expect, type Page, test } from "@playwright/test";
 import { routeApiDirect } from "../helpers";
+import { authStatePath } from "../helpers/e2e-identities";
 import { type AuthContext, api, getAuthContextFromCookies } from "../helpers/api";
 
 interface BoardToken {
@@ -66,7 +67,7 @@ test.describe("token queue P0 — what the desk sees", () => {
     const first = await issue(ctx, dept.id);
     const second = await issue(ctx, dept.id);
 
-    const storageState = "e2e/.auth/user.json";
+    const storageState = authStatePath;
     const deskA = await (await browser.newContext({ storageState })).newPage();
     const deskB = await (await browser.newContext({ storageState })).newPage();
     await Promise.all([openConsole(deskA, dept.name), openConsole(deskB, dept.name)]);

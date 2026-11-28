@@ -1,5 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
-import { clearSession } from "./session.js";
+import { endClientSession } from "./session.js";
 
 export interface QueryClientCallbacks {
   /**
@@ -10,15 +10,16 @@ export interface QueryClientCallbacks {
   onMutationError?: (error: Error) => void;
 }
 
-/** An expired session signs the user out of every store (see `clearSession`). */
-function handleGlobalError(error: Error): void {
+/** An expired session ends the client session: queries, stores and cache (see `endClientSession`). */
+function handleGlobalError(client: QueryClient, error: Error): void {
   if (error.message === "session_expired") {
-    clearSession();
+    endClientSession(client);
   }
 }
 
+/** The app's one query client: no retry on an expired session, and no silent mutation failure. */
 export function createQueryClient(callbacks: QueryClientCallbacks = {}): QueryClient {
-  return new QueryClient({
+  const client: QueryClient = new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: 30_000,
@@ -32,11 +33,11 @@ export function createQueryClient(callbacks: QueryClientCallbacks = {}): QueryCl
       },
     },
     queryCache: new QueryCache({
-      onError: (error) => handleGlobalError(error as Error),
+      onError: (error) => handleGlobalError(client, error as Error),
     }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
-        handleGlobalError(error as Error);
+        handleGlobalError(client, error as Error);
         // A mutation failure must never be silent: if the call site has
         // no onError of its own, fall back to the app-level handler.
         if (!mutation.options.onError && (error as Error).message !== "session_expired") {
@@ -45,4 +46,5 @@ export function createQueryClient(callbacks: QueryClientCallbacks = {}): QueryCl
       },
     }),
   });
+  return client;
 }

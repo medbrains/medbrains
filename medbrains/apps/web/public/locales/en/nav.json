@@ -193,5 +193,6 @@
   "favouritesLoadFailed": "Favourites didn't load",
   "favouritePin": "Add to favourites",
   "favouriteUnpin": "Remove from favourites",
-  "favouriteRemoveNamed": "Remove {{label}} from favourites"
+  "favouriteRemoveNamed": "Remove {{label}} from favourites",
+  "advanced": "Advanced"
 }

@@ -1,37 +1,42 @@
-import { api } from "@medbrains/api";
+import { occHealthApi } from "@medbrains/api/modules/occ-health";
 
 export const occupationalHealthService = {
-  listOccScreenings: (...args: Parameters<typeof api.listOccScreenings>) =>
-    api.listOccScreenings(...args),
-  listDueScreenings: (...args: Parameters<typeof api.listDueScreenings>) =>
-    api.listDueScreenings(...args),
-  createOccScreening: (...args: Parameters<typeof api.createOccScreening>) =>
-    api.createOccScreening(...args),
-  updateOccScreening: (...args: Parameters<typeof api.updateOccScreening>) =>
-    api.updateOccScreening(...args),
-  listDrugScreens: (...args: Parameters<typeof api.listDrugScreens>) =>
-    api.listDrugScreens(...args),
-  createDrugScreen: (...args: Parameters<typeof api.createDrugScreen>) =>
-    api.createDrugScreen(...args),
-  updateDrugScreen: (...args: Parameters<typeof api.updateDrugScreen>) =>
-    api.updateDrugScreen(...args),
-  listVaccinations: (...args: Parameters<typeof api.listVaccinations>) =>
-    api.listVaccinations(...args),
-  vaccinationCompliance: (...args: Parameters<typeof api.vaccinationCompliance>) =>
-    api.vaccinationCompliance(...args),
-  createVaccination: (...args: Parameters<typeof api.createVaccination>) =>
-    api.createVaccination(...args),
-  listInjuries: (...args: Parameters<typeof api.listInjuries>) => api.listInjuries(...args),
-  createInjury: (...args: Parameters<typeof api.createInjury>) => api.createInjury(...args),
-  listExposures: (...args: Parameters<typeof api.listExposures>) => api.listExposures(...args),
-  createExposure: (...args: Parameters<typeof api.createExposure>) => api.createExposure(...args),
-  updateInjury: (...args: Parameters<typeof api.updateInjury>) => api.updateInjury(...args),
-  listOccHealthHazards: (...args: Parameters<typeof api.listOccHealthHazards>) =>
-    api.listOccHealthHazards(...args),
-  createOccHealthHazard: (...args: Parameters<typeof api.createOccHealthHazard>) =>
-    api.createOccHealthHazard(...args),
-  occHealthAnalytics: (...args: Parameters<typeof api.occHealthAnalytics>) =>
-    api.occHealthAnalytics(...args),
-  returnToWorkClearance: (...args: Parameters<typeof api.returnToWorkClearance>) =>
-    api.returnToWorkClearance(...args),
+  listOccScreenings: (...args: Parameters<typeof occHealthApi.listOccScreenings>) =>
+    occHealthApi.listOccScreenings(...args),
+  listDueScreenings: (...args: Parameters<typeof occHealthApi.listDueScreenings>) =>
+    occHealthApi.listDueScreenings(...args),
+  createOccScreening: (...args: Parameters<typeof occHealthApi.createOccScreening>) =>
+    occHealthApi.createOccScreening(...args),
+  updateOccScreening: (...args: Parameters<typeof occHealthApi.updateOccScreening>) =>
+    occHealthApi.updateOccScreening(...args),
+  listDrugScreens: (...args: Parameters<typeof occHealthApi.listDrugScreens>) =>
+    occHealthApi.listDrugScreens(...args),
+  createDrugScreen: (...args: Parameters<typeof occHealthApi.createDrugScreen>) =>
+    occHealthApi.createDrugScreen(...args),
+  updateDrugScreen: (...args: Parameters<typeof occHealthApi.updateDrugScreen>) =>
+    occHealthApi.updateDrugScreen(...args),
+  listVaccinations: (...args: Parameters<typeof occHealthApi.listVaccinations>) =>
+    occHealthApi.listVaccinations(...args),
+  vaccinationCompliance: (...args: Parameters<typeof occHealthApi.vaccinationCompliance>) =>
+    occHealthApi.vaccinationCompliance(...args),
+  createVaccination: (...args: Parameters<typeof occHealthApi.createVaccination>) =>
+    occHealthApi.createVaccination(...args),
+  listInjuries: (...args: Parameters<typeof occHealthApi.listInjuries>) =>
+    occHealthApi.listInjuries(...args),
+  createInjury: (...args: Parameters<typeof occHealthApi.createInjury>) =>
+    occHealthApi.createInjury(...args),
+  listExposures: (...args: Parameters<typeof occHealthApi.listExposures>) =>
+    occHealthApi.listExposures(...args),
+  createExposure: (...args: Parameters<typeof occHealthApi.createExposure>) =>
+    occHealthApi.createExposure(...args),
+  updateInjury: (...args: Parameters<typeof occHealthApi.updateInjury>) =>
+    occHealthApi.updateInjury(...args),
+  listOccHealthHazards: (...args: Parameters<typeof occHealthApi.listOccHealthHazards>) =>
+    occHealthApi.listOccHealthHazards(...args),
+  createOccHealthHazard: (...args: Parameters<typeof occHealthApi.createOccHealthHazard>) =>
+    occHealthApi.createOccHealthHazard(...args),
+  occHealthAnalytics: (...args: Parameters<typeof occHealthApi.occHealthAnalytics>) =>
+    occHealthApi.occHealthAnalytics(...args),
+  returnToWorkClearance: (...args: Parameters<typeof occHealthApi.returnToWorkClearance>) =>
+    occHealthApi.returnToWorkClearance(...args),
 };

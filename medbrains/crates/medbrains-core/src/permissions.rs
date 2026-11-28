@@ -10,6 +10,17 @@ pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
 }
 
+/// The hospital's own marks: its emblem, name banner and display name.
+///
+/// Held by every staff role, because the app header and the patient card show
+/// them to everyone. It reads only those three branding keys, never the rest
+/// of the branding settings, which stay with `admin.settings.branding.manage`.
+pub mod branding {
+    /// See the hospital's emblem and name.
+    /// See the hospital's emblem, name banner and display name in the app header.
+    pub const VIEW: &str = "branding.view";
+}
+
 /// Sticky notes: a person's own notes, shared to department boards or colleagues.
 ///
 /// Notes are for the ward's logistics — rotas, reminders, a broken monitor —
@@ -57,15 +68,28 @@ pub mod patients {
     pub const DELETE: &str = "patients.delete";
 
     pub mod card {
-        /// Reprint any patient's card at the desk.
+        /// Reprint any patient's cards at the desk.
         ///
         /// A returning patient who lost the card is usually served by a
         /// receptionist who did not register them, and `patients.view` reaches
         /// only patients the caller has a relationship with. This reprints the
-        /// identity card for any patient in the hospital: name, UHID, age, sex,
-        /// phone and registration date, the same identity the desk lookup
-        /// already shows. Never the address, the email or the chart.
+        /// identity card and the OPD card for any patient in the hospital:
+        /// name, UHID, age, sex, phone and registration date, the same identity
+        /// the desk lookup already shows, and on a visit's OPD card its date,
+        /// department, doctor and token. Never the address, the email or the
+        /// chart.
         pub const REPRINT: &str = "patients.card.reprint";
+    }
+
+    pub mod opd_number {
+        /// Give an OPD date before today.
+        ///
+        /// For entering old paper records: the day the OPD number was issued
+        /// in the register, before today, never in the future. Only where the
+        /// hospital allows backdating. Audited with the old and new date; the
+        /// record's own entry time is never changed, and no visit, bill or
+        /// token is created for the earlier date.
+        pub const BACKDATE: &str = "patients.opd_number.backdate";
     }
 
     pub mod group_identity {
@@ -199,6 +223,13 @@ pub mod clinical_notes {
     /// The signed notes as FHIR R4 Compositions, for another hospital, ABDM
     /// or an integration; drafts are never exported.
     pub const EXPORT: &str = "clinical_notes.export";
+    /// Settings a clinician's charting screens read.
+    pub mod display_settings {
+        /// Read the hospital's vitals and ROS lists.
+        /// Which vitals the recorder offers and which systems the review of
+        /// systems lists, as the hospital set them; nothing else from settings.
+        pub const READ: &str = "clinical_notes.display_settings.read";
+    }
 }
 
 pub mod home_health {
@@ -4653,6 +4684,11 @@ pub mod uhi {
         /// request blood inventory management, a lab request walk-in lab
         /// ordering (and sample management for a home collection).
         pub const RESPOND: &str = "uhi.requests.respond";
+        /// Check a UHI booking's PIN at the desk.
+        ///
+        /// Confirm a UHI booking by the PIN the patient's app shows; the PIN
+        /// is never shown or stored, and five wrong tries lock the check.
+        pub const CHECK_PIN: &str = "uhi.requests.check_pin";
     }
 }
 

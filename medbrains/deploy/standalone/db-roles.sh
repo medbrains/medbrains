@@ -23,9 +23,6 @@
 
 DB_APP_ROLE=medbrains_app
 DB_WORKER_ROLE=medbrains_outbox_worker
-# The dedicated install's Postgres container. When it exists, admin SQL runs
-# inside it over the socket; otherwise over the owner's URL.
-DB_ROLES_CONTAINER="${DB_ROLES_CONTAINER:-medbrains-postgres}"
 
 db_env_get() { # key file
     [[ -r "$2" ]] || return 0
@@ -98,22 +95,12 @@ ALTER ROLE $DB_WORKER_ROLE LOGIN PASSWORD '$2';
 SQL
 }
 
-db_use_container() {
-    command -v docker >/dev/null 2>&1 &&
-        docker container inspect "$DB_ROLES_CONTAINER" >/dev/null 2>&1
-}
-
 # SQL on stdin, as the owner. On a reused host Postgres whose owner may not
 # create a BYPASSRLS role, the local postgres superuser is the fallback.
 db_admin_psql() { # owner_url
     local sql user
     sql="$(cat)"
     user="$(db_url_user "$1")"
-    if db_use_container; then
-        docker exec -i "$DB_ROLES_CONTAINER" psql -X -q -v ON_ERROR_STOP=1 \
-            -U "$user" -d "$(db_url_dbname "$1")" <<<"$sql"
-        return
-    fi
     PGPASSWORD="$(db_url_password "$1")" psql -X -q -v ON_ERROR_STOP=1 \
         "$(db_url_as "$1" "$user")" <<<"$sql" 2>/dev/null && return 0
     id postgres >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1 &&
@@ -124,13 +111,8 @@ db_admin_psql() { # owner_url
 db_login_psql() { # url
     local user
     user="$(db_url_user "$1")"
-    if db_use_container; then
-        PGPASSWORD="$(db_url_password "$1")" docker exec -i -e PGPASSWORD "$DB_ROLES_CONTAINER" \
-            psql -X -q -tA -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$user" -d "$(db_url_dbname "$1")"
-    else
-        PGPASSWORD="$(db_url_password "$1")" psql -X -q -tA -v ON_ERROR_STOP=1 \
-            "$(db_url_as "$1" "$user")"
-    fi
+    PGPASSWORD="$(db_url_password "$1")" psql -X -q -tA -v ON_ERROR_STOP=1 \
+        "$(db_url_as "$1" "$user")"
 }
 
 db_roles_configure() { # env_file

@@ -1,0 +1,42 @@
+{
+  "_doc": "Which Playwright projects a changed path needs on a pull request. Read by scripts/e2e_select.py: the first rule whose glob matches a path decides it (fnmatch, so * also crosses /); a PR runs the union over its paths. A path no rule matches runs every project. Pushes to main and release/** and the nightly always run everything. Checked by `python3 scripts/e2e_select.py --check`.",
+  "rules": [
+    { "glob": "medbrains/apps/web/e2e/accessibility/*", "projects": ["accessibility"] },
+    { "glob": "medbrains/apps/web/e2e/analytics/*", "projects": ["analytics"] },
+    { "glob": "medbrains/apps/web/e2e/crud/*", "projects": ["crud"] },
+    { "glob": "medbrains/apps/web/e2e/forms/*", "projects": ["forms"] },
+    { "glob": "medbrains/apps/web/e2e/identity/*", "projects": ["api", "chromium"] },
+    { "glob": "medbrains/apps/web/e2e/journeys/*", "projects": ["journeys"] },
+    { "glob": "medbrains/apps/web/e2e/scenarios/*", "projects": ["journeys"] },
+    { "glob": "medbrains/apps/web/e2e/linkages/*", "projects": ["linkages"] },
+    { "glob": "medbrains/apps/web/e2e/mock/*", "projects": ["mock-chromium"] },
+    { "glob": "medbrains/apps/web/e2e/rbac/*", "projects": ["rbac"] },
+    { "glob": "medbrains/apps/web/e2e/robustness/*", "projects": ["robustness"] },
+    { "glob": "medbrains/apps/web/e2e/screens/*", "projects": ["screens"] },
+    { "glob": "medbrains/apps/web/e2e/payments-live/*", "projects": [] },
+    { "glob": "medbrains/apps/web/e2e/perf/*", "projects": [] },
+    { "glob": "medbrains/apps/web/e2e/timings.json", "projects": [] },
+
+    { "glob": "*.md", "projects": [] },
+    { "glob": "medbrains/docs/*", "projects": [] },
+    { "glob": "medbrains/RFCs/*", "projects": [] },
+    { "glob": "RFCs/*", "projects": [] },
+    { "glob": "medbrains/apps/ios/*", "projects": [] },
+    { "glob": "medbrains/apps/android/*", "projects": [] },
+    { "glob": "medbrains/apps/docs/*", "projects": [] },
+    { "glob": "medbrains/website/*", "projects": [] },
+    { "glob": "medbrains/os/*", "projects": [] },
+
+    { "glob": "medbrains/crates/*", "projects": ["server"] },
+    { "glob": "medbrains/Cargo.*", "projects": ["server"] },
+    { "glob": "medbrains/.sqlx/*", "projects": ["server"] },
+    { "glob": "medbrains/rust-toolchain.toml", "projects": ["server"] },
+
+    { "glob": ".github/workflows/e2e.yml", "projects": ["all"] },
+    { "glob": ".github/*", "projects": [] }
+  ],
+  "groups": {
+    "server": ["api", "crud", "forms", "analytics", "rbac", "journeys", "robustness", "accessibility", "linkages", "screens", "chromium"],
+    "all": ["api", "crud", "forms", "analytics", "rbac", "journeys", "robustness", "accessibility", "linkages", "screens", "chromium", "mock-chromium"]
+  }
+}

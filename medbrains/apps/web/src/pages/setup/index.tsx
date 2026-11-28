@@ -1,5 +1,6 @@
 import { Card, Group, RingProgress, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
@@ -135,22 +136,22 @@ export function SetupCenterPage() {
 
   const { data: departments = [] } = useQuery({
     queryKey: ["setup", "departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => setupApi.listDepartments(),
     enabled: canListDepartments,
   });
   const { data: services = [] } = useQuery({
     queryKey: ["setup", "services"],
-    queryFn: () => api.listServices(),
+    queryFn: () => setupApi.listServices(),
     enabled: canListServices,
   });
   const { data: sequences = [] } = useQuery({
     queryKey: ["setup", "sequences"],
-    queryFn: () => api.listSequences(),
+    queryFn: () => setupApi.listSequences(),
     enabled: canManageSequences,
   });
   const { data: ssoProviders = [] } = useQuery({
     queryKey: ["sso-active-providers"],
-    queryFn: () => api.listActiveSsoProviders(),
+    queryFn: () => authApi.listActiveSsoProviders(),
     retry: false,
   });
 

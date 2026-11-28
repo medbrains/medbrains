@@ -1,7 +1,7 @@
 [Unit]
 Description=MedBrains WAL spool → S3 (opt-in point-in-time recovery)
 Documentation=https://github.com/DomnicAmalan/MedBrains/blob/master/medbrains/docs/ops/BACKUP-RESTORE.md
-After=docker.service postgresql.service network-online.target
+After=postgresql.service network-online.target
 Wants=network-online.target
 # No OnFailure=: an S3 outage would page every minute. medbrains-host-check
 # pages once the oldest spooled segment is 15 minutes old.
@@ -9,7 +9,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
-EnvironmentFile=-/etc/medbrains/.compose-env
+EnvironmentFile=-/etc/medbrains/postgres.env
 ExecStart=/usr/local/bin/medbrains-wal-g push
 Nice=5
 Restart=no

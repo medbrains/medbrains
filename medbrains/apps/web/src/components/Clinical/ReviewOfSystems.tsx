@@ -1,7 +1,6 @@
 import { Checkbox, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
-import type { ReviewOfSystems as ROSType, TenantSettingsRow } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
-import { clinicalSupportService } from "@/services/clinicalSupport.service";
+import type { ReviewOfSystems as ROSType } from "@medbrains/types";
+import { useClinicalSetting } from "./useClinicalSetting";
 
 interface ReviewOfSystemsProps {
   data: ROSType;
@@ -29,16 +28,8 @@ const DEFAULT_ROS_SYSTEMS: { key: string; label: string }[] = [
 
 /** Load ROS systems from hospital settings, fall back to defaults */
 function useRosSystems(): { key: string; label: string }[] {
-  const { data: settings = [] } = useQuery<TenantSettingsRow[]>({
-    queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => clinicalSupportService.getTenantSettings("clinical"),
-    staleTime: 600_000,
-  });
-
-  const custom = settings.find((s) => s.key === "ros_systems");
-  if (custom?.value && Array.isArray(custom.value)) {
-    return custom.value as { key: string; label: string }[];
-  }
+  const custom = useClinicalSetting("ros_systems");
+  if (Array.isArray(custom)) return custom as { key: string; label: string }[];
   return DEFAULT_ROS_SYSTEMS;
 }
 

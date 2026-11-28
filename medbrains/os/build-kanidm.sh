@@ -11,14 +11,19 @@
 # Pinned three ways, so a changed upstream fails here: the commit and SHA-256 of the source, the SHA-256
 # of Cargo.lock, which holds a checksum for every dependency, and a build from a vendored copy with
 # --frozen, which cargo checks against that lock and which cannot reach the network.
-# Upgrading: read its advisories, then add a row with the commit and both hashes.
+# Upgrading: read its advisories, then add a row with the commit, both hashes and the toolchain.
+#
+# The toolchain is pinned per release, apart from ours: upstream says only "stable" (rust-toolchain.toml)
+# and builds its daemon with #![deny(warnings)], so each newer Rust can add a warning that stops the
+# build (1.100's unused-ExitCode lint did, 3.35.0 to 3.35.2). Pin the one a release last built clean on.
 set -euo pipefail
 
-# Prints the pinned commit, source hash and lock hash of a release, or nothing if it is not pinned.
+# Prints the pinned commit, source hash, lock hash and Rust toolchain of a release, or nothing if it is
+# not pinned.
 pins_of() {
     case "$1" in
-        1.12.0) echo a52b723ce8efb1f4d0a6bc2a2c36b4071f95317d b4589475d0f12f259c98c4934fd65b924819afb51c4d12ce256f9e9fe4d137bf fe28b5c2b5793fcc690f1298247e78a39af0e7ccc6e6a9ac913b6e849d3f3782 ;;
-        1.11.2) echo 547933867e87da737e79d26942dc9261adaa5ee9 8feb9485647d18ae4327447931b2b821b9f15fb140c5f0f2e6c7d52c820a0074 43686a6ba8b26ba80b1408d0d2331a847c583b5bd68a55ea95663670dbadef55 ;;
+        1.12.0) echo a52b723ce8efb1f4d0a6bc2a2c36b4071f95317d b4589475d0f12f259c98c4934fd65b924819afb51c4d12ce256f9e9fe4d137bf fe28b5c2b5793fcc690f1298247e78a39af0e7ccc6e6a9ac913b6e849d3f3782 1.99.1 ;;
+        1.11.2) echo 547933867e87da737e79d26942dc9261adaa5ee9 8feb9485647d18ae4327447931b2b821b9f15fb140c5f0f2e6c7d52c820a0074 43686a6ba8b26ba80b1408d0d2331a847c583b5bd68a55ea95663670dbadef55 1.99.1 ;;
     esac
 }
 # Its reqwest links OpenSSL, so the headers and libraries come from the Debian release the image
@@ -39,7 +44,7 @@ while [[ $# -gt 0 ]]; do
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
-read -r KANIDM_COMMIT KANIDM_SHA256 KANIDM_LOCK_SHA256 <<<"$(pins_of "$KANIDM_VERSION")"
+read -r KANIDM_COMMIT KANIDM_SHA256 KANIDM_LOCK_SHA256 KANIDM_TOOLCHAIN <<<"$(pins_of "$KANIDM_VERSION")"
 [[ -n "${KANIDM_COMMIT:-}" ]] || { echo "Kanidm $KANIDM_VERSION is not pinned" >&2; exit 2; }
 case "$ARCH" in
     arm64) TRIPLE=aarch64-unknown-linux-gnu; DEB_ARCH=arm64; MULTIARCH=aarch64-linux-gnu ;;
@@ -93,15 +98,17 @@ for carried in "$HERE"/patches/kanidm-*.patch; do
     (cd "$SRC" && patch -p1 --forward --fuzz=0 < "$carried")
 done
 
+# A no-op once installed. RUSTUP_TOOLCHAIN below overrides upstream's "stable" and our own pin alike.
+rustup toolchain install "$KANIDM_TOOLCHAIN" --profile minimal --target "$TRIPLE"
 bash "$HERE/../scripts/build_guard.sh" --wait
 if [[ ! -f "$VENDOR.config" ]]; then
-    (cd "$SRC" && RUSTUP_TOOLCHAIN=1.100.0 cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"
+    (cd "$SRC" && RUSTUP_TOOLCHAIN="$KANIDM_TOOLCHAIN" cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"
     mv "$VENDOR.config.new" "$VENDOR.config"
 fi
 cat "$VENDOR.config" >> "$SRC/.cargo/config.toml"
 # The trailing .2.41 is trixie's glibc: Debian's libssl needs symbols older targets lack.
 # Debug info off: its release profile keeps it, and it would only add to the image.
-(cd "$SRC" && env -u MAKEFLAGS -u ARCH RUSTUP_TOOLCHAIN=1.100.0 CARGO_TARGET_DIR="$OS_TARGET_DIR" \
+(cd "$SRC" && env -u MAKEFLAGS -u ARCH RUSTUP_TOOLCHAIN="$KANIDM_TOOLCHAIN" CARGO_TARGET_DIR="$OS_TARGET_DIR" \
     KANIDM_BUILD_PROFILE=release_linux CARGO_PROFILE_RELEASE_DEBUG=false CARGO_PROFILE_RELEASE_STRIP=debuginfo \
     OPENSSL_INCLUDE_DIR="$SSL/usr/include" OPENSSL_LIB_DIR="$SSL/usr/lib/$MULTIARCH" \
     cargo zigbuild --release --frozen --target="$TRIPLE.2.41" -p daemon --bin kanidmd)

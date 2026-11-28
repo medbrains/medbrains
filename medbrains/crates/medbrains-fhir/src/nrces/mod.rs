@@ -10,6 +10,7 @@
 
 pub mod conformance;
 mod records;
+mod rendition;
 mod resources;
 pub mod sections;
 
@@ -19,6 +20,10 @@ mod drift_tests;
 mod golden;
 #[cfg(test)]
 mod records_tests;
+#[cfg(test)]
+mod rendition_fixture;
+#[cfg(test)]
+mod rendition_tests;
 #[cfg(test)]
 mod tests;
 
@@ -30,6 +35,7 @@ pub use records::{
     DocumentLine, ImmunizationLine, InvoiceHeader, InvoiceItem, VitalsLine, document_reference,
     immunization, invoice, vital_observations,
 };
+pub use rendition::{attach_pdf, has_rendition, rendition};
 pub use resources::{
     Clinical, DiagnosisLine, LabReport, LabResult, condition, diagnostic_report,
     medication_request, observation,
@@ -335,27 +341,13 @@ fn encounter(e: &EncounterInfo, patient_ref: &Value) -> Value {
     r
 }
 
-fn narrative(lines: &[String]) -> Value {
-    let body: String = lines
-        .iter()
-        .map(|l| format!("<p>{}</p>", escape(l)))
-        .collect();
-    json!({ "status": "generated", "div": format!("<div xmlns=\"http://www.w3.org/1999/xhtml\">{body}</div>") })
-}
-
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
 fn section(s: &Section) -> Value {
     let mut out = json!({ "title": s.title });
     if let Some(sections::SectionCode(system, code, display)) = s.code {
         out["code"] = json!({ "coding": [{ "system": system, "code": code, "display": display }] });
     }
     if !s.lines.is_empty() {
-        out["text"] = narrative(&s.lines);
+        out["text"] = sections::narrative(&s.lines);
     }
     if !s.entries.is_empty() {
         out["entry"] = Value::Array(s.entries.iter().map(reference).collect());

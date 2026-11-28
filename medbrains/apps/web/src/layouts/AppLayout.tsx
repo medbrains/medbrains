@@ -15,8 +15,13 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { clearSession, useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
-import { BRICK_NAMES } from "@medbrains/types";
+import {
+  endClientSession,
+  useAuthStore,
+  useModuleStore,
+  usePermissionStore,
+} from "@medbrains/stores";
+import { BRICK_MANIFESTS } from "@medbrains/types";
 import { IconLanguage, IconLogout, IconSearch, IconSettings, IconUser } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
@@ -56,8 +61,10 @@ import classes from "./AppLayout.module.scss";
 import { AppNavbar, hasSidePanel } from "./AppNavbar";
 import { panelFor } from "./appPanel";
 import { FavouriteStar } from "./FavouriteStar";
+import { HospitalMarks, useBrandingMarks } from "./HospitalMarks";
 import { OnDemandOverlays } from "./OnDemandOverlays";
 import { PanelHeader } from "./PanelHeader";
+import { PanelPages } from "./PanelPages";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
@@ -73,6 +80,7 @@ interface ResolvedNavItem {
   requiredPermissions?: readonly string[];
   children?: ResolvedNavItem[];
   moduleCode?: string;
+  isAdvanced?: boolean;
 }
 
 // Carbon UI Shell side-nav widths: 48px icon rail, 256px expanded.
@@ -88,6 +96,7 @@ function routeObjectLabel(previousSegment: string | undefined, nextSegment: stri
   return "Record";
 }
 
+/** The signed-in shell: header (with the hospital's marks), side panel and page. */
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -128,18 +137,17 @@ export function AppLayout() {
     wasFocusRoute.current = isFocusRoute;
   }, [isFocusRoute]);
 
+  /**
+   * Tear the client down before the server answers: the logout call marks the
+   * session ended at once (no refresh), then queries stop, the signed-in
+   * screens unmount with their polls and socket, and the cache — this
+   * session's patient data — is wiped for the next person at this desk.
+   */
   const handleLogout = async () => {
-    try {
-      await sessionService.logout();
-    } catch {
-      // ignore
-    }
-    clearSession();
-    // Wipe the in-memory query cache — it holds PHI/clinical data from this
-    // session. Without this, the next user on a shared workstation could be
-    // served the previous user's cached records before a refetch.
-    queryClient.clear();
+    const loggedOut = sessionService.logout().catch(() => undefined);
+    endClientSession(queryClient);
     void navigate("/login");
+    await loggedOut;
   };
 
   const handleNavigate = useCallback(
@@ -173,6 +181,8 @@ export function AppLayout() {
   }, []);
 
   const userInitial = user?.full_name?.charAt(0)?.toUpperCase() ?? "U";
+  // The hospital's emblem stands in as the profile picture; the initial shows without one.
+  const hospitalEmblem = useBrandingMarks()?.emblem ?? null;
 
   // Resolve config items to renderable items with translated labels
   const resolveItem = useCallback(
@@ -192,6 +202,7 @@ export function AppLayout() {
         requiredPermission: cfg.requiredPermission,
         requiredPermissions: cfg.requiredPermissions,
         moduleCode: cfg.moduleCode,
+        isAdvanced: cfg.isAdvanced,
         children: cfg.children?.map((c) => resolveItem(c, true)),
       };
     },
@@ -327,24 +338,29 @@ export function AppLayout() {
             onFocus={() => handleNavigationIntent(item.path)}
             onPointerEnter={() => handleNavigationIntent(item.path)}
           >
-            {visibleChildren.map((child) => (
-              <NavLink
-                key={child.path}
-                component={Link}
-                to={child.path}
-                label={child.label}
-                style={{ "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties}
-                leftSection={<span className={classes.navIcon}>{child.icon}</span>}
-                active={isActive(child.path)}
-                aria-current={isActive(child.path) ? "page" : undefined}
-                onFocus={() => handleNavigationIntent(child.path)}
-                onClick={() => handleLinkClick(child.path)}
-                onPointerEnter={() => handleNavigationIntent(child.path)}
-                className={
-                  isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
-                }
-              />
-            ))}
+            <PanelPages
+              pages={visibleChildren}
+              renderPage={(child) => (
+                <NavLink
+                  key={child.path}
+                  component={Link}
+                  to={child.path}
+                  label={child.label}
+                  style={
+                    { "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties
+                  }
+                  leftSection={<span className={classes.navIcon}>{child.icon}</span>}
+                  active={isActive(child.path)}
+                  aria-current={isActive(child.path) ? "page" : undefined}
+                  onFocus={() => handleNavigationIntent(child.path)}
+                  onClick={() => handleLinkClick(child.path)}
+                  onPointerEnter={() => handleNavigationIntent(child.path)}
+                  className={
+                    isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
+                  }
+                />
+              )}
+            />
           </NavLink>
         </div>
       );
@@ -381,7 +397,7 @@ export function AppLayout() {
     const first = groups[0]?.items[0];
     const header = (
       <PanelHeader
-        title={panel.app ? (BRICK_NAMES[panel.app] ?? panel.app) : t("groupCore")}
+        title={panel.app ? (BRICK_MANIFESTS[panel.app]?.name ?? panel.app) : t("groupCore")}
         icon={resolveIcon(panel.app && first ? first.iconName : "IconDashboard", 20, 1.5)}
         isExpanded={isExpanded}
         onNavigate={closeMobile}
@@ -439,7 +455,10 @@ export function AppLayout() {
       {/* ── Header ── */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
+          {/* Each side takes only the room it needs and the hospital's marks sit
+              centred in the gap between them, so a full right side is never
+              squeezed while the left stands empty. */}
+          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "0 1 auto" }}>
             {hasPanel && (
               <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             )}
@@ -454,10 +473,23 @@ export function AppLayout() {
             </Group>
           </Group>
 
-          <Group gap="sm" wrap="nowrap" miw={0}>
+          <HospitalMarks />
+
+          <Group
+            gap="sm"
+            wrap="nowrap"
+            miw={0}
+            justify="flex-end"
+            className={classes.headerRight}
+            style={{ flex: "0 1 auto" }}
+          >
             <HeaderWidgets />
-            {/* The ticker gives way first when the bar is tight. */}
-            <Box visibleFrom="xl" miw={0} style={{ height: "100%", flex: "0 1 260px" }}>
+            {/* Only the ticker gives way when the bar is tight. */}
+            <Box
+              visibleFrom="xl"
+              miw={0}
+              style={{ height: "100%", flex: "0 1 260px", overflow: "hidden" }}
+            >
               <NewsMarquee />
             </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
@@ -467,7 +499,7 @@ export function AppLayout() {
               className={classes.searchTrigger}
               visibleFrom="sm"
             >
-              <Group gap={6}>
+              <Group gap={6} wrap="nowrap">
                 <AnimatedIcon icon={IconSearch} size={14} motion="float" />
                 <Text size="xs" c="dimmed">
                   Search...
@@ -522,10 +554,13 @@ export function AppLayout() {
               <Menu.Target>
                 <Group gap={8} wrap="nowrap" style={{ cursor: "pointer" }}>
                   <Avatar
+                    src={hospitalEmblem}
+                    alt=""
                     color="primary"
                     radius="lg"
                     size={30}
                     style={{ fontSize: 12, fontWeight: 600 }}
+                    styles={{ image: { objectFit: "contain" } }}
                   >
                     {userInitial}
                   </Avatar>

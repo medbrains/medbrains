@@ -1,15 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { P } from "@medbrains/types";
 import { IconKey, IconServerCog } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
+import { type Control, Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { PageHeader } from "@/components";
 import { StartupChecksCard } from "@/components/admin/StartupChecksCard";
-import { AiLabel, Badge, Button, Input, Select } from "@/components/ui";
+import { AiLabel, Badge, Button, Input, Select, Switch } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 const SECRETS_LABEL: Record<string, string> = {
@@ -21,8 +21,27 @@ const SECRETS_LABEL: Record<string, string> = {
 const aiFormSchema = z.object({
   provider: z.string().min(1),
   model: z.string(),
+  typed_actions: z.boolean(),
 });
 type AiFormInput = z.infer<typeof aiFormSchema>;
+
+/** The hospital's `ai.config.typed_actions` switch, inside the AI settings form. */
+function TypedActionsSwitch({ control }: { control: Control<AiFormInput> }) {
+  return (
+    <Controller
+      control={control}
+      name="typed_actions"
+      render={({ field }) => (
+        <Switch
+          label="Assistant uses typed actions for Registration and OPD"
+          description="Patient lookup, a patient's summary and today's OPD queue go through the same checks as the screen, and every use is audited. Turn off to fall back to the older read path."
+          checked={field.value}
+          onChange={(e) => field.onChange(e.currentTarget.checked)}
+        />
+      )}
+    />
+  );
+}
 
 export function InfrastructurePage() {
   useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
@@ -30,11 +49,11 @@ export function InfrastructurePage() {
 
   const { data: status } = useQuery({
     queryKey: ["infra-status"],
-    queryFn: () => api.getInfraStatus(),
+    queryFn: () => adminApi.getInfraStatus(),
   });
   const { data: ai } = useQuery({
     queryKey: ["ai-settings"],
-    queryFn: () => api.getAiSettings(),
+    queryFn: () => adminApi.getAiSettings(),
   });
 
   const { control, register, handleSubmit } = useForm<AiFormInput>({
@@ -42,15 +61,13 @@ export function InfrastructurePage() {
     values: {
       provider: ai?.provider ?? "anthropic",
       model: ai?.model ?? "",
+      typed_actions: ai?.typed_actions ?? true,
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: (data: AiFormInput) =>
-      api.updateAiSettings({
-        provider: data.provider,
-        model: data.model.trim(),
-      }),
+      adminApi.updateAiSettings({ ...data, model: data.model.trim() }),
     onSuccess: () => {
       notifications.show({ title: "AI settings saved", message: "Updated.", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["ai-settings"] });
@@ -140,6 +157,7 @@ export function InfrastructurePage() {
             description="Leave blank to use the platform default."
             {...register("model")}
           />
+          <TypedActionsSwitch control={control} />
           <Group justify="flex-end">
             <Button tone="primary" onClick={() => void onSave()} loading={saveMutation.isPending}>
               Save AI settings

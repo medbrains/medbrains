@@ -5,7 +5,7 @@
        ios-devices ios-doctor ios-platform \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
+       check-field-classes check-authz-collapse check-ui-slop check-query-fallbacks check-docs check-decisions decisions-index check-kernel-boundary check-kernel-authz check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -209,8 +209,11 @@ dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password f
 		| $(DEV_PSQL) -X -q -v ON_ERROR_STOP=1
 	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
 
-.PHONY: test-backups restore-drill
-test-backups: ## Backup kit: script checks + encrypted backup → restore drill end to end (docker, age, pg 17 client)
+.PHONY: test-backups restore-drill check-kit-shell
+check-kit-shell: ## Deploy kit: bash -n and shellcheck (warnings fail) on every script
+	@cd deploy/standalone && files="$$(grep -lE '^#!(/usr/bin/env bash|/bin/bash)' *)" && \
+		for f in $$files; do bash -n "$$f" || exit 1; done && shellcheck -x -S warning $$files && echo "kit shell: ok"
+test-backups: ## Backup kit: script checks + encrypted backup → restore drill end to end (age, pg 17 client + initdb)
 	bash deploy/standalone/test-pg-backup-local.sh
 	bash deploy/standalone/test-backup-drill-e2e.sh
 
@@ -337,6 +340,13 @@ check-app-screens: ## Fail if app-screens.generated.ts is stale against screens.
 	python3 scripts/generate_app_screens.py --self-test
 	python3 scripts/generate_app_screens.py --check
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-web-brick-imports
+check-all: check-web-brick-imports
+check-web-brick-imports: ## Ratchet: web imports from one brick's source into another's only fall
+	python3 scripts/check_web_brick_imports.py --self-test
+	python3 scripts/check_web_brick_imports.py
+
 check-ui-slop: ## Decorative effects in the web app only ever go down
 	python3 scripts/check_ui_slop.py
 
@@ -353,7 +363,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-app-screens check-shell-theme check-raw-key-bytes check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-query-fallbacks check-docs check-decisions check-kernel-boundary check-kernel-authz check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-actions check-app-screens check-shell-theme check-raw-key-bytes check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -414,6 +424,12 @@ check-lints-inheritance: ## Fail if a crate does not inherit the workspace lints
 	python3 scripts/check_lints_inheritance.py --self-test
 	python3 scripts/check_lints_inheritance.py
 
+.PHONY: check-utc-today
+check-all: check-utc-today
+check-utc-today: ## "Today" is the hospital's date (hospital_time), never Utc::now().date_naive() or chrono::Local
+	python3 scripts/check_utc_today.py --self-test
+	python3 scripts/check_utc_today.py
+
 check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys and MEDBRAINS_ENV literals outside medbrains-crypto/src/keys*
 	python3 scripts/check_raw_key_bytes.py
 	bash deploy/standalone/test-jwt-keys.sh
@@ -433,6 +449,14 @@ check-shell-theme: ## The OS shell's GTK colours match the design tokens and mee
 
 check-docs: ## Every function this branch adds or changes has a doc comment
 	cd .. && python3 medbrains/scripts/check_docs_on_new_functions.py
+
+check-decisions: ## Every file in docs/decisions has the name and the shape a decision needs
+	python3 scripts/check_decisions.py --self-test
+	python3 scripts/decision_row_to_file.py --self-test
+	python3 scripts/check_decisions.py
+
+decisions-index: ## Write docs/decisions/README.md, newest first (generated, not committed)
+	python3 scripts/check_decisions.py --index
 
 check-kernel-boundary: ## Ratchet: apps reach the trusted core only through medbrains-kernel
 	python3 scripts/check_kernel_boundary.py --self-test
@@ -454,9 +478,33 @@ check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts,
 	python3 scripts/check_size_budgets.py --self-test
 	python3 scripts/check_size_budgets.py
 
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-shell-size
+check-all: check-shell-size
+check-shell-size: ## Ratchet: medbrains-server/src lines and direct .route( calls only shrink
+	python3 scripts/check_shell_size.py --self-test
+	python3 scripts/check_shell_size.py
+
+check-kernel-authz: ## Kernel crates reach the database only behind an authorisation decision
+	python3 scripts/check_kernel_authz.py --self-test
+	python3 scripts/check_kernel_authz.py
+
+# Report only, so it is not in check-all: it prints the change and never fails.
+.PHONY: brick-tables-report
+brick-tables-report: ## Report: SQL in one brick's crates touching another brick's tables
+	python3 scripts/check_brick_tables.py --self-test
+	python3 scripts/check_brick_tables.py
+
 check-kernel-no-domain: ## The kernel is technical: no domain crates below it, no domain words in it
 	python3 scripts/check_kernel_no_domain.py --self-test
 	python3 scripts/check_kernel_no_domain.py
+
+# Added to check-all here, not on its long line above, so two PRs adding a check do not conflict.
+.PHONY: check-brick-edges
+check-all: check-brick-edges
+check-brick-edges: ## Ratchet: no new crate edge brick -> brick, base -> domain, shared -> brick
+	python3 scripts/check_brick_edges.py --self-test
+	python3 scripts/check_brick_edges.py
 
 check-ai-label: ## Every screen that shows AI output carries the AiLabel (#4895)
 	python3 scripts/check_ai_label.py
@@ -555,6 +603,9 @@ check-rls-only-writes: ## Ratchet writes keyed only on a caller-supplied id
 
 check-bricks: ## Every module name comes from bricks.rs; ratchets bricks with no server check
 	python3 ../scripts/check_bricks.py
+
+check-actions: ## Every typed action names a brick, a permission constant and its own id
+	python3 ../scripts/check_actions.py
 
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py

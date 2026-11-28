@@ -15,7 +15,7 @@ mod who;
 
 use axum::extract::{Path, State};
 use axum::{Extension, Json};
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -81,7 +81,7 @@ struct MeasureRow {
     head_circumference_cm: Option<f64>,
 }
 
-/// `GET /api/patients/{id}/growth`
+/// `GET /api/patients/{id}/growth`: the child's charts, aged on the hospital's calendar.
 pub async fn get_growth(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -102,8 +102,12 @@ pub async fn get_growth(
     .await?
     .ok_or(AppError::NotFound)?;
     let rows = measurements(&mut tx, claims.tenant_id, patient_id).await?;
+    // Ages are measured on the hospital's calendar, as `measured_on` is.
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
     tx.commit().await?;
-    Ok(Json(respond(&p, &rows, Utc::now().date_naive())))
+    Ok(Json(respond(&p, &rows, today)))
 }
 
 fn respond(p: &PatientRow, rows: &[MeasureRow], today: NaiveDate) -> GrowthResponse {

@@ -120,7 +120,7 @@ async fn lab_technician(w: &World, in_pathology: bool) -> (Client, String) {
     .await
     .expect("pathology");
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("lab_{tag}"), format!("Lab#{tag}Aa9"));
+    let (username, password) = (format!("lab_{tag}"), format!("Lab#Key{tag}Aa9"));
     let created = w
         .app
         .client

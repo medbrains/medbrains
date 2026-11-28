@@ -26,7 +26,8 @@ vi.mock("@/services/ipd.service", () => ({
 }));
 vi.mock("@/components", () => ({
   DoctorSearchSelect: () => null,
-  PatientSearchSelect: () => null,
+  PatientSearchSelect: ({ withSearchBy }: { withSearchBy?: boolean }) =>
+    withSearchBy ? <span data-testid="picker-with-search-by" /> : null,
   useClinicalEmit: () => vi.fn(),
 }));
 vi.mock("@/components/payments/collect/use-collect-at-checkin", () => ({
@@ -38,6 +39,14 @@ const { OpdVisitForm } = await import("./visit-form");
 /** Renders the form for a chosen patient. */
 const renderForm = () =>
   render(<OpdVisitForm initialPatientId="p-1" onCancel={vi.fn()} onCreated={vi.fn()} />);
+
+describe("OpdVisitForm patient picker", () => {
+  it("offers the patient list's Search by choice", () => {
+    listDepartments.mockReturnValue(new Promise(() => {}));
+    renderForm();
+    expect(screen.getByTestId("picker-with-search-by")).toBeInTheDocument();
+  });
+});
 
 describe("OpdVisitForm department", () => {
   it("shows the picker while the departments load", () => {
@@ -68,5 +77,20 @@ describe("OpdVisitForm department", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create Visit" }));
     // The required picker blocks the submit until a department is chosen.
     expect(createEncounter).not.toHaveBeenCalled();
+  });
+
+  it("says the departments failed to load rather than offering an empty picker", async () => {
+    listDepartments.mockRejectedValue(new Error("Request failed: 500"));
+    renderForm();
+    expect(
+      await screen.findByText(
+        "Departments could not be loaded. Reload the page to try again.",
+        undefined,
+        {
+          timeout: 10_000,
+        },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /^Department/ })).toBeInTheDocument();
   });
 });

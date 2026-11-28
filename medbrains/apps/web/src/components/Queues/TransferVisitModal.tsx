@@ -1,5 +1,5 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { opdApi } from "@medbrains/api/modules/opd";
 import type { ModuleToken } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -31,7 +31,7 @@ export function TransferVisitModal({ token, departments, onClose }: TransferVisi
 
   const move = useMutation({
     mutationFn: () =>
-      api.transferEncounter(token?.entity_id ?? "", {
+      opdApi.transferEncounter(token?.entity_id ?? "", {
         department_id: departmentId ?? "",
         doctor_id: doctorId || null,
       }),

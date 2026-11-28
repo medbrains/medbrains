@@ -1,7 +1,7 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { TFunction } from "i18next";
-import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
+import { PatientPrintMenu } from "@/components/Print/PatientPrintMenu";
 
 /**
  * Long enough to reach for the printer while the patient is still at the
@@ -16,19 +16,22 @@ export interface RegisteredNotice {
   patientId: string;
   /** The OPD visit registration opened, if it opened one. */
   encounterId?: string;
+  /** The visit's token; null when the queue refused one. */
+  tokenNumber?: string | null;
 }
 
 /**
- * The "patient registered" notice, with "Print OPD card" on it.
+ * The "patient registered" notice, with the token ticket and ID card prints on it.
  *
  * Registration navigates straight on to the visit or the record, so the
- * notice is the success state that survives the move; the card is printed
+ * notice is the success state that survives the move; both are printed
  * from it while the patient is still standing at the counter.
  */
 export function showRegisteredNotice({
   message,
   patientId,
   encounterId,
+  tokenNumber,
   ...rest
 }: RegisteredNotice) {
   notifications.show({
@@ -38,7 +41,11 @@ export function showRegisteredNotice({
       <Stack gap="xs">
         <Text size="sm">{message}</Text>
         <Group>
-          <OpdCardPrintMenu patientId={patientId} encounterId={encounterId} />
+          <PatientPrintMenu
+            patientId={patientId}
+            encounterId={encounterId}
+            token={tokenNumber ?? null}
+          />
         </Group>
       </Stack>
     ),

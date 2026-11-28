@@ -128,6 +128,7 @@ pub fn local_model(config: &DictationConfig) -> AiConfig {
         model: config.llm_model.clone(),
         api_key: String::new(),
         enabled: true,
+        typed_actions: false,
         base_url: Some(config.llm_url.clone()),
     }
 }

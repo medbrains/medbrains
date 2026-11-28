@@ -1,5 +1,5 @@
 import { Box, Flex, Group, ScrollArea, Stack, Text, UnstyledButton } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { aiApi } from "@medbrains/api/modules/ai";
 import { useAuthStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
@@ -63,11 +63,11 @@ export function AssistantPage() {
 
   const { data: conversations = [] } = useQuery({
     queryKey: ["ai-conversations"],
-    queryFn: () => api.listAiConversations(),
+    queryFn: () => aiApi.listAiConversations(),
   });
 
   const openConversation = async (id: string) => {
-    const loaded = await api.getAiConversationMessages(id);
+    const loaded = await aiApi.getAiConversationMessages(id);
     controller.hydrate(loaded.map(fromStored));
     transport.setConversationId(id);
   };

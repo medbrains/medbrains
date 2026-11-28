@@ -750,6 +750,8 @@ export interface PatientVisitRow {
   prescription_count: number | null;
   lab_order_count: number | null;
   created_at: string;
+  /** `auto_inactivity` when OPD closed the visit on its own; null when a person did. */
+  close_reason: string | null;
 }
 
 export interface PatientConsultationHistoryRow {

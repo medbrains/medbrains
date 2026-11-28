@@ -39,7 +39,6 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
-import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Button, IconButton, SegmentedControl, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
@@ -49,14 +48,15 @@ import type {
   ResolvedOpdQueueRowAction,
 } from "../opd-queue-actions";
 import { resolveOpdQueueRowActions } from "../opd-queue-actions";
+import { OpdHeaderPolicies } from "./auto-close-select";
 import { isStaleRowError } from "./queue-action-error";
 import {
   QueueAppointmentMarker,
   QueuePatientCell,
+  QueueRowPrintMenu,
   QueueVisitTypeBadge,
   QueueVitalsCell,
 } from "./queue-cells";
-import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
   appointmentVisitType,
   type OpdTranslate,
@@ -493,7 +493,7 @@ export function OpdPageInner() {
       render: (row: QueueEntry) => (
         <OperationalSignal
           icon={queueStatusIcon(row.status)}
-          label={queueStatusLabel(t, row.status)}
+          label={queueStatusLabel(t, row.status, row.close_reason)}
           shape={queueStatusShape(row.status)}
           tone={queueStatusTone(row.status)}
         />
@@ -514,7 +514,7 @@ export function OpdPageInner() {
           {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
             renderQueueAction(action, row),
           )}
-          <OpdCardPrintMenu compact encounterId={row.encounter_id} />
+          <QueueRowPrintMenu row={row} />
         </Group>
       ),
     },
@@ -538,7 +538,7 @@ export function OpdPageInner() {
         color="primary"
         actions={
           <Group gap="sm">
-            <OpdRegistrationPolicyToggle />
+            <OpdHeaderPolicies />
             {canCreate ? (
               <Button
                 tone="primary"

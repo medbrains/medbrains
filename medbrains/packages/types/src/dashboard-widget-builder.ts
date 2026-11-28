@@ -865,6 +865,8 @@ export interface Encounter {
   notes: string | null;
   attributes: Record<string, unknown>;
   visit_type: string | null;
+  /** The hospital OPD number for this visit, when it keeps one per visit. */
+  encounter_number?: string | null;
   /** Recorded at reception. The doctor's clinical version lives on the consultation. */
   chief_complaint: string | null;
   created_at: string;
@@ -874,6 +876,12 @@ export interface Encounter {
 /** Whether this tenant requires an OPD registration before medical records may be opened. */
 export interface OpdRegistrationPolicy {
   require_opd_registration: boolean;
+}
+
+/** Close started OPD visits on their own this many minutes after the patient is called in. */
+export interface OpdAutoCloseSetting {
+  /** 15 to 1440; null is off. */
+  after_minutes: number | null;
 }
 
 export interface OpdQueue {
@@ -943,6 +951,8 @@ export interface QueueEntry {
   /** For a referral row: who asked, and why. */
   referral_from_doctor: string | null;
   referral_reason: string | null;
+  /** `auto_inactivity` when OPD closed the visit on its own; null when a person did. */
+  close_reason: string | null;
 }
 
 export interface EncounterListResponse {
@@ -961,6 +971,10 @@ export interface CreateEncounterRequest {
   visit_type?: string;
   camp_id?: string;
   chief_complaint?: string;
+  /** The hospital OPD number for this visit (or, per patient, for a patient without one). */
+  opd_number?: string;
+  /** Its register date (YYYY-MM-DD), for a patient numbered at this visit. */
+  opd_date?: string;
 }
 
 export interface CreateEncounterResponse {

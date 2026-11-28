@@ -19,6 +19,7 @@
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { E2E_ROLE_DEFINITIONS, getE2EIdentity } from "../helpers/e2e-identities";
+import { ownClientHeaders } from "../helpers/worker-tenant";
 
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
@@ -58,6 +59,7 @@ async function login(
   password: string,
 ): Promise<AuthSession> {
   const resp = await request.post(`${BASE}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username, password },
   });
   expect(resp.status(), `login ${username}`).toBe(200);

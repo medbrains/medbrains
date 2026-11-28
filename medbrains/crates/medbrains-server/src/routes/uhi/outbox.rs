@@ -172,6 +172,7 @@ impl Handler for UhiCallbackHandler {
         if status.is_success() {
             let answer: Value = response.json().await.unwrap_or(Value::Null);
             refused_inside_200(&answer, &payload["body"]["context"])?;
+            forget_pin(ctx, payload).await.map_err(transient)?;
             Ok(json!({ "status": status.as_u16() }))
         } else if status.is_client_error() && status.as_u16() != 429 {
             Err(HandlerError::Permanent(format!(
@@ -181,6 +182,34 @@ impl Handler for UhiCallbackHandler {
             Err(HandlerError::Transient(format!("uhi callback: {status}")))
         }
     }
+}
+
+/// Once the app has taken an `on_confirm` carrying the patient's PIN, drop
+/// the token from the outbox row: the app has it, and the hospital keeps
+/// only its hash. Until then it must stay, so a retry can deliver it.
+async fn forget_pin(ctx: &HandlerCtx, payload: &Value) -> Result<(), AppError> {
+    if payload
+        .pointer("/body/message/order/authorization/token")
+        .is_none()
+    {
+        return Ok(());
+    }
+    let permit = medbrains_kernel::tenancy::Permit::unattended(
+        ctx.tenant_id,
+        "outbox drops a delivered UHI PIN from its own row",
+    );
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&ctx.pool, &permit).await?;
+    // allow-raw-sql: its own row by id on an unattended tenant_tx; FORCE RLS
+    sqlx::query!(
+        "UPDATE outbox_events \
+            SET payload = payload #- '{body,message,order,authorization,token}' \
+          WHERE id = $1",
+        ctx.event_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 /// Refuse to send anywhere but the gateway's `on_search` or under the app's

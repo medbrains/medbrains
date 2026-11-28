@@ -1,246 +1,291 @@
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
+import { integrationsApi } from "@medbrains/api/modules/integrations";
+import { printDataApi } from "@medbrains/api/modules/print-data";
+import { publicApi } from "@medbrains/api/modules/public";
+import { setupApi } from "@medbrains/api/modules/setup";
 
 export const billingService = {
-  getPayerSplit: (invoiceId: string) => api.getPayerSplit(invoiceId),
-  assignItemPayer: (...args: Parameters<typeof api.assignItemPayer>) =>
-    api.assignItemPayer(...args),
-  applyPayerSplit: (invoiceId: string) => api.applyPayerSplit(invoiceId),
-  getNonPayables: () => api.getNonPayables(),
-  listExchangeRates: (...args: Parameters<typeof api.listExchangeRates>) =>
-    api.listExchangeRates(...args),
-  createExchangeRate: (...args: Parameters<typeof api.createExchangeRate>) =>
-    api.createExchangeRate(...args),
-  verifyBill: (...args: Parameters<typeof api.verifyBill>) => api.verifyBill(...args),
-  listInvoices: (...args: Parameters<typeof api.listInvoices>) => api.listInvoices(...args),
-  cloneInvoice: (...args: Parameters<typeof api.cloneInvoice>) => api.cloneInvoice(...args),
-  createInvoice: (...args: Parameters<typeof api.createInvoice>) => api.createInvoice(...args),
-  getInvoice: (...args: Parameters<typeof api.getInvoice>) => api.getInvoice(...args),
-  getInvoicePrintData: (...args: Parameters<typeof api.getInvoicePrintData>) =>
-    api.getInvoicePrintData(...args),
-  issueInvoice: (...args: Parameters<typeof api.issueInvoice>) => api.issueInvoice(...args),
-  cancelInvoice: (...args: Parameters<typeof api.cancelInvoice>) => api.cancelInvoice(...args),
-  closeZeroInvoice: (...args: Parameters<typeof api.closeZeroInvoice>) =>
-    api.closeZeroInvoice(...args),
-  addInvoiceItem: (...args: Parameters<typeof api.addInvoiceItem>) => api.addInvoiceItem(...args),
-  removeInvoiceItem: (...args: Parameters<typeof api.removeInvoiceItem>) =>
-    api.removeInvoiceItem(...args),
-  recordPayment: (...args: Parameters<typeof api.recordPayment>) => api.recordPayment(...args),
-  getPatientDues: (...args: Parameters<typeof api.getPatientDues>) => api.getPatientDues(...args),
-  listCounterOpenToday: () => api.listCounterOpenToday(),
-  collectPayment: (...args: Parameters<typeof api.collectPayment>) => api.collectPayment(...args),
-  listBillingEntities: () => api.listBillingEntities(),
-  createBillingEntity: (...args: Parameters<typeof api.createBillingEntity>) =>
-    api.createBillingEntity(...args),
-  updateBillingEntity: (...args: Parameters<typeof api.updateBillingEntity>) =>
-    api.updateBillingEntity(...args),
-  listBillingLanes: () => api.listBillingLanes(),
-  updateBillingLane: (...args: Parameters<typeof api.updateBillingLane>) =>
-    api.updateBillingLane(...args),
-  listInvoiceDiscounts: (...args: Parameters<typeof api.listInvoiceDiscounts>) =>
-    api.listInvoiceDiscounts(...args),
-  addDiscount: (...args: Parameters<typeof api.addDiscount>) => api.addDiscount(...args),
-  removeDiscount: (...args: Parameters<typeof api.removeDiscount>) => api.removeDiscount(...args),
-  generateReceipt: (...args: Parameters<typeof api.generateReceipt>) =>
-    api.generateReceipt(...args),
-  listReceipts: (...args: Parameters<typeof api.listReceipts>) => api.listReceipts(...args),
-  getReceiptPrintData: (...args: Parameters<typeof api.getReceiptPrintData>) =>
-    api.getReceiptPrintData(...args),
-  listChargeMaster: (...args: Parameters<typeof api.listChargeMaster>) =>
-    api.listChargeMaster(...args),
-  createChargeMaster: (...args: Parameters<typeof api.createChargeMaster>) =>
-    api.createChargeMaster(...args),
-  importChargeMaster: (...args: Parameters<typeof api.importChargeMaster>) =>
-    api.importChargeMaster(...args),
-  deleteChargeMaster: (...args: Parameters<typeof api.deleteChargeMaster>) =>
-    api.deleteChargeMaster(...args),
-  erFastInvoice: (...args: Parameters<typeof api.erFastInvoice>) => api.erFastInvoice(...args),
-  listPackages: (...args: Parameters<typeof api.listPackages>) => api.listPackages(...args),
-  createPackage: (...args: Parameters<typeof api.createPackage>) => api.createPackage(...args),
-  deletePackage: (...args: Parameters<typeof api.deletePackage>) => api.deletePackage(...args),
-  listRatePlans: (...args: Parameters<typeof api.listRatePlans>) => api.listRatePlans(...args),
-  createRatePlan: (...args: Parameters<typeof api.createRatePlan>) => api.createRatePlan(...args),
-  deleteRatePlan: (...args: Parameters<typeof api.deleteRatePlan>) => api.deleteRatePlan(...args),
-  listRefunds: (...args: Parameters<typeof api.listRefunds>) => api.listRefunds(...args),
-  listCreditNotes: (...args: Parameters<typeof api.listCreditNotes>) =>
-    api.listCreditNotes(...args),
-  createRefund: (...args: Parameters<typeof api.createRefund>) => api.createRefund(...args),
-  createCreditNote: (...args: Parameters<typeof api.createCreditNote>) =>
-    api.createCreditNote(...args),
-  applyCreditNote: (...args: Parameters<typeof api.applyCreditNote>) =>
-    api.applyCreditNote(...args),
-  listWriteOffs: (...args: Parameters<typeof api.listWriteOffs>) => api.listWriteOffs(...args),
-  createWriteOff: (...args: Parameters<typeof api.createWriteOff>) => api.createWriteOff(...args),
-  approveWriteOff: (...args: Parameters<typeof api.approveWriteOff>) =>
-    api.approveWriteOff(...args),
-  listInsuranceClaims: (...args: Parameters<typeof api.listInsuranceClaims>) =>
-    api.listInsuranceClaims(...args),
-  listNhcxCallbacks: (...args: Parameters<typeof api.listNhcxCallbacks>) =>
-    api.listNhcxCallbacks(...args),
-  createInsuranceClaim: (...args: Parameters<typeof api.createInsuranceClaim>) =>
-    api.createInsuranceClaim(...args),
-  updateInsuranceClaim: (...args: Parameters<typeof api.updateInsuranceClaim>) =>
-    api.updateInsuranceClaim(...args),
-  listTpaRateCards: (...args: Parameters<typeof api.listTpaRateCards>) =>
-    api.listTpaRateCards(...args),
-  createTpaRateCard: (...args: Parameters<typeof api.createTpaRateCard>) =>
-    api.createTpaRateCard(...args),
-  deleteTpaRateCard: (...args: Parameters<typeof api.deleteTpaRateCard>) =>
-    api.deleteTpaRateCard(...args),
-  getTenantSettings: (...args: Parameters<typeof api.getTenantSettings>) =>
-    api.getTenantSettings(...args),
-  updateTenantSetting: (...args: Parameters<typeof api.updateTenantSetting>) =>
-    api.updateTenantSetting(...args),
-  getBillingPaymentSettings: () => api.getBillingPaymentSettings(),
-  updateBillingPaymentSettings: (...args: Parameters<typeof api.updateBillingPaymentSettings>) =>
-    api.updateBillingPaymentSettings(...args),
-  listAdvances: (...args: Parameters<typeof api.listAdvances>) => api.listAdvances(...args),
-  createAdvance: (...args: Parameters<typeof api.createAdvance>) => api.createAdvance(...args),
-  getFinalBillChecklist: (...args: Parameters<typeof api.getFinalBillChecklist>) =>
-    api.getFinalBillChecklist(...args),
-  adjustAdvance: (...args: Parameters<typeof api.adjustAdvance>) => api.adjustAdvance(...args),
-  refundAdvance: (...args: Parameters<typeof api.refundAdvance>) => api.refundAdvance(...args),
-  listCorporates: (...args: Parameters<typeof api.listCorporates>) => api.listCorporates(...args),
-  createCorporate: (...args: Parameters<typeof api.createCorporate>) =>
-    api.createCorporate(...args),
-  getCorporate: (...args: Parameters<typeof api.getCorporate>) => api.getCorporate(...args),
-  listCorporateEnrollments: (...args: Parameters<typeof api.listCorporateEnrollments>) =>
-    api.listCorporateEnrollments(...args),
-  listCorporateInvoices: (...args: Parameters<typeof api.listCorporateInvoices>) =>
-    api.listCorporateInvoices(...args),
-  updateCorporate: (...args: Parameters<typeof api.updateCorporate>) =>
-    api.updateCorporate(...args),
-  createCorporateEnrollment: (...args: Parameters<typeof api.createCorporateEnrollment>) =>
-    api.createCorporateEnrollment(...args),
-  deleteCorporateEnrollment: (...args: Parameters<typeof api.deleteCorporateEnrollment>) =>
-    api.deleteCorporateEnrollment(...args),
-  billingReportSummary: (...args: Parameters<typeof api.billingReportSummary>) =>
-    api.billingReportSummary(...args),
+  getPayerSplit: (invoiceId: string) => billingApi.getPayerSplit(invoiceId),
+  assignItemPayer: (...args: Parameters<typeof billingApi.assignItemPayer>) =>
+    billingApi.assignItemPayer(...args),
+  applyPayerSplit: (invoiceId: string) => billingApi.applyPayerSplit(invoiceId),
+  getNonPayables: () => billingApi.getNonPayables(),
+  listExchangeRates: (...args: Parameters<typeof billingApi.listExchangeRates>) =>
+    billingApi.listExchangeRates(...args),
+  createExchangeRate: (...args: Parameters<typeof billingApi.createExchangeRate>) =>
+    billingApi.createExchangeRate(...args),
+  verifyBill: (...args: Parameters<typeof publicApi.verifyBill>) => publicApi.verifyBill(...args),
+  listInvoices: (...args: Parameters<typeof billingApi.listInvoices>) =>
+    billingApi.listInvoices(...args),
+  cloneInvoice: (...args: Parameters<typeof billingApi.cloneInvoice>) =>
+    billingApi.cloneInvoice(...args),
+  createInvoice: (...args: Parameters<typeof billingApi.createInvoice>) =>
+    billingApi.createInvoice(...args),
+  getInvoice: (...args: Parameters<typeof billingApi.getInvoice>) => billingApi.getInvoice(...args),
+  getInvoicePrintData: (...args: Parameters<typeof billingApi.getInvoicePrintData>) =>
+    billingApi.getInvoicePrintData(...args),
+  issueInvoice: (...args: Parameters<typeof billingApi.issueInvoice>) =>
+    billingApi.issueInvoice(...args),
+  cancelInvoice: (...args: Parameters<typeof billingApi.cancelInvoice>) =>
+    billingApi.cancelInvoice(...args),
+  closeZeroInvoice: (...args: Parameters<typeof billingApi.closeZeroInvoice>) =>
+    billingApi.closeZeroInvoice(...args),
+  addInvoiceItem: (...args: Parameters<typeof billingApi.addInvoiceItem>) =>
+    billingApi.addInvoiceItem(...args),
+  removeInvoiceItem: (...args: Parameters<typeof billingApi.removeInvoiceItem>) =>
+    billingApi.removeInvoiceItem(...args),
+  recordPayment: (...args: Parameters<typeof billingApi.recordPayment>) =>
+    billingApi.recordPayment(...args),
+  getPatientDues: (...args: Parameters<typeof billingApi.getPatientDues>) =>
+    billingApi.getPatientDues(...args),
+  listCounterOpenToday: () => billingApi.listCounterOpenToday(),
+  collectPayment: (...args: Parameters<typeof billingApi.collectPayment>) =>
+    billingApi.collectPayment(...args),
+  listBillingEntities: () => billingApi.listBillingEntities(),
+  createBillingEntity: (...args: Parameters<typeof billingApi.createBillingEntity>) =>
+    billingApi.createBillingEntity(...args),
+  updateBillingEntity: (...args: Parameters<typeof billingApi.updateBillingEntity>) =>
+    billingApi.updateBillingEntity(...args),
+  listBillingLanes: () => billingApi.listBillingLanes(),
+  updateBillingLane: (...args: Parameters<typeof billingApi.updateBillingLane>) =>
+    billingApi.updateBillingLane(...args),
+  listInvoiceDiscounts: (...args: Parameters<typeof billingApi.listInvoiceDiscounts>) =>
+    billingApi.listInvoiceDiscounts(...args),
+  addDiscount: (...args: Parameters<typeof billingApi.addDiscount>) =>
+    billingApi.addDiscount(...args),
+  removeDiscount: (...args: Parameters<typeof billingApi.removeDiscount>) =>
+    billingApi.removeDiscount(...args),
+  generateReceipt: (...args: Parameters<typeof billingApi.generateReceipt>) =>
+    billingApi.generateReceipt(...args),
+  listReceipts: (...args: Parameters<typeof billingApi.listReceipts>) =>
+    billingApi.listReceipts(...args),
+  getReceiptPrintData: (...args: Parameters<typeof printDataApi.getReceiptPrintData>) =>
+    printDataApi.getReceiptPrintData(...args),
+  listChargeMaster: (...args: Parameters<typeof billingApi.listChargeMaster>) =>
+    billingApi.listChargeMaster(...args),
+  createChargeMaster: (...args: Parameters<typeof billingApi.createChargeMaster>) =>
+    billingApi.createChargeMaster(...args),
+  importChargeMaster: (...args: Parameters<typeof billingApi.importChargeMaster>) =>
+    billingApi.importChargeMaster(...args),
+  deleteChargeMaster: (...args: Parameters<typeof billingApi.deleteChargeMaster>) =>
+    billingApi.deleteChargeMaster(...args),
+  erFastInvoice: (...args: Parameters<typeof billingApi.erFastInvoice>) =>
+    billingApi.erFastInvoice(...args),
+  listPackages: (...args: Parameters<typeof billingApi.listPackages>) =>
+    billingApi.listPackages(...args),
+  createPackage: (...args: Parameters<typeof billingApi.createPackage>) =>
+    billingApi.createPackage(...args),
+  deletePackage: (...args: Parameters<typeof billingApi.deletePackage>) =>
+    billingApi.deletePackage(...args),
+  listRatePlans: (...args: Parameters<typeof billingApi.listRatePlans>) =>
+    billingApi.listRatePlans(...args),
+  createRatePlan: (...args: Parameters<typeof billingApi.createRatePlan>) =>
+    billingApi.createRatePlan(...args),
+  deleteRatePlan: (...args: Parameters<typeof billingApi.deleteRatePlan>) =>
+    billingApi.deleteRatePlan(...args),
+  listRefunds: (...args: Parameters<typeof billingApi.listRefunds>) =>
+    billingApi.listRefunds(...args),
+  listCreditNotes: (...args: Parameters<typeof billingApi.listCreditNotes>) =>
+    billingApi.listCreditNotes(...args),
+  createRefund: (...args: Parameters<typeof billingApi.createRefund>) =>
+    billingApi.createRefund(...args),
+  createCreditNote: (...args: Parameters<typeof billingApi.createCreditNote>) =>
+    billingApi.createCreditNote(...args),
+  applyCreditNote: (...args: Parameters<typeof billingApi.applyCreditNote>) =>
+    billingApi.applyCreditNote(...args),
+  listWriteOffs: (...args: Parameters<typeof billingApi.listWriteOffs>) =>
+    billingApi.listWriteOffs(...args),
+  createWriteOff: (...args: Parameters<typeof billingApi.createWriteOff>) =>
+    billingApi.createWriteOff(...args),
+  approveWriteOff: (...args: Parameters<typeof billingApi.approveWriteOff>) =>
+    billingApi.approveWriteOff(...args),
+  listInsuranceClaims: (...args: Parameters<typeof billingApi.listInsuranceClaims>) =>
+    billingApi.listInsuranceClaims(...args),
+  listNhcxCallbacks: (...args: Parameters<typeof integrationsApi.listNhcxCallbacks>) =>
+    integrationsApi.listNhcxCallbacks(...args),
+  createInsuranceClaim: (...args: Parameters<typeof billingApi.createInsuranceClaim>) =>
+    billingApi.createInsuranceClaim(...args),
+  updateInsuranceClaim: (...args: Parameters<typeof billingApi.updateInsuranceClaim>) =>
+    billingApi.updateInsuranceClaim(...args),
+  listTpaRateCards: (...args: Parameters<typeof billingApi.listTpaRateCards>) =>
+    billingApi.listTpaRateCards(...args),
+  createTpaRateCard: (...args: Parameters<typeof billingApi.createTpaRateCard>) =>
+    billingApi.createTpaRateCard(...args),
+  deleteTpaRateCard: (...args: Parameters<typeof billingApi.deleteTpaRateCard>) =>
+    billingApi.deleteTpaRateCard(...args),
+  getTenantSettings: (...args: Parameters<typeof setupApi.getTenantSettings>) =>
+    setupApi.getTenantSettings(...args),
+  updateTenantSetting: (...args: Parameters<typeof setupApi.updateTenantSetting>) =>
+    setupApi.updateTenantSetting(...args),
+  getBillingPaymentSettings: () => billingApi.getBillingPaymentSettings(),
+  updateBillingPaymentSettings: (
+    ...args: Parameters<typeof billingApi.updateBillingPaymentSettings>
+  ) => billingApi.updateBillingPaymentSettings(...args),
+  listAdvances: (...args: Parameters<typeof billingApi.listAdvances>) =>
+    billingApi.listAdvances(...args),
+  createAdvance: (...args: Parameters<typeof billingApi.createAdvance>) =>
+    billingApi.createAdvance(...args),
+  getFinalBillChecklist: (...args: Parameters<typeof billingApi.getFinalBillChecklist>) =>
+    billingApi.getFinalBillChecklist(...args),
+  adjustAdvance: (...args: Parameters<typeof billingApi.adjustAdvance>) =>
+    billingApi.adjustAdvance(...args),
+  refundAdvance: (...args: Parameters<typeof billingApi.refundAdvance>) =>
+    billingApi.refundAdvance(...args),
+  listCorporates: (...args: Parameters<typeof billingApi.listCorporates>) =>
+    billingApi.listCorporates(...args),
+  createCorporate: (...args: Parameters<typeof billingApi.createCorporate>) =>
+    billingApi.createCorporate(...args),
+  getCorporate: (...args: Parameters<typeof billingApi.getCorporate>) =>
+    billingApi.getCorporate(...args),
+  listCorporateEnrollments: (...args: Parameters<typeof billingApi.listCorporateEnrollments>) =>
+    billingApi.listCorporateEnrollments(...args),
+  listCorporateInvoices: (...args: Parameters<typeof billingApi.listCorporateInvoices>) =>
+    billingApi.listCorporateInvoices(...args),
+  updateCorporate: (...args: Parameters<typeof billingApi.updateCorporate>) =>
+    billingApi.updateCorporate(...args),
+  createCorporateEnrollment: (...args: Parameters<typeof billingApi.createCorporateEnrollment>) =>
+    billingApi.createCorporateEnrollment(...args),
+  deleteCorporateEnrollment: (...args: Parameters<typeof billingApi.deleteCorporateEnrollment>) =>
+    billingApi.deleteCorporateEnrollment(...args),
+  billingReportSummary: (...args: Parameters<typeof billingApi.billingReportSummary>) =>
+    billingApi.billingReportSummary(...args),
   billingReportDepartmentRevenue: (
-    ...args: Parameters<typeof api.billingReportDepartmentRevenue>
-  ) => api.billingReportDepartmentRevenue(...args),
-  billingReportAging: (...args: Parameters<typeof api.billingReportAging>) =>
-    api.billingReportAging(...args),
+    ...args: Parameters<typeof billingApi.billingReportDepartmentRevenue>
+  ) => billingApi.billingReportDepartmentRevenue(...args),
+  billingReportAging: (...args: Parameters<typeof billingApi.billingReportAging>) =>
+    billingApi.billingReportAging(...args),
   billingReportCollectionEfficiency: (
-    ...args: Parameters<typeof api.billingReportCollectionEfficiency>
-  ) => api.billingReportCollectionEfficiency(...args),
-  billingReportDaily: (...args: Parameters<typeof api.billingReportDaily>) =>
-    api.billingReportDaily(...args),
-  billingReportDoctorRevenue: (...args: Parameters<typeof api.billingReportDoctorRevenue>) =>
-    api.billingReportDoctorRevenue(...args),
-  billingReportInsurancePanel: (...args: Parameters<typeof api.billingReportInsurancePanel>) =>
-    api.billingReportInsurancePanel(...args),
-  billingReportReconciliation: (...args: Parameters<typeof api.billingReportReconciliation>) =>
-    api.billingReportReconciliation(...args),
-  listDayCloses: (...args: Parameters<typeof api.listDayCloses>) => api.listDayCloses(...args),
-  createDayClose: (...args: Parameters<typeof api.createDayClose>) => api.createDayClose(...args),
-  verifyDayClose: (...args: Parameters<typeof api.verifyDayClose>) => api.verifyDayClose(...args),
-  listBillingAuditLog: (...args: Parameters<typeof api.listBillingAuditLog>) =>
-    api.listBillingAuditLog(...args),
-  listCreditPatients: (...args: Parameters<typeof api.listCreditPatients>) =>
-    api.listCreditPatients(...args),
-  reportCreditAging: (...args: Parameters<typeof api.reportCreditAging>) =>
-    api.reportCreditAging(...args),
-  createCreditPatient: (...args: Parameters<typeof api.createCreditPatient>) =>
-    api.createCreditPatient(...args),
-  updateCreditPatient: (...args: Parameters<typeof api.updateCreditPatient>) =>
-    api.updateCreditPatient(...args),
-  listGstrSummaries: (...args: Parameters<typeof api.listGstrSummaries>) =>
-    api.listGstrSummaries(...args),
-  generateGstrSummary: (...args: Parameters<typeof api.generateGstrSummary>) =>
-    api.generateGstrSummary(...args),
-  fileGstr: (...args: Parameters<typeof api.fileGstr>) => api.fileGstr(...args),
-  listTdsDeductions: (...args: Parameters<typeof api.listTdsDeductions>) =>
-    api.listTdsDeductions(...args),
-  createTdsDeduction: (...args: Parameters<typeof api.createTdsDeduction>) =>
-    api.createTdsDeduction(...args),
-  depositTds: (...args: Parameters<typeof api.depositTds>) => api.depositTds(...args),
-  issueTdsCertificate: (...args: Parameters<typeof api.issueTdsCertificate>) =>
-    api.issueTdsCertificate(...args),
-  reportHsnSummary: (...args: Parameters<typeof api.reportHsnSummary>) =>
-    api.reportHsnSummary(...args),
-  listJournalEntries: (...args: Parameters<typeof api.listJournalEntries>) =>
-    api.listJournalEntries(...args),
-  listGlAccounts: (...args: Parameters<typeof api.listGlAccounts>) => api.listGlAccounts(...args),
-  createJournalEntry: (...args: Parameters<typeof api.createJournalEntry>) =>
-    api.createJournalEntry(...args),
-  postJournalEntry: (...args: Parameters<typeof api.postJournalEntry>) =>
-    api.postJournalEntry(...args),
-  reverseJournalEntry: (...args: Parameters<typeof api.reverseJournalEntry>) =>
-    api.reverseJournalEntry(...args),
-  listBankTransactions: (...args: Parameters<typeof api.listBankTransactions>) =>
-    api.listBankTransactions(...args),
-  importBankTransactions: (...args: Parameters<typeof api.importBankTransactions>) =>
-    api.importBankTransactions(...args),
-  autoReconcile: (...args: Parameters<typeof api.autoReconcile>) => api.autoReconcile(...args),
-  autoMatchBankTransactions: (...args: Parameters<typeof api.autoMatchBankTransactions>) =>
-    api.autoMatchBankTransactions(...args),
-  listInsuranceReceivablesAging: (...args: Parameters<typeof api.listInsuranceReceivablesAging>) =>
-    api.listInsuranceReceivablesAging(...args),
-  reportFinancialMis: (...args: Parameters<typeof api.reportFinancialMis>) =>
-    api.reportFinancialMis(...args),
-  reportProfitLoss: (...args: Parameters<typeof api.reportProfitLoss>) =>
-    api.reportProfitLoss(...args),
-  listErpExports: (...args: Parameters<typeof api.listErpExports>) => api.listErpExports(...args),
-  exportToErp: (...args: Parameters<typeof api.exportToErp>) => api.exportToErp(...args),
-  listConcessions: (...args: Parameters<typeof api.listConcessions>) =>
-    api.listConcessions(...args),
-  createConcession: (...args: Parameters<typeof api.createConcession>) =>
-    api.createConcession(...args),
-  getAutoConcessionRules: (...args: Parameters<typeof api.getAutoConcessionRules>) =>
-    api.getAutoConcessionRules(...args),
-  approveConcession: (...args: Parameters<typeof api.approveConcession>) =>
-    api.approveConcession(...args),
-  rejectConcession: (...args: Parameters<typeof api.rejectConcession>) =>
-    api.rejectConcession(...args),
-  updateAutoConcessionRules: (...args: Parameters<typeof api.updateAutoConcessionRules>) =>
-    api.updateAutoConcessionRules(...args),
+    ...args: Parameters<typeof billingApi.billingReportCollectionEfficiency>
+  ) => billingApi.billingReportCollectionEfficiency(...args),
+  billingReportDaily: (...args: Parameters<typeof billingApi.billingReportDaily>) =>
+    billingApi.billingReportDaily(...args),
+  billingReportDoctorRevenue: (...args: Parameters<typeof billingApi.billingReportDoctorRevenue>) =>
+    billingApi.billingReportDoctorRevenue(...args),
+  billingReportInsurancePanel: (
+    ...args: Parameters<typeof billingApi.billingReportInsurancePanel>
+  ) => billingApi.billingReportInsurancePanel(...args),
+  billingReportReconciliation: (
+    ...args: Parameters<typeof billingApi.billingReportReconciliation>
+  ) => billingApi.billingReportReconciliation(...args),
+  listDayCloses: (...args: Parameters<typeof billingApi.listDayCloses>) =>
+    billingApi.listDayCloses(...args),
+  createDayClose: (...args: Parameters<typeof billingApi.createDayClose>) =>
+    billingApi.createDayClose(...args),
+  verifyDayClose: (...args: Parameters<typeof billingApi.verifyDayClose>) =>
+    billingApi.verifyDayClose(...args),
+  listBillingAuditLog: (...args: Parameters<typeof billingApi.listBillingAuditLog>) =>
+    billingApi.listBillingAuditLog(...args),
+  listCreditPatients: (...args: Parameters<typeof billingApi.listCreditPatients>) =>
+    billingApi.listCreditPatients(...args),
+  reportCreditAging: (...args: Parameters<typeof billingApi.reportCreditAging>) =>
+    billingApi.reportCreditAging(...args),
+  createCreditPatient: (...args: Parameters<typeof billingApi.createCreditPatient>) =>
+    billingApi.createCreditPatient(...args),
+  updateCreditPatient: (...args: Parameters<typeof billingApi.updateCreditPatient>) =>
+    billingApi.updateCreditPatient(...args),
+  listGstrSummaries: (...args: Parameters<typeof billingApi.listGstrSummaries>) =>
+    billingApi.listGstrSummaries(...args),
+  generateGstrSummary: (...args: Parameters<typeof billingApi.generateGstrSummary>) =>
+    billingApi.generateGstrSummary(...args),
+  fileGstr: (...args: Parameters<typeof billingApi.fileGstr>) => billingApi.fileGstr(...args),
+  listTdsDeductions: (...args: Parameters<typeof billingApi.listTdsDeductions>) =>
+    billingApi.listTdsDeductions(...args),
+  createTdsDeduction: (...args: Parameters<typeof billingApi.createTdsDeduction>) =>
+    billingApi.createTdsDeduction(...args),
+  depositTds: (...args: Parameters<typeof billingApi.depositTds>) => billingApi.depositTds(...args),
+  issueTdsCertificate: (...args: Parameters<typeof billingApi.issueTdsCertificate>) =>
+    billingApi.issueTdsCertificate(...args),
+  reportHsnSummary: (...args: Parameters<typeof billingApi.reportHsnSummary>) =>
+    billingApi.reportHsnSummary(...args),
+  listJournalEntries: (...args: Parameters<typeof billingApi.listJournalEntries>) =>
+    billingApi.listJournalEntries(...args),
+  listGlAccounts: (...args: Parameters<typeof billingApi.listGlAccounts>) =>
+    billingApi.listGlAccounts(...args),
+  createJournalEntry: (...args: Parameters<typeof billingApi.createJournalEntry>) =>
+    billingApi.createJournalEntry(...args),
+  postJournalEntry: (...args: Parameters<typeof billingApi.postJournalEntry>) =>
+    billingApi.postJournalEntry(...args),
+  reverseJournalEntry: (...args: Parameters<typeof billingApi.reverseJournalEntry>) =>
+    billingApi.reverseJournalEntry(...args),
+  listBankTransactions: (...args: Parameters<typeof billingApi.listBankTransactions>) =>
+    billingApi.listBankTransactions(...args),
+  importBankTransactions: (...args: Parameters<typeof billingApi.importBankTransactions>) =>
+    billingApi.importBankTransactions(...args),
+  autoReconcile: (...args: Parameters<typeof billingApi.autoReconcile>) =>
+    billingApi.autoReconcile(...args),
+  autoMatchBankTransactions: (...args: Parameters<typeof billingApi.autoMatchBankTransactions>) =>
+    billingApi.autoMatchBankTransactions(...args),
+  listInsuranceReceivablesAging: (
+    ...args: Parameters<typeof billingApi.listInsuranceReceivablesAging>
+  ) => billingApi.listInsuranceReceivablesAging(...args),
+  reportFinancialMis: (...args: Parameters<typeof billingApi.reportFinancialMis>) =>
+    billingApi.reportFinancialMis(...args),
+  reportProfitLoss: (...args: Parameters<typeof billingApi.reportProfitLoss>) =>
+    billingApi.reportProfitLoss(...args),
+  listErpExports: (...args: Parameters<typeof billingApi.listErpExports>) =>
+    billingApi.listErpExports(...args),
+  exportToErp: (...args: Parameters<typeof billingApi.exportToErp>) =>
+    billingApi.exportToErp(...args),
+  listConcessions: (...args: Parameters<typeof billingApi.listConcessions>) =>
+    billingApi.listConcessions(...args),
+  createConcession: (...args: Parameters<typeof billingApi.createConcession>) =>
+    billingApi.createConcession(...args),
+  getAutoConcessionRules: (...args: Parameters<typeof billingApi.getAutoConcessionRules>) =>
+    billingApi.getAutoConcessionRules(...args),
+  approveConcession: (...args: Parameters<typeof billingApi.approveConcession>) =>
+    billingApi.approveConcession(...args),
+  rejectConcession: (...args: Parameters<typeof billingApi.rejectConcession>) =>
+    billingApi.rejectConcession(...args),
+  updateAutoConcessionRules: (...args: Parameters<typeof billingApi.updateAutoConcessionRules>) =>
+    billingApi.updateAutoConcessionRules(...args),
 
   // Insurer settlements — pending postings approved by hand
-  listClaimSettlements: (...args: Parameters<typeof api.listClaimSettlements>) =>
-    api.listClaimSettlements(...args),
-  recordClaimSettlement: (...args: Parameters<typeof api.recordClaimSettlement>) =>
-    api.recordClaimSettlement(...args),
-  approveClaimSettlement: (...args: Parameters<typeof api.approveClaimSettlement>) =>
-    api.approveClaimSettlement(...args),
-  rejectClaimSettlement: (...args: Parameters<typeof api.rejectClaimSettlement>) =>
-    api.rejectClaimSettlement(...args),
-  reverseClaimSettlement: (...args: Parameters<typeof api.reverseClaimSettlement>) =>
-    api.reverseClaimSettlement(...args),
-  listChargeAttention: (...args: Parameters<typeof api.listChargeAttention>) =>
-    api.listChargeAttention(...args),
-  postChargeAttention: (...args: Parameters<typeof api.postChargeAttention>) =>
-    api.postChargeAttention(...args),
-  chargeAttentionSummary: (...args: Parameters<typeof api.chargeAttentionSummary>) =>
-    api.chargeAttentionSummary(...args),
-  scanUnbilledOrders: () => api.scanUnbilledOrders(),
-  dismissChargeAttention: (...args: Parameters<typeof api.dismissChargeAttention>) =>
-    api.dismissChargeAttention(...args),
-  listRevenueAlerts: (...args: Parameters<typeof api.listRevenueAlerts>) =>
-    api.listRevenueAlerts(...args),
-  requestPreauthEnhancement: (...args: Parameters<typeof api.requestPreauthEnhancement>) =>
-    api.requestPreauthEnhancement(...args),
-  dismissPreauthAlert: (...args: Parameters<typeof api.dismissPreauthAlert>) =>
-    api.dismissPreauthAlert(...args),
-  getPreauthAlertSettings: () => api.getPreauthAlertSettings(),
-  updatePreauthAlertSettings: (...args: Parameters<typeof api.updatePreauthAlertSettings>) =>
-    api.updatePreauthAlertSettings(...args),
-  recordRoomConsent: (...args: Parameters<typeof api.recordRoomConsent>) =>
-    api.recordRoomConsent(...args),
-  listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>
-    api.listRoomConsentWitnesses(...args),
-  namePatientChargeAttention: (...args: Parameters<typeof api.namePatientChargeAttention>) =>
-    api.namePatientChargeAttention(...args),
-  backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
-    api.backfillClaimSettlements(...args),
+  listClaimSettlements: (...args: Parameters<typeof billingApi.listClaimSettlements>) =>
+    billingApi.listClaimSettlements(...args),
+  recordClaimSettlement: (...args: Parameters<typeof billingApi.recordClaimSettlement>) =>
+    billingApi.recordClaimSettlement(...args),
+  approveClaimSettlement: (...args: Parameters<typeof billingApi.approveClaimSettlement>) =>
+    billingApi.approveClaimSettlement(...args),
+  rejectClaimSettlement: (...args: Parameters<typeof billingApi.rejectClaimSettlement>) =>
+    billingApi.rejectClaimSettlement(...args),
+  reverseClaimSettlement: (...args: Parameters<typeof billingApi.reverseClaimSettlement>) =>
+    billingApi.reverseClaimSettlement(...args),
+  listChargeAttention: (...args: Parameters<typeof billingApi.listChargeAttention>) =>
+    billingApi.listChargeAttention(...args),
+  postChargeAttention: (...args: Parameters<typeof billingApi.postChargeAttention>) =>
+    billingApi.postChargeAttention(...args),
+  chargeAttentionSummary: (...args: Parameters<typeof billingApi.chargeAttentionSummary>) =>
+    billingApi.chargeAttentionSummary(...args),
+  scanUnbilledOrders: () => billingApi.scanUnbilledOrders(),
+  dismissChargeAttention: (...args: Parameters<typeof billingApi.dismissChargeAttention>) =>
+    billingApi.dismissChargeAttention(...args),
+  listRevenueAlerts: (...args: Parameters<typeof billingApi.listRevenueAlerts>) =>
+    billingApi.listRevenueAlerts(...args),
+  requestPreauthEnhancement: (...args: Parameters<typeof billingApi.requestPreauthEnhancement>) =>
+    billingApi.requestPreauthEnhancement(...args),
+  dismissPreauthAlert: (...args: Parameters<typeof billingApi.dismissPreauthAlert>) =>
+    billingApi.dismissPreauthAlert(...args),
+  getPreauthAlertSettings: () => billingApi.getPreauthAlertSettings(),
+  updatePreauthAlertSettings: (...args: Parameters<typeof billingApi.updatePreauthAlertSettings>) =>
+    billingApi.updatePreauthAlertSettings(...args),
+  recordRoomConsent: (...args: Parameters<typeof billingApi.recordRoomConsent>) =>
+    billingApi.recordRoomConsent(...args),
+  listRoomConsentWitnesses: (...args: Parameters<typeof billingApi.listRoomConsentWitnesses>) =>
+    billingApi.listRoomConsentWitnesses(...args),
+  namePatientChargeAttention: (...args: Parameters<typeof billingApi.namePatientChargeAttention>) =>
+    billingApi.namePatientChargeAttention(...args),
+  backfillClaimSettlements: (...args: Parameters<typeof billingApi.backfillClaimSettlements>) =>
+    billingApi.backfillClaimSettlements(...args),
 
   // EMI / Installment Payments
-  listInstallments: (...args: Parameters<typeof api.listInstallments>) =>
-    api.listInstallments(...args),
-  createInstallment: (...args: Parameters<typeof api.createInstallment>) =>
-    api.createInstallment(...args),
-  getInstallment: (...args: Parameters<typeof api.getInstallment>) => api.getInstallment(...args),
-  payInstallmentItem: (...args: Parameters<typeof api.payInstallmentItem>) =>
-    api.payInstallmentItem(...args),
-  waiveInstallmentItem: (...args: Parameters<typeof api.waiveInstallmentItem>) =>
-    api.waiveInstallmentItem(...args),
+  listInstallments: (...args: Parameters<typeof billingApi.listInstallments>) =>
+    billingApi.listInstallments(...args),
+  createInstallment: (...args: Parameters<typeof billingApi.createInstallment>) =>
+    billingApi.createInstallment(...args),
+  getInstallment: (...args: Parameters<typeof billingApi.getInstallment>) =>
+    billingApi.getInstallment(...args),
+  payInstallmentItem: (...args: Parameters<typeof billingApi.payInstallmentItem>) =>
+    billingApi.payInstallmentItem(...args),
+  waiveInstallmentItem: (...args: Parameters<typeof billingApi.waiveInstallmentItem>) =>
+    billingApi.waiveInstallmentItem(...args),
 };

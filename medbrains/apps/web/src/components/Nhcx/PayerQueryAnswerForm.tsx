@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import type { NhcxAttachableDocument } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
@@ -31,7 +31,7 @@ export function PayerQueryAnswerForm({
     defaultValues: { text: "", document_ids: [] },
   });
   const answer = useMutation({
-    mutationFn: (values: AnswerForm) => api.answerNhcxPayerQuery(queryId, values),
+    mutationFn: (values: AnswerForm) => insuranceApi.answerNhcxPayerQuery(queryId, values),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["preauth-nhcx", priorAuthId] });
       void queryClient.invalidateQueries({ queryKey: ["nhcx-sla"] });

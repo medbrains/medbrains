@@ -5507,11 +5507,14 @@ export interface StartupCheck {
 export interface AiSettings {
   provider: string;
   model: string;
+  /** The assistant reads registration and OPD through typed actions (default on). */
+  typed_actions: boolean;
 }
 
 export interface UpdateAiSettingsRequest {
   provider: string;
   model: string;
+  typed_actions: boolean;
 }
 
 export interface EmailSettings {
@@ -6310,6 +6313,11 @@ export interface ConnectedApp {
   version: string;
   manifest: ExtensionManifest;
   permissions: string[];
+  /**
+   * Codes in `permissions` no app may hold: unknown, or they change access.
+   * Such an app cannot be approved or sign in; it is registered again without them.
+   */
+  refused_permissions: string[];
   status: "pending" | "approved" | "revoked";
   has_webhook: boolean;
   approved_at: string | null;

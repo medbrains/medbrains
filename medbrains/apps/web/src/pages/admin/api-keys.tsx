@@ -10,7 +10,8 @@
 import { Group, Menu, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { openapiApi } from "@medbrains/api/modules/openapi";
 import { useHasPermission } from "@medbrains/stores";
 import type { ApiKeySummary, ApiKeyUsageRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -60,7 +61,7 @@ export function ApiKeysPage() {
   const canViewUsage = useHasPermission(P.ADMIN.API_KEYS.VIEW_USAGE);
   const canReadDocs = useHasPermission(P.ADMIN.API_KEYS.DOCS);
   const downloadDocs = useMutation({
-    mutationFn: () => api.getOpenApiSpec(),
+    mutationFn: () => openapiApi.getOpenApiSpec(),
     onSuccess: (spec) => {
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(spec, null, 2)], { type: "application/json" }),
@@ -85,17 +86,16 @@ export function ApiKeysPage() {
 
   const { data: keys, isLoading } = useQuery({
     queryKey: ["api-keys"],
-    queryFn: () => api.listApiKeys(),
+    queryFn: () => adminApi.listApiKeys(),
   });
-
   const { data: usage, isLoading: usageLoading } = useQuery({
     queryKey: ["api-key-usage", usageFor?.id],
-    queryFn: () => api.getApiKeyUsage(usageFor?.id ?? ""),
+    queryFn: () => adminApi.getApiKeyUsage(usageFor?.id ?? ""),
     enabled: usageFor !== null && canViewUsage,
   });
 
   const revoke = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.revokeApiKey(id, reason),
+    mutationFn: (v: { id: string; reason: string }) => adminApi.revokeApiKey(v.id, v.reason),
     onSuccess: () => {
       notifications.show({ title: "Key revoked", message: "It stops working immediately." });
       void queryClient.invalidateQueries({ queryKey: ["api-keys"] });

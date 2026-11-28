@@ -1,13 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Anchor, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@medbrains/schemas";
+import { applyServerErrors, ValidationError } from "@medbrains/utils";
 import { IconKey, IconLock, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, NewPasswordField } from "@/components/ui";
 import { getRememberedHospitalCode } from "@/lib/hospital-code";
 
 const requestSchema = z.object({
@@ -18,7 +20,7 @@ const requestSchema = z.object({
 const confirmSchema = z
   .object({
     otp: z.string().length(6, "Enter the 6-digit code"),
-    new_password: z.string().min(8, "New password must be at least 8 characters"),
+    new_password: z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT),
     confirm_password: z.string().min(1, "Confirm the new password"),
   })
   .refine((values) => values.new_password === values.confirm_password, {
@@ -50,7 +52,7 @@ export function ForgotPasswordPage() {
 
   const requestMutation = useMutation({
     mutationFn: (values: RequestInput) =>
-      api.requestPasswordReset({
+      authApi.requestPasswordReset({
         username: values.username,
         ...(values.hospital_code ? { hospital_code: values.hospital_code } : {}),
       }),
@@ -61,13 +63,14 @@ export function ForgotPasswordPage() {
 
   const confirmMutation = useMutation({
     mutationFn: (values: ConfirmInput) =>
-      api.confirmPasswordReset({
+      authApi.confirmPasswordReset({
         username: account?.username ?? "",
         otp: values.otp,
         new_password: values.new_password,
         ...(account?.hospital_code ? { hospital_code: account.hospital_code } : {}),
       }),
     onSuccess: () => navigate("/login", { replace: true }),
+    onError: (error) => applyServerErrors(error, confirmForm.setError),
   });
 
   return (
@@ -131,7 +134,7 @@ export function ForgotPasswordPage() {
                 If the account exists, a code was sent to the phone on file. It is valid for 10
                 minutes.
               </Text>
-              {confirmMutation.isError && (
+              {confirmMutation.isError && !(confirmMutation.error instanceof ValidationError) && (
                 <Alert tone="danger" title="Reset failed">
                   {confirmMutation.error instanceof Error
                     ? confirmMutation.error.message
@@ -156,12 +159,11 @@ export function ForgotPasswordPage() {
                 control={confirmForm.control}
                 name="new_password"
                 render={({ field, fieldState }) => (
-                  <PasswordInput
+                  <NewPasswordField
                     {...field}
                     label="New password"
                     leftSection={<IconLock size={16} />}
                     error={fieldState.error?.message}
-                    autoComplete="new-password"
                   />
                 )}
               />

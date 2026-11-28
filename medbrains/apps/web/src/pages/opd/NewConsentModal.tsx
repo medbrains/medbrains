@@ -7,7 +7,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { formsApi } from "@medbrains/api/modules/forms";
 import { opdProcedureConsentFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import { type CreateConsentRequest, P } from "@medbrains/types";
@@ -48,7 +48,7 @@ export function NewConsentModal({
   const canReadForm = useHasPermission(P.FORMS.DEFINITIONS.READ);
   const live = useQuery({
     queryKey: ["live-form", CONSENT_FORM],
-    queryFn: () => api.getLiveForm(CONSENT_FORM),
+    queryFn: () => formsApi.getLiveForm(CONSENT_FORM),
     enabled: opened && canReadForm,
   });
   const header = useForm({

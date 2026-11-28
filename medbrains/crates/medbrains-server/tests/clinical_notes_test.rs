@@ -704,7 +704,7 @@ async fn an_unsigned_note_is_on_the_authors_list_and_holds_up_the_mrd_packet() {
 /// A signed-in doctor in General Medicine: their id, client and CSRF token.
 async fn doctor(app: &common::TestApp, admin_csrf: &str) -> (String, reqwest::Client, String) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("cosign_{tag}"), format!("Cosign#{tag}Aa9"));
+    let (username, password) = (format!("cosign_{tag}"), format!("Cosign#Key{tag}Aa9"));
     let dept: Uuid = sqlx::query_scalar(
         "SELECT d.id FROM departments d JOIN users u ON u.tenant_id = d.tenant_id \
           WHERE u.username = 'admin' AND d.code = 'GEN-MEDICINE'",
