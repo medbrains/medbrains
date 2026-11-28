@@ -64,6 +64,7 @@ From another computer the same box answers at `https://<address>` with a certifi
 | `tests/check-units.sh` | `ci.yml`, job "OS image unit rules", on every pull request that touches `os/` or `deploy/`; again in `release.yml`'s OS image job | the source tree only |
 | `tests/check-image.sh <image.raw>` | `release.yml`'s OS image job, on the image it has just built, for both architectures. A FAIL stops the job before any file is uploaded | the built image; reads it with `debugfs`, no boot and no mount |
 | `medbrains-os-test` (the VM suite) | nowhere in CI; on a Mac before a release (`make os-test`) | a debug image, QEMU with hardware acceleration, swtpm |
+| `tests/smoke-boot.py <image.raw>` | `release.yml`'s OS image job, x86-64 only, before upload; `os-smoke.yml` nightly on the latest release. Fails unless first boot with a TPM reaches the recovery key screen, sealed, `/var` on the data disk, network unit and app manifest readable. 1.4 minutes under TCG on a laptop. Not covered: the setup screen after the key, Secure Boot enforcement, arm64 | QEMU, OVMF, swtpm, `debugfs`: boots a deleted copy with one report unit written into the system partition |
 
 Why the VM suite is not in CI, so nobody assumes it is: it drives the machine through a root shell on the
 serial port, which only a debug image has, and the release job never builds one (`release` mode checks a
@@ -76,14 +77,6 @@ that failed to catch the v3.35.6 Ctrl+Alt+Del defect; the rest still depends on 
 shell to check from: SSH does not answer, and its serial port shows no login and runs no command. Set
 `MB_OS_TEST_BROWSER=1` to also sign in through a real browser and open Patients (`tests/patients-journey.mjs`;
 needs the web app's Playwright on the test computer).
-
-`os/tests/smoke-boot.py <image.raw>` (Linux; QEMU, OVMF, swtpm, e2fsprogs) boots an x86-64 release image with a
-software TPM and fails unless first boot reaches the recovery key screen, with the data disk sealed to the TPM,
-`/var` on it, and the network unit and app manifest readable by an unprivileged user. A release image has no
-shell, so it boots a copy with one report unit written into the system partition; the copy is deleted. The
-release runs it on every x86-64 image before upload, and `os-smoke.yml` nightly on the latest release. Time:
-1.4 minutes under TCG on a laptop, less with KVM; the release step is capped at 20. It stops at the recovery key: the setup screen after it needs a
-person to type part of the key back. Not covered: Secure Boot enforcement, arm64, real firmware.
 
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
