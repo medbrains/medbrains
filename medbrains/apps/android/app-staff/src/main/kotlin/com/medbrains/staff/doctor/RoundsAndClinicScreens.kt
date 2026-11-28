@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -23,9 +21,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.medbrains.kit.LocalIdentity
+import com.medbrains.kit.PagedRows
 import com.medbrains.kit.Remote
 import com.medbrains.kit.value
 import com.medbrains.staff.nurse.AdmissionRow
+import com.medbrains.staff.nurse.AdmissionWorklist
 import com.medbrains.staff.nurse.NurseApi
 import com.medbrains.ui.CarbonActionRow
 import com.medbrains.ui.CarbonPageHeader
@@ -45,9 +45,10 @@ import java.time.LocalDate
 /** The doctor's ward round worklist. */
 @Composable
 fun IpdRoundsScreen(nav: NavHostController, api: NurseApi, session: DoctorSession) {
-    val remote = remember { Remote<List<AdmissionRow>>() }
+    val remote = remember { Remote<PagedRows<AdmissionRow>>() }
     val scope = rememberCoroutineScope()
-    suspend fun load() = remote.load { api.listActiveAdmissions().also { rows -> rows.forEach { session.admissions[it.id] = it } } }
+    /** Every admitted patient, each kept in the session so a row opens by its id. */
+    suspend fun load() = remote.load { api.listActiveAdmissions().also { paged -> paged.rows.forEach { session.admissions[it.id] = it } } }
     LaunchedEffect(Unit) { load() }
     val state by remote.state.collectAsState()
     Column(Modifier.fillMaxSize().testTag("screen-ipd-rounds")) {
@@ -55,13 +56,11 @@ fun IpdRoundsScreen(nav: NavHostController, api: NurseApi, session: DoctorSessio
         RemoteContent(
             id = "ipd-rounds", state = state,
             unavailableTitle = "Couldn't load IPD rounds", unavailableMessage = "The ward list could not be loaded. Do not read this as an empty ward.",
-            isEmpty = { it.isEmpty() }, emptyTitle = "No active admissions", emptyMessage = "No patients are currently on rounds.",
+            isEmpty = { it.rows.isEmpty() }, emptyTitle = "No active admissions", emptyMessage = "No patients are currently on rounds.",
             retry = { scope.launch { load() } },
-        ) { rows ->
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(rows, key = { it.id }) { row ->
-                    CarbonActionRow(row.patient_name, row.bedLine, onClick = { nav.navigate("round/${row.id}") }, modifier = Modifier.fillMaxWidth().testTag("round-${row.id}")) { CarbonTag("round", CarbonTone.Info) }
-                }
+        ) { paged ->
+            AdmissionWorklist(paged) { row ->
+                CarbonActionRow(row.patient_name, row.bedLine, onClick = { nav.navigate("round/${row.id}") }, modifier = Modifier.fillMaxWidth().testTag("round-${row.id}")) { CarbonTag("round", CarbonTone.Info) }
             }
         }
     }

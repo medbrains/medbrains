@@ -2,6 +2,10 @@ package com.medbrains.staff.nurse
 
 import com.medbrains.kit.ApiClient
 import com.medbrains.kit.EarlyWarning
+import com.medbrains.kit.ListPage
+import com.medbrains.kit.PagedRows
+import com.medbrains.kit.fetchAllPages
+import com.medbrains.kit.matchesSearch
 import kotlinx.serialization.Serializable
 
 // Wire shapes mirror crates/medbrains-ipd, medbrains-nursing, medbrains-care-mgmt
@@ -25,9 +29,12 @@ data class AdmissionRow(
 ) {
     val bedLine: String get() =
         (admission_number?.let { "$it · " } ?: "") + "UHID $uhid" + (bed_label?.let { " · BED $it" } ?: "")
+
+    /** Whether the worklist search keeps this row: name, UHID, IP number, bed or ward. */
+    fun matches(query: String): Boolean = matchesSearch(query, listOf(patient_name, uhid, admission_number, bed_label, ward_name))
 }
 
-@Serializable private data class AdmissionList(val admissions: List<AdmissionRow>)
+@Serializable private data class AdmissionList(val admissions: List<AdmissionRow>, val total: Int)
 
 @Serializable
 data class MarRow(
@@ -196,10 +203,27 @@ data class CreateVitalsPayload(
 @Serializable private data class CompleteBody(val total_volume_infused_ml: Int? = null)
 @Serializable data class Ignored(val ok: Boolean = true)
 
+/** The server's largest page. ponytail: 10 pages caps a worklist at 1,000; past that the screen says so. */
+private const val ADMISSION_PAGE_SIZE = 100
+private const val ADMISSION_PAGE_CAP = 10
+
 /** The nurse module's calls, one per route it uses. */
 class NurseApi(private val client: ApiClient) {
-    suspend fun listActiveAdmissions(): List<AdmissionRow> =
-        client.get<AdmissionList>("/api/ipd/admissions?status=admitted&per_page=100").admissions.map { it.copy(bed_label = it.bed_label ?: it.ward_name) }
+    /**
+     * Every admitted patient the caller may see, read page by page until the server's total,
+     * so a big hospital's list never stops silently at 100.
+     */
+    suspend fun listActiveAdmissions(): PagedRows<AdmissionRow> = fetchAllPages(ADMISSION_PAGE_CAP, AdmissionRow::id) { page ->
+        val list = admissionsPage(page, ADMISSION_PAGE_SIZE)
+        ListPage(list.admissions.map { it.copy(bed_label = it.bed_label ?: it.ward_name) }, list.total)
+    }
+
+    /** How many patients are admitted that the caller may see; reads one row. */
+    suspend fun countActiveAdmissions(): Int = admissionsPage(1, 1).total
+
+    /** One page of admitted patients, with the server's total. */
+    private suspend fun admissionsPage(page: Int, size: Int): AdmissionList =
+        client.get("/api/ipd/admissions?status=admitted&per_page=$size&page=$page")
 
     suspend fun listNurseCalls(): NurseCallBoard = client.get("/api/bedside/nurse-calls/active")
     suspend fun updateNurseCall(id: String, status: String): Ignored = client.put("/api/bedside/nurse-requests/$id/status", StatusBody(status))
