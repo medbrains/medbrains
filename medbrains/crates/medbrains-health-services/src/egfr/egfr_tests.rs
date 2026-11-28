@@ -163,3 +163,16 @@ async fn an_inpatient_needs_an_egfr_from_this_week() {
         "a 10-day-old eGFR dosed an inpatient"
     );
 }
+
+/// Twenty-five newer rows that cannot qualify (clearances, mL/min) must not
+/// push a 5-day-old eGFR out of the read's LIMIT.
+#[tokio::test]
+async fn non_qualifying_rows_do_not_crowd_out_an_egfr() {
+    let mut rows = vec![(5, ("eGFR", "42", "mL/min/1.73 m²"))];
+    for _ in 0..13 {
+        rows.push((1, ("Creatinine clearance (GFR)", "40", "mL/min/1.73m2")));
+        rows.push((1, ("eGFR (Cockcroft-Gault)", "40", "mL/min")));
+    }
+    let got = lookup_with(&rows, false).await;
+    assert!(got.reading.is_some(), "a real eGFR was crowded out");
+}
