@@ -7,6 +7,7 @@ export * from "./form-primitives.js";
 export * from "./grn-scan.js";
 export * from "./guards.js";
 export * from "./hms-forms.js";
+export { NEWS2_BANDS } from "./news2-bands.generated.js";
 export * from "./onboarding.js";
 export * from "./password.js";
 export * from "./queues.js";

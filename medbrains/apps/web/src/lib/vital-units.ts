@@ -1,3 +1,4 @@
+import { NEWS2_BANDS } from "@medbrains/schemas";
 import type { HeightUnit, TemperatureUnit, WeightUnit } from "@medbrains/types";
 
 // ── Conversion helpers ──
@@ -34,10 +35,23 @@ export interface VitalUnitConfig {
   max: number;
   step: number;
   precision: number;
-  normalRange: [number, number];
-  borderlineRange: [number, number];
+  normalRange: readonly [number, number];
+  borderlineRange: readonly [number, number];
 }
 
+/**
+ * A °C range as the °F readings that fall in it: a °F reading counts when it
+ * converts to a °C value which, rounded to one decimal as the NEWS2 chart is,
+ * lies in the range. So 96.9 °F (36.06 °C, charted 36.1) is normal.
+ */
+function fahrenheitRange([low, high]: readonly [number, number]): [number, number] {
+  /** `c` °C in °F, rounded to a tenth in the direction `round` gives. */
+  const tenths = (c: number, round: (x: number) => number) =>
+    round(celsiusToFahrenheit(c) * 10) / 10;
+  return [tenths(low - 0.05, Math.ceil), tenths(high + 0.05, Math.floor)];
+}
+
+/** Input limits and NEWS2 grading bands for temperature in the hospital's unit. */
 export function getTemperatureConfig(tempUnit: TemperatureUnit): VitalUnitConfig {
   if (tempUnit === "fahrenheit") {
     return {
@@ -46,8 +60,8 @@ export function getTemperatureConfig(tempUnit: TemperatureUnit): VitalUnitConfig
       max: 110,
       step: 0.1,
       precision: 1,
-      normalRange: [97.0, 99.0],
-      borderlineRange: [96.0, 100.4],
+      normalRange: fahrenheitRange(NEWS2_BANDS.temperature.normal),
+      borderlineRange: fahrenheitRange(NEWS2_BANDS.temperature.borderline),
     };
   }
   return {
@@ -56,8 +70,9 @@ export function getTemperatureConfig(tempUnit: TemperatureUnit): VitalUnitConfig
     max: 43,
     step: 0.1,
     precision: 1,
-    normalRange: [36.1, 37.2],
-    borderlineRange: [35.5, 38.0],
+    // NEWS2 temperature bands (`pages/opd/vitals-thresholds` names them).
+    normalRange: NEWS2_BANDS.temperature.normal,
+    borderlineRange: NEWS2_BANDS.temperature.borderline,
   };
 }
 
