@@ -80,7 +80,13 @@ fi
 # Only release/X.Y.Z branches; MB_PR_BASE overrides.
 base="${MB_PR_BASE:-$(git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/release/*' \
     | grep -E '^origin/release/[0-9]+\.[0-9]+\.[0-9]+$' | sort -t/ -k3 -V | tail -1)}"
-if [ -n "$base" ] && mb="$(git merge-base HEAD "$base" 2>/dev/null)"; then
+# Bringing the release branch into a branch adds none of the branch's own lines, so that merge
+# commit is not counted (CI still checks the pull request as a whole).
+merging_base=0
+if [ -n "$base" ] && mh="$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null)"; then
+    git merge-base --is-ancestor "$mh" "$base" && merging_base=1
+fi
+if [ "$merging_base" = 0 ] && [ -n "$base" ] && mb="$(git merge-base HEAD "$base" 2>/dev/null)"; then
     git diff --cached --numstat "$mb" | python3 "$TOP/medbrains/scripts/check_pr_size.py" >&2 || {
         echo "[pre-commit] this branch is over the pull request size limit; split it, or MB_MECHANICAL=1 for a mechanical change." >&2
         exit 1
