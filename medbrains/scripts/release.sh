@@ -23,12 +23,16 @@ TAG="v$VERSION"
 cd "$ROOT"
 
 echo "==> Tree"
-[[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] && ok "on main" || bad "not on main"
+# Releases are cut from main or from a release or hotfix branch (3.35.x were all cut from
+# release/3.35.3, where "on main" could never pass).
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+[[ "$BRANCH" =~ ^(main|release/.+|hotfix/.+)$ ]] && ok "on $BRANCH" \
+    || bad "on $BRANCH, not main or a release/ or hotfix/ branch"
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] && ok "no uncommitted changes" \
     || bad "uncommitted changes to tracked files"
-git fetch -q origin main
-[[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] && ok "level with origin/main" \
-    || bad "HEAD is not origin/main — pull or push first"
+git fetch -q origin "$BRANCH" 2>/dev/null || true
+[[ "$(git rev-parse HEAD)" == "$(git rev-parse -q --verify "origin/$BRANCH" || true)" ]] \
+    && ok "level with origin/$BRANCH" || bad "HEAD is not origin/$BRANCH — pull or push first"
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
     || git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
     bad "$TAG already exists — versions are never reused"
@@ -72,19 +76,12 @@ gate "API contract, permissions, authz, kernel boundary, secrets, data classes" 
     make check-api check-permissions check-authz-collapse check-kernel-boundary check-secrets check-field-classes
 gate "TypeScript SDK tests + conformance suite" pnpm --filter @medbrains/sdk test
 gate "Python SDK tests" bash -c "cd sdks/python && python3 -m unittest discover -s tests"
-# CI runs clippy and the full build, which this script does not. No CI run at
-# all usually means Actions is not running — and then release.yml will not
-# run on the tag either. ALLOW_NO_CI=1 downgrades this to a warning.
-CI=""
-command -v gh >/dev/null && CI="$(gh run list --branch main --workflow ci.yml --commit "$(git rev-parse HEAD)" \
-    --limit 1 --json conclusion --jq '.[0].conclusion // ""' 2>/dev/null || true)"
-if [[ "$CI" == "success" ]]; then
-    ok "CI is green on this commit"
-elif [[ "${ALLOW_NO_CI:-0}" == "1" ]]; then
-    echo "  warn  CI on this commit: ${CI:-no run found} (ALLOW_NO_CI=1)"
-else
-    bad "CI on this commit: ${CI:-no run found} — check GitHub Actions is running (or ALLOW_NO_CI=1)"
-fi
+# CI runs clippy, the tests and the full build, which this script does not. The tag goes only
+# on a commit whose own CI run finished green, and whose tree is the one the `release:bump`
+# PR merged: a merge between the bump's CI and its tag has shipped code no run had seen.
+# No override: with Actions down, release.yml would not run on the tag either.
+gate "CI finished green on this exact commit, and it is the bump PR's tree" \
+    python3 scripts/check_release_freeze.py tag "$VERSION" "$BRANCH"
 
 if [[ "$FAILED" -ne 0 ]]; then
     echo; echo "Not ready: fix the FAIL lines above. Nothing was tagged or pushed."

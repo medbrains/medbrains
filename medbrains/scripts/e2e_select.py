@@ -57,7 +57,7 @@ def check(mapping: dict) -> list[str]:
 def self_test(mapping: dict) -> None:
     """The cases the map promises: docs run nothing, unknown runs all, server skips mock."""
     every = mapping["groups"]["all"]
-    assert select(["medbrains/docs/DECISIONS.md", "README.md"], mapping) == []
+    assert select(["medbrains/docs/decisions/2026-11-22-a.md", "README.md"], mapping) == []
     assert select(["somewhere/new.txt"], mapping) == every
     assert select(["medbrains/apps/web/src/main.tsx"], mapping) == every
     server = select(["medbrains/crates/medbrains-auth/src/lib.rs"], mapping)
