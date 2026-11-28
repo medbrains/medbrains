@@ -77,6 +77,14 @@ shell to check from: SSH does not answer, and its serial port shows no login and
 `MB_OS_TEST_BROWSER=1` to also sign in through a real browser and open Patients (`tests/patients-journey.mjs`;
 needs the web app's Playwright on the test computer).
 
+`os/tests/smoke-boot.py <image.raw>` (Linux; QEMU, OVMF, swtpm, e2fsprogs) boots an x86-64 release image with a
+software TPM and fails unless first boot reaches the recovery key screen, with the data disk sealed to the TPM,
+`/var` on it, and the network unit and app manifest readable by an unprivileged user. A release image has no
+shell, so it boots a copy with one report unit written into the system partition; the copy is deleted. The
+release runs it on every x86-64 image before upload, and `os-smoke.yml` nightly on the latest release. Time:
+about 5 minutes with KVM, 20 to 30 under TCG. It stops at the recovery key: the setup screen after it needs a
+person to type part of the key back. Not covered: Secure Boot enforcement, arm64, real firmware.
+
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
 ## Boot in UTM
