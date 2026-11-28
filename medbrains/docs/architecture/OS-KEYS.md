@@ -111,8 +111,9 @@ efi=disable_early_pci_dma`.
 
 ### No TPM, including the Raspberry Pi 5
 
-Nothing assumes a TPM. With none the machine stops and says so, and stores nothing until someone types a choice.
-The Pi 5 has none by default. Its route is an add-on over SPI, or the Pi's own secure boot with a key in **OTP, which
+With no TPM a release image stops, says to turn one on in the BIOS, and stores nothing; only a debug image can
+choose to store data unencrypted (`docs/decisions/2026-11-28-no-unencrypted-release-os.md`). The Pi 5 has none by
+default, so a release image does not run on it yet. Its route is an add-on over SPI, or the Pi's own secure boot with a key in **OTP, which
 cannot be undone**. Neither is built or tested, and no OTP was touched. Secure boot alone gives no sealed disk key.
 
 ### Disposal: destroy the key
@@ -217,7 +218,8 @@ not about real chips; the real server was exercised on arm64's no-TPM path. Side
 7. **Debian arm64 has no MMIO TPM driver** (`CONFIG_TCG_TIS` off), so the sealed path cannot run under QEMU on
    arm64. A Raspberry Pi add-on uses SPI, for which `tpm_tis_spi` exists: **not tested**, and no device tree
    overlay is shipped. Every Pi today takes the no-TPM path.
-8. **No passphrase on a machine with no TPM.** It can only stop or go unencrypted. Owner decision.
+8. **No passphrase on a machine with no TPM.** A release image can only stop; a debug image can also go unencrypted.
+   Owner decisions.
 9. **On-demand TLS with no `ask`** issues for any name asked, 10 a minute, slowly filling the disk under attack.
     The 20-year loopback certificate has no renewal, though only this machine can reach it.
 
@@ -254,8 +256,8 @@ disk to a file on that disk. A test found this: the disk would not open.
 
 | What fails | Effect | Detected by | What the machine does | Test |
 |---|---|---|---|---|
-| No TPM at first boot | Cannot seal | `/dev/tpmrm0` absent after udev settles | Stops and asks: turn off, or type `STORE UNENCRYPTED`. Nothing stored until then | `no_tpm_can_turn_off` |
-| Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
+| No TPM at first boot | Cannot seal | `/dev/tpmrm0` absent after udev settles | Release image: says to turn the TPM on, offers only `OFF`. Debug image: also offers `STORE UNENCRYPTED`. Nothing stored until then | `no_tpm_can_turn_off`, `os/tests/disk-setup.sh` |
+| Person chooses unencrypted (debug image only) | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
 | Boot file changed | PCR 4 and 11 differ | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
 | PIN wrong or forgotten | | Unseal fails | Two wrong tries, then it asks for the recovery key, which opens it; a key typed before that counts as a wrong PIN. A restart asks for the PIN again | `recovery_key_opens_a_pin_machine` |
 | TPM lockout: power cuts and wrong PINs reach the limit | Right PIN refused | `inLockout` set | Screen says "too many failed starts"; the recovery key opens the disk; IT runs `clear-lockout`, or it heals with uptime | `it_lifts_a_lockout`, `limits_are_ours`, both also after an interrupted setup |

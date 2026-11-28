@@ -24,7 +24,7 @@ back to a privileged Debian builder container.
 | | QEMU (`os/qemu-run.sh`) | UTM (`os/utm-run.sh`) |
 |---|---|---|
 | Runs | Headless, driven by `os/tests/vm.py` over sockets | Apple Virtualization, VM "MedBrains Dev" |
-| TPM | None on arm64: type `STORE UNENCRYPTED`. The sealed disk is tested on x86-64 | — |
+| TPM | None on arm64: on a debug image type `STORE UNENCRYPTED` (a release image offers only `OFF`). The sealed disk is tested on x86-64 | — |
 | Notes | Used by `os-test` | No QMP; refuses while another VM runs |
 
 ## Debug and release images

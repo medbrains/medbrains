@@ -50,4 +50,30 @@ if grep -nE "^ +local .*KEY_FILE|trap .*key_file" "$SCRIPT"; then
 else
     echo "pass  the key file's trap does not use a local variable"
 fi
+
+# Runs ask_about_missing_tpm with the debug mark at $2 (present or not) and $3 typed; checks its exit status
+# $4, that systemctl ran $5 (or nothing), and that STORE UNENCRYPTED was offered only if $6 is yes.
+check_no_tpm() {
+    local name="$1" marker="$2" typed="$3" want_code="$4" want_calls="$5" want_offer="$6" got calls out offered=no
+    printf '#!/bin/sh\necho "$*" >> "%s/calls"\n' "$WORK" > "$WORK/bin/systemctl"
+    chmod +x "$WORK/bin/systemctl"
+    : > "$WORK/calls"
+    out="$(printf '%b' "$typed" | PATH="$WORK/bin:$PATH" bash -c 'set -euo pipefail; source <(sed "/^case /,\$d" "$1")
+        DEBUG_MARKER="$2"; ask_about_missing_tpm' _ "$SCRIPT" "$marker" 2>&1)"
+    got=$?
+    calls="$(cat "$WORK/calls")"
+    grep -q 'STORE UNENCRYPTED and press Enter' <<<"$out" && offered=yes
+    if [[ "$got" -eq "$want_code" && "$calls" == "$want_calls" && "$offered" == "$want_offer" ]]; then
+        echo "pass  $name"
+    else
+        echo "FAIL  $name: exit $got, systemctl '$calls', offered $offered"
+        FAILED=1
+    fi
+}
+
+: > "$WORK/debug-image"
+check_no_tpm "a release image never offers to store unencrypted" "$WORK/none" 'STORE UNENCRYPTED\nOFF\n' 1 poweroff no
+check_no_tpm "a release image with no answer stores nothing" "$WORK/none" '' 1 "" no
+check_no_tpm "a debug image may store unencrypted" "$WORK/debug-image" 'STORE UNENCRYPTED\n' 0 "" yes
+check_no_tpm "a debug image can still turn off" "$WORK/debug-image" 'OFF\n' 1 poweroff yes
 exit "$FAILED"
