@@ -259,6 +259,7 @@ mod opd_vitals_event_test;
 mod ophtho_spectacle_rx_test;
 mod order_patient_view_test;
 mod ot_cancellation_report_test;
+mod own_signature_grant_migration_test;
 mod pacs_flow_test;
 mod pacs_security_test;
 mod pacs_share_test;
