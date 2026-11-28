@@ -22,10 +22,14 @@ import { TemplatesTab } from "./documents/templates-tab";
 
 // ── Templates Tab ────────────────────────────────────────
 
+/** Templates, generated documents, review dates and printing, each tab for its readers. */
 export function DocumentsPage() {
   useRequirePermission([P.DOCUMENTS.TEMPLATES_LIST, P.DOCUMENTS.PRINTERS_LIST]);
   const canViewDocuments = useHasPermission(P.DOCUMENTS.TEMPLATES_LIST);
   const canViewPrinters = useHasPermission(P.DOCUMENTS.PRINTERS_LIST);
+  // Each tab's gate is its list route's, so none opens onto a refused fetch.
+  const canViewOutputs = useHasPermission(P.DOCUMENTS.AUDIT_LIST);
+  const canViewReview = useHasPermission(P.DOCUMENTS.REVIEW_LIST);
   const defaultTab = canViewDocuments ? "templates" : "queue";
 
   return (
@@ -41,12 +45,12 @@ export function DocumentsPage() {
               Templates
             </Tabs.Tab>
           )}
-          {canViewDocuments && (
+          {canViewOutputs && (
             <Tabs.Tab value="outputs" leftSection={<IconFileDescription size={16} />}>
               Generated Documents
             </Tabs.Tab>
           )}
-          {canViewDocuments && (
+          {canViewReview && (
             <Tabs.Tab value="review" leftSection={<IconCalendarEvent size={16} />}>
               Review Schedule
             </Tabs.Tab>
@@ -73,12 +77,12 @@ export function DocumentsPage() {
             <TemplatesTab />
           </Tabs.Panel>
         )}
-        {canViewDocuments && (
+        {canViewOutputs && (
           <Tabs.Panel value="outputs" pt="md">
             <OutputsTab />
           </Tabs.Panel>
         )}
-        {canViewDocuments && (
+        {canViewReview && (
           <Tabs.Panel value="review" pt="md">
             <ReviewScheduleTab />
           </Tabs.Panel>
