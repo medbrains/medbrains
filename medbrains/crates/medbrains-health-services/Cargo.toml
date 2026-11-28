@@ -11,12 +11,12 @@ license-file.workspace = true
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-kernel = { path = "../medbrains-kernel" }
+serde_json = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

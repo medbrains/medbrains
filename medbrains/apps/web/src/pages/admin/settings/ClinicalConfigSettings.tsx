@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Alert, Button, IconButton } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
+import { KidneyFunctionCard } from "./KidneyFunctionCard";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -458,9 +459,7 @@ export function ClinicalConfigSettings() {
     updateMutation.mutate({ key: "consultation_sections", value: next });
   };
 
-  if (isLoading) {
-    return <Loader size="sm" />;
-  }
+  if (isLoading) return <Loader size="sm" />;
 
   return (
     <Stack gap="lg">
@@ -498,6 +497,7 @@ export function ClinicalConfigSettings() {
         isPending={updateMutation.isPending}
       />
 
+      <KidneyFunctionCard />
       <RecordingFrequencyCard
         frequency={vitalsFrequency}
         onSave={(val) => updateMutation.mutate({ key: "vitals_recording_frequency", value: val })}
