@@ -15,6 +15,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::amount_words::{float_amount_in_words, text_amount_in_words};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AdvanceReceiptPrintData, BillCategoryTotal, BillLineItem, CashlessClaimPrintData,
@@ -1282,8 +1283,7 @@ pub async fn get_advance_receipt_print_data(
 
     tx.commit().await?;
 
-    let amount_val: f64 = row.amount.parse().unwrap_or(0.0);
-    let amount_in_words = number_to_words(amount_val);
+    let amount_in_words = text_amount_in_words(&row.amount)?;
 
     Ok(Json(AdvanceReceiptPrintData {
         receipt_number: row.advance_number,
@@ -1363,8 +1363,7 @@ pub async fn get_refund_receipt_print_data(
 
     tx.commit().await?;
 
-    let amount_val: f64 = row.amount.parse().unwrap_or(0.0);
-    let amount_in_words = number_to_words(amount_val);
+    let amount_in_words = text_amount_in_words(&row.amount)?;
 
     Ok(Json(RefundReceiptPrintData {
         receipt_number: row.refund_number,
@@ -1713,100 +1712,6 @@ pub async fn get_package_estimate_print_data(
     }))
 }
 
-// ── Helper: Number to Words ─────────────────────────────
-
-fn number_to_words(amount: f64) -> String {
-    let rupees = amount.trunc() as u64;
-    let paise = ((amount.fract() * 100.0).round()) as u64;
-
-    let ones = [
-        "",
-        "One",
-        "Two",
-        "Three",
-        "Four",
-        "Five",
-        "Six",
-        "Seven",
-        "Eight",
-        "Nine",
-        "Ten",
-        "Eleven",
-        "Twelve",
-        "Thirteen",
-        "Fourteen",
-        "Fifteen",
-        "Sixteen",
-        "Seventeen",
-        "Eighteen",
-        "Nineteen",
-    ];
-    let tens = [
-        "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety",
-    ];
-
-    fn convert_below_hundred(n: u64, ones: &[&str], tens: &[&str]) -> String {
-        if n < 20 {
-            ones[n as usize].to_string()
-        } else {
-            let t = tens[(n / 10) as usize];
-            let o = ones[(n % 10) as usize];
-            if o.is_empty() {
-                t.to_string()
-            } else {
-                format!("{t} {o}")
-            }
-        }
-    }
-
-    fn convert_indian(n: u64, ones: &[&str], tens: &[&str]) -> String {
-        if n == 0 {
-            return "Zero".to_string();
-        }
-
-        let crore = n / 10_000_000;
-        let lakh = (n % 10_000_000) / 100_000;
-        let thousand = (n % 100_000) / 1_000;
-        let hundred = (n % 1_000) / 100;
-        let remainder = n % 100;
-
-        let mut parts = Vec::new();
-
-        if crore > 0 {
-            parts.push(format!(
-                "{} Crore",
-                convert_below_hundred(crore, ones, tens)
-            ));
-        }
-        if lakh > 0 {
-            parts.push(format!("{} Lakh", convert_below_hundred(lakh, ones, tens)));
-        }
-        if thousand > 0 {
-            parts.push(format!(
-                "{} Thousand",
-                convert_below_hundred(thousand, ones, tens)
-            ));
-        }
-        if hundred > 0 {
-            parts.push(format!("{} Hundred", ones[hundred as usize]));
-        }
-        if remainder > 0 {
-            parts.push(convert_below_hundred(remainder, ones, tens));
-        }
-
-        parts.join(" ")
-    }
-
-    let rupee_words = convert_indian(rupees, &ones, &tens);
-
-    if paise > 0 {
-        let paise_words = convert_below_hundred(paise, &ones, &tens);
-        format!("Rupees {rupee_words} and {paise_words} Paise Only")
-    } else {
-        format!("Rupees {rupee_words} Only")
-    }
-}
-
 // ══════════════════════════════════════════════════════════
 // Phase 4: Additional Billing Prints
 // ══════════════════════════════════════════════════════════
@@ -1902,7 +1807,7 @@ pub async fn get_credit_note_print_data(
         sgst_amount: None,
         igst_amount: None,
         total_credit_amount: row.total_credit_amount,
-        amount_in_words: amount_to_words(row.total_credit_amount),
+        amount_in_words: float_amount_in_words(row.total_credit_amount)?,
         remarks: None,
         approved_by: None,
         approved_at: None,
@@ -2060,7 +1965,11 @@ pub async fn get_package_bill_print_data(
         total_paid: row.total_paid,
         insurance_amount: row.insurance_amount,
         balance_due: row.balance_due,
-        amount_in_words: row.net_amount.map_or_else(String::new, amount_to_words),
+        amount_in_words: row
+            .net_amount
+            .map(float_amount_in_words)
+            .transpose()?
+            .unwrap_or_default(),
         doctor_name: None,
         department: None,
         hospital_name: row.hospital_name,
@@ -2275,11 +2184,6 @@ pub async fn get_insurance_claim_print_data(
         hospital_logo_url: row.hospital_logo_url,
         signatures: medbrains_signing::signed_documents::to_print_signatures(claim_sigs),
     }))
-}
-
-/// Alias for `number_to_words`
-fn amount_to_words(amount: f64) -> String {
-    number_to_words(amount)
 }
 
 /// Billing print-data (GST invoice, receipt, consolidated bill, no-dues, cashless) routes.

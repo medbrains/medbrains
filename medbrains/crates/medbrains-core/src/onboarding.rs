@@ -45,6 +45,11 @@ pub struct ModuleConfig {
     #[sqlx(skip)]
     #[serde(default)]
     pub background_jobs: Vec<BackgroundJobStatus>,
+    /// Whether the module check answers for it now (its own status and every brick it needs);
+    /// not stored. An edition brick with no row or `available` is on, never set up.
+    #[sqlx(skip)]
+    #[serde(default)]
+    pub on: bool,
 }
 
 /// One brick background job as the Modules screen shows it.
@@ -64,6 +69,19 @@ pub enum ModuleStatus {
     Enabled,
     Disabled,
     ComingSoon,
+}
+
+impl ModuleStatus {
+    /// The stored `module_status` label, as the module check reads it.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::Enabled => "enabled",
+            Self::Disabled => "disabled",
+            Self::ComingSoon => "coming_soon",
+        }
+    }
 }
 
 /// Licensed add-ons: sold apart from the edition, so they are off until an

@@ -21,6 +21,7 @@ pub mod blood_gate;
 pub mod consent;
 pub mod consent_link;
 pub mod emergency_consent;
+mod period;
 
 use axum::{
     Extension, Json,
@@ -38,6 +39,7 @@ use uuid::Uuid;
 
 use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::hospital_time::tenant_local_today;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{
     require_any_permission, require_permission,
@@ -2433,10 +2435,12 @@ pub async fn get_schedule(
     )
     .await?;
 
-    let date = params.date.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let date = match params.date {
+        Some(date) => date,
+        None => tenant_local_today(&mut *tx, claims.tenant_id).await?,
+    };
 
     let rows = if let Some(room_id) = params.room_id {
         sqlx::query_as::<_, OtBooking>(
@@ -2500,13 +2504,10 @@ pub async fn ot_utilization(
     )
     .await?;
 
-    let from = params
-        .from
-        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(30)).date_naive());
-    let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let (from, to) = period::range(params.from, params.to, today, 30);
 
     let rows = sqlx::query_as::<_, RoomUtilization>(
         "SELECT r.id AS room_id, r.name AS room_name, \
@@ -2549,13 +2550,10 @@ pub async fn get_surgeon_caseload(
     )
     .await?;
 
-    let from = params
-        .from
-        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(90)).date_naive());
-    let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let (from, to) = period::range(params.from, params.to, today, 90);
 
     let rows = sqlx::query_as::<_, SurgeonCaseloadEntry>(
         "SELECT \
@@ -2612,13 +2610,10 @@ pub async fn list_anesthesia_complications(
     .await?;
     let visible = medbrains_authz_gate::patient_filter(&state, &claims, None).await?;
 
-    let from = params
-        .from
-        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(90)).date_naive());
-    let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let (from, to) = period::range(params.from, params.to, today, 90);
 
     let rows = sqlx::query_as::<_, AnesthesiaComplicationEntry>(
         "SELECT \

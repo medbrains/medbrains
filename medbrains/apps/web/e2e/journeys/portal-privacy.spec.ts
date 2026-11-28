@@ -21,7 +21,7 @@ test("a patient sets their privacy choices and makes a request from the portal",
   await portal.goto(`/portal/${tenant.code}`);
   await portal.getByRole("textbox", { name: "Mobile number" }).fill(phone);
   await portal.getByRole("button", { name: "Send code" }).click();
-  await portal.getByRole("textbox", { name: "Code" }).fill(latestPortalCode(phone));
+  await portal.getByRole("textbox", { name: "Code" }).fill(await latestPortalCode(phone));
   await portal.getByRole("button", { name: "Sign in" }).click();
   await portal.getByRole("tab", { name: "Privacy" }).click();
 

@@ -22,6 +22,10 @@
 //! cluster is refused (see [`refuse_unsafe_server`]): this creates, migrates
 //! and drops databases, and must never do that to the dev or a live cluster.
 //!
+//! A suite whose tests share one hospital (the server's integration tests)
+//! takes [`slot_db`] instead: one copy per parallel slot of the test runner,
+//! found again by every test process that lands in that slot.
+//!
 //! Database names are generated here from digits, `a-z` and `_` only, and
 //! names read back from the server are checked against that ([`cleanup::is_ours`])
 //! before use, which is why the DDL below can be formatted into `raw_sql`:
@@ -60,6 +64,9 @@ const BUILD_LOCK: &str = "SELECT pg_advisory_lock(7_262_840_558_645)";
 const BUILD_UNLOCK: &str = "SELECT pg_advisory_unlock(7_262_840_558_645)";
 
 mod cleanup;
+mod slot;
+
+pub use slot::slot_db;
 
 static COPY_SEQ: AtomicU32 = AtomicU32::new(0);
 
@@ -88,11 +95,15 @@ fn fail(doing: &str) -> impl FnOnce(sqlx::Error) -> TestDbError + '_ {
     move |e| TestDbError(format!("test database: {doing}: {e}"))
 }
 
-/// One test's private database, dropped with this value.
+/// One test's private database, dropped with this value — or one runner
+/// slot's shared database ([`slot_db`]), which is kept.
 #[derive(Debug)]
 pub struct TestDb {
     server: PgConnectOptions,
     name: String,
+    /// A slot's database only: an open connection, so the stale sweep (which
+    /// never forces) cannot drop the database under the process using it.
+    hold: Option<PgConnection>,
 }
 
 impl TestDb {
@@ -107,6 +118,13 @@ impl TestDb {
     #[must_use]
     pub fn url(&self, role: &str) -> String {
         self.options(role).to_url_lossy().to_string()
+    }
+
+    /// A URL for this database as the server's admin, which owns the schema —
+    /// for a harness that migrates and seeds through its own pool.
+    #[must_use]
+    pub fn owner_url(&self) -> String {
+        self.url(self.server.get_username())
     }
 
     /// A small pool on this database as `role`. For [`APP_ROLE`] and
@@ -200,7 +218,11 @@ pub async fn add_patient(owner: &PgPool, tenant: Uuid, uhid: &str) -> Result<Uui
 impl Drop for TestDb {
     /// Drop the copy, on a thread of its own: `Drop` cannot await, and the
     /// test's runtime may be the one unwinding. `FORCE` ends the test's pools.
+    /// A slot's database is left for the next test in the slot.
     fn drop(&mut self) {
+        if self.hold.is_some() {
+            return;
+        }
         let server = self.server.clone();
         let sql = format!("DROP DATABASE IF EXISTS \"{}\" WITH (FORCE)", self.name);
         let _ = std::thread::spawn(move || {
@@ -225,6 +247,23 @@ impl Drop for TestDb {
 /// # Errors
 /// The server is unreachable (run `make test-db`), or the migrations failed.
 pub async fn fresh_db() -> Result<TestDb, TestDbError> {
+    let (server, mut admin) = admin().await?;
+    sweep_stale_copies(&mut admin).await?;
+    let name = copy_name(&format!("{}_{}", std::process::id(), next_seq()));
+    copy_template(&mut admin, &server, &name).await?;
+    admin.close().await.map_err(fail("close"))?;
+    Ok(TestDb {
+        server,
+        name,
+        hold: None,
+    })
+}
+
+/// An admin connection to the test server, after every check that it is one.
+///
+/// # Errors
+/// The server is unreachable, or is not a test cluster.
+async fn admin() -> Result<(PgConnectOptions, PgConnection), TestDbError> {
     let url = std::env::var(SERVER_ENV).unwrap_or_else(|_| DEFAULT_SERVER.to_owned());
     let server = PgConnectOptions::from_str(&url)
         .map_err(|e| TestDbError(format!("{SERVER_ENV}={url} is not a URL: {e}")))?;
@@ -245,13 +284,20 @@ pub async fn fresh_db() -> Result<TestDb, TestDbError> {
             server.get_port()
         )));
     }
-    sweep_stale_copies(&mut admin).await?;
-    let name = copy_name();
+    Ok((server, admin))
+}
+
+/// Copy the current migrations' template to a database called `name`.
+async fn copy_template(
+    admin: &mut PgConnection,
+    server: &PgConnectOptions,
+    name: &str,
+) -> Result<(), TestDbError> {
     // Twice at most: a template can be trimmed by another worktree between
     // the check and the copy, and the second pass rebuilds it.
     let mut copied = Err(TestDbError(String::new()));
     for _ in 0..2 {
-        let template = ensure_template(&mut admin, &server).await?;
+        let template = ensure_template(admin, server).await?;
         copied = admin
             .execute(sqlx::raw_sql(&format!(
                 // FILE_COPY: a third faster than the default WAL_LOG with eight
@@ -265,9 +311,7 @@ pub async fn fresh_db() -> Result<TestDb, TestDbError> {
             break;
         }
     }
-    copied?;
-    admin.close().await.map_err(fail("close"))?;
-    Ok(TestDb { server, name })
+    copied
 }
 
 /// Whether the operator has asked for the safety checks to be skipped.
@@ -306,14 +350,19 @@ fn template_name() -> String {
     format!("mb_tpl_{:016x}", h.finish())
 }
 
-/// `mb_t_<unix seconds>_<pid>_<n>`: unique on the machine, and the age is in
-/// the name because `pg_database` records no creation time.
-fn copy_name() -> String {
+/// `mb_t_<unix seconds>_<rest>`: the age is in the name because `pg_database`
+/// records no creation time. `rest` is `<pid>_<n>` for a test's own copy
+/// (unique on the machine) and `<run>_s<slot>` for a slot's.
+fn copy_name(rest: &str) -> String {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    let n = COPY_SEQ.fetch_add(1, Ordering::Relaxed);
-    format!("mb_t_{secs}_{}_{n}", std::process::id())
+    format!("mb_t_{secs}_{rest}")
+}
+
+/// The next number for this process's own copies.
+fn next_seq() -> u32 {
+    COPY_SEQ.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Whether a database of this name exists.
@@ -410,6 +459,16 @@ mod tests {
         assert!(!is_ours("mb_t_ABC"));
         assert!(!is_ours("medbrains"));
         assert!(!is_ours("mb_build_abc"));
+    }
+
+    #[test]
+    fn a_slot_copy_is_named_and_swept_like_any_copy() {
+        let name = super::copy_name("0a1b2c3d4e5f_s3");
+        assert!(is_ours(&name), "{name}");
+        assert!(name.ends_with("_0a1b2c3d4e5f_s3"));
+        assert!(!name.ends_with("_0a1b2c3d4e5f_s13"));
+        assert!(is_stale("mb_t_1000_0a1b2c3d4e5f_s3", 1000 + 3601));
+        assert!(!is_stale("mb_t_1000_0a1b2c3d4e5f_s3", 1000 + 60));
     }
 
     #[test]

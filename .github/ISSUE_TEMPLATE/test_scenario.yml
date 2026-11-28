@@ -1,6 +1,6 @@
 name: 🧪 Test scenario
 description: Describe a real hospital situation MedBrains must handle, so it becomes an automated test
-labels: ["test-scenario", "needs-triage"]
+labels: ["test-scenario", "needs-triage", "status:intake"]
 body:
   - type: markdown
     attributes:
