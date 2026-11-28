@@ -80,7 +80,7 @@ test("a patient asks for a refill and the doctor sends it to the pharmacy", asyn
   await portal.goto(`/portal/${tenant.code}`);
   await portal.getByRole("textbox", { name: "Mobile number" }).fill(phone);
   await portal.getByRole("button", { name: "Send code" }).click();
-  await portal.getByRole("textbox", { name: "Code" }).fill(latestPortalCode(phone));
+  await portal.getByRole("textbox", { name: "Code" }).fill(await latestPortalCode(phone));
   await portal.getByRole("button", { name: "Sign in" }).click();
   await portal.getByRole("tab", { name: "Medicines" }).click();
   const card = portal.getByRole("region", { name: `Refill: ${drug.name}` });

@@ -13,17 +13,8 @@ import {
   dispensePharmacyOrder,
 } from "../helpers/journey-steps";
 import { latestDeliveryCode } from "../helpers/patient-sms";
+import { receiveStock } from "./support/pos-counter";
 import { expect, test } from "./support/world";
-
-interface CatalogRow {
-  id: string;
-  name: string;
-  is_active: boolean;
-  is_controlled: boolean;
-  needs_cold_chain: boolean;
-  drug_schedule: string | null;
-  current_stock: number;
-}
 
 test("a runner delivers a dispensed order against the patient's code", async ({
   hospital,
@@ -36,16 +27,9 @@ test("a runner delivers a dispensed order against the patient's code", async ({
   await hospital.setting("pharmacy", "delivery_fee", 40);
   const phone = `9${String(Date.now()).slice(-9)}`;
   const patient = await createPatientApi(admin, { phone });
-  const catalog = await api<CatalogRow[]>(admin, "GET", "/api/pharmacy/catalog");
-  const drug = catalog.find(
-    (c) =>
-      c.is_active &&
-      !c.is_controlled &&
-      !c.needs_cold_chain &&
-      !["X", "H1", "NDPS"].includes(c.drug_schedule ?? "") &&
-      c.current_stock >= 10,
-  );
-  if (!drug) throw new Error("a stocked drug that can travel");
+  // A drug that can travel: uncontrolled, no cold chain, on the shelf. A new
+  // hospital stocks nothing, so the test receives its own.
+  const drug = await receiveStock(admin, { generic: "Paracetamol", schedule: "OTC", price: 20, quantity: 50 });
   const order = await createPharmacyOrder(admin, {
     patientId: patient.id,
     drugId: drug.id,
@@ -87,7 +71,7 @@ test("a runner delivers a dispensed order against the patient's code", async ({
   await handover.getByRole("textbox", { name: "Patient's code" }).fill("000000");
   await handover.getByRole("button", { name: "Delivered", exact: true }).click();
   await expect(run.getByText("That code doesn't match", { exact: false })).toBeVisible();
-  await handover.getByRole("textbox", { name: "Patient's code" }).fill(latestDeliveryCode(phone));
+  await handover.getByRole("textbox", { name: "Patient's code" }).fill(await latestDeliveryCode(phone));
   await handover.getByRole("button", { name: "Delivered", exact: true }).click();
   await expect(handover).toBeHidden();
 

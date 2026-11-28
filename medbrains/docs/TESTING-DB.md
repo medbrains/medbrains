@@ -92,6 +92,29 @@ async fn the_request_role_sees_only_its_hospital() {
 A session connected to a template (say `psql` left open on `mb_tpl_…`) makes every copy fail with
 "source database is being accessed by other users". Close it.
 
+## The server's integration suite: a database per runner slot
+
+`crates/medbrains-server/tests/` is one binary of about a thousand tests that share one seeded
+hospital, and some of them change hospital-wide settings. They cannot each have a database
+(seeding one costs more than the test), and they cannot share one in parallel.
+
+- `cargo test -p medbrains-server --test integration`: unchanged. One database (`DATABASE_URL`,
+  the dev database by default), one test at a time.
+- `cargo nextest run`: every test is a process, and nextest gives each running test a slot
+  number no other running test has (`NEXTEST_TEST_GLOBAL_SLOT`, from 0; see
+  <https://nexte.st/docs/configuration/env-vars/>). The harness asks
+  `testing::slot_db(run id, slot)` for "this slot's database": the first test in a slot copies
+  the template under an advisory lock (`mb_t_<secs>_<run>_s<slot>`), the next ones find it by
+  name. `DATABASE_URL` is not used; the test cluster (`make test-db`) is.
+- Slots = nextest's `test-threads` (`-j`). CI's `ci` profile uses 4.
+- Connections: a slot's pools open at most 10 each (`SLOT_POOL_MAX` in `tests/common.rs`), and
+  one more holds the database open, so the stale sweep cannot drop it mid-test. 21 per slot at
+  worst; keep slots x 21 under the server's `max_connections` (100 on CI, 300 on the test
+  cluster).
+- Nothing drops a slot's database at the end of a run: nextest has no end-of-run hook. It is
+  swept like any copy, by the first test database made more than an hour later. On CI the runner
+  is thrown away.
+
 ## CI
 
 `scripts/ci_postgres.sh` (used by the Rust test, coverage and E2E jobs) trusts the two app roles on
