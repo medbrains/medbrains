@@ -167,10 +167,18 @@ async fn a_physical_consultation_books_an_opd_visit_without_video() {
     assert_eq!(slots[0]["type"], "Physical");
     let slot = slots[0]["id"].clone();
     let id = txn();
-    // The app echoes the fulfilment it was offered, type included.
+    // The app echoes the fulfilment it was offered, type included, then
+    // confirms the order on_init gave with every term agreed.
     let order = json!({ "order": { "items": [{ "id": slot }],
         "fulfillment": { "id": slot, "type": "Physical" },
         "billing": { "name": "Kiran Das", "phone": "9876500055" } } });
+    w.call(
+        "init",
+        &w.message(CONSULTATION_DOMAIN, "init", &id, order.clone()),
+    )
+    .await;
+    let on_init = w.deliver(&id, "on_init").await.body["message"]["order"].clone();
+    let order = uhi_world::agree(&order, &on_init);
     w.call(
         "confirm",
         &w.message(CONSULTATION_DOMAIN, "confirm", &id, order),
@@ -180,10 +188,12 @@ async fn a_physical_consultation_books_an_opd_visit_without_video() {
     let confirmed = &on_confirm.body["message"]["order"];
     assert_eq!(confirmed["state"], "CONFIRMED", "{confirmed}");
     assert_eq!(confirmed["fulfillment"]["type"], "Physical");
+    let tags = &confirmed["fulfillment"]["tags"];
     assert!(
-        confirmed["fulfillment"].get("tags").is_none(),
-        "no video link"
+        tags.get("@abdm/gov.in/teleconf_url").is_none(),
+        "no video link: {tags}"
     );
+    assert_eq!(tags["@abdm/gov.in/slot_id"], slot);
     assert_eq!(confirmed["payment"]["type"], "ON-FULFILLMENT");
     let (status, source, videos): (String, String, i64) = sqlx::query_as(
         "SELECT a.status::text, a.booking_source, \

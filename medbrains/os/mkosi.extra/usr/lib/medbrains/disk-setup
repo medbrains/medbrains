@@ -1,9 +1,10 @@
 #!/bin/bash
 # The encrypted data partition (/var). Class A code: docs/architecture/OS-KEYS.md has its failure table.
 #
-#   disk-setup prepare   before /var is mounted: create the partition if this disk has none
+#   disk-setup prepare   before /var is mounted: create the partition if this disk has none, and show its
+#                        recovery key once, so the disk can be opened before the TPM is ever asked
 #   disk-setup notice    say what the passphrase prompt means if the disk did not open by itself
-#   disk-setup finish    after /var is mounted: show the recovery key once, offer a PIN, record it
+#   disk-setup finish    after /var is mounted: offer a PIN, record it
 #   disk-setup reseal KEYFILE   seal to this machine's TPM again, after a board or TPM change; drops a PIN
 #   disk-setup clear-lockout KEYFILE   lift the TPM's lockout after too many failed starts, with the recovery key
 set -euo pipefail
@@ -22,11 +23,18 @@ KEY_SAVED="$CONFIG/.recovery-key-saved"
 SEAL_PCRS=4+7
 # Put here by the boot file when the image was signed. 11 alone protects nothing without 4: an attacker's
 # system can extend it to the published values and replay this signature.
-PCR_PUBLIC_KEY=/run/systemd/tpm2-pcr-public-key.pem
+PCR_PUBLIC_KEY="${MEDBRAINS_PCR_PUBLIC_KEY:-/run/systemd/tpm2-pcr-public-key.pem}"
+TPM_DEVICE="${MEDBRAINS_TPM_DEVICE:-/dev/tpmrm0}"
+RUN="${MEDBRAINS_RUN:-/run}"
+# The recovery key, from prepare to finish in the same boot: memory only, gone at power-off.
+HANDOFF="$RUN/medbrains-recovery-key"
 SIGNED_PCRS=11
 MIN_PIN_LENGTH=6
 SETTLE_S=30
-NOTICE_AFTER_S=20
+NOTICE_AFTER_S="${MEDBRAINS_NOTICE_AFTER_S:-20}"
+# crypttab's token-timeout: how long systemd waits for a TPM the firmware reports but Linux has not found yet.
+TOKEN_WAIT_S=120
+FIRMWARE_TPM="${MEDBRAINS_FIRMWARE_TPM:-/sys/firmware/acpi/tables/TPM2}"
 RECOVERY_KEY_SHAPE='^[a-z]+(-[a-z]+){7}$'
 RECOVERY_KEY_GROUPS=8
 # The TPM's dictionary-attack limits (OS-KEYS.md, "TPM lockout"). A PIN-sealed key counts every wrong PIN, and the
@@ -39,7 +47,7 @@ DA_LOCKOUT_RECOVERY_S=600
 # The lockout password is derived from the recovery key, so whoever holds the key can lift a lockout and no
 # second secret exists anywhere. The label keeps it from being the recovery key itself.
 LOCKOUT_LABEL=medbrains-tpm-lockout-v1
-export TPM2TOOLS_TCTI=device:/dev/tpmrm0
+export TPM2TOOLS_TCTI="device:$TPM_DEVICE"
 # 1 once provision_lockout has put our limits and password in place. Until then no PIN is offered.
 LOCKOUT_OURS=0
 
@@ -49,9 +57,23 @@ clear_screen() { printf '\033c\033[?25h'; }
 # Sets SEAL_ARGS: what to seal to, the same for first boot and for a later re-seal.
 set_seal_args() {
     SEAL_ARGS=(--tpm2-device=auto --tpm2-pcrs="$SEAL_PCRS")
-    if [[ -e "$PCR_PUBLIC_KEY" ]]; then
+    if [[ -e "$PCR_PUBLIC_KEY" ]] && tpm_can_load_pcr_key; then
         SEAL_ARGS+=(--tpm2-public-key="$PCR_PUBLIC_KEY" --tpm2-public-key-pcrs="$SIGNED_PCRS")
+    else
+        # Both empty, said outright: repart and cryptenroll otherwise take the boot file's key by themselves.
+        SEAL_ARGS+=(--tpm2-public-key= --tpm2-public-key-pcrs=)
     fi
+}
+
+# True if this TPM can load the boot file's PCR signing key. Sealing to a key the chip cannot load succeeds,
+# and then every unlock fails (TPM_RC_VALUE from LoadExternal): v3.35.6 shipped an RSA 4096 key, which swtpm
+# and most chips refuse (KAN-2). Without it the seal is PCR 4+7, which is what stops a stolen disk anyway.
+tpm_can_load_pcr_key() {
+    local bits
+    bits="$(openssl pkey -pubin -in "$PCR_PUBLIC_KEY" -noout -text 2>/dev/null | sed -nE 's/^Public-Key: \(([0-9]+) bit\)$/\1/p')"
+    [[ -n "$bits" ]] && tpm2_testparms "rsa$bits" >/dev/null 2>&1 && return 0
+    echo "The TPM cannot load the ${bits:-unreadable}-bit PCR signing key, so the seal is PCR $SEAL_PCRS only." >&2
+    return 1
 }
 
 # Asks what to do on a machine with no TPM. Returns only if the person typed the choice to store data
@@ -93,13 +115,21 @@ prepare() {
     # existing partition, and a TPM that is merely late leads to the question, which a person can refuse.
     udevadm settle --timeout="$SETTLE_S" || true
     [[ -e "$PART" ]] && return 0
-    if [[ ! -e /dev/tpmrm0 ]]; then
+    if [[ ! -e "$TPM_DEVICE" ]]; then
         ask_about_missing_tpm
         definitions=no-tpm
     fi
     clear_screen
     echo 'MedBrains: preparing the data disk. This takes a moment.'
     set_seal_args
+    # A sealed disk also gets a random key, used once below to add the recovery key without the TPM: a seal
+    # that never opens must still leave a way in, and systemd asks for nothing on a disk with no key to type.
+    if [[ "$definitions" == tpm ]]; then
+        SETUP_KEY="$(mktemp -p "$RUN")"
+        trap 'rm -f "$SETUP_KEY"' EXIT
+        openssl rand -hex 32 | tr -d '\n' > "$SETUP_KEY"
+        SEAL_ARGS+=(--key-file="$SETUP_KEY")
+    fi
     if ! systemd-repart --dry-run=no --definitions="$DEFINITIONS/$definitions" "${SEAL_ARGS[@]}"; then
         echo
         echo 'MedBrains could not prepare the data disk, so nothing was stored.'
@@ -107,6 +137,12 @@ prepare() {
         exit 1
     fi
     udevadm settle --timeout="$SETTLE_S" || true
+    if [[ "$definitions" == tpm ]]; then
+        install -m 0600 /dev/null "$HANDOFF"
+        KEY_FILE="$HANDOFF"
+        # The random key's slot goes once the recovery key is in: cryptenroll enrolls first, then wipes.
+        show_recovery_key --unlock-key-file="$SETUP_KEY" password
+    fi
     clear_screen
 }
 
@@ -118,6 +154,10 @@ notice() {
         [[ -e "$MAPPED" ]] && return 0
         sleep 1
     done
+    if [[ ! -e "$TPM_DEVICE" ]]; then
+        missing_tpm_notice
+        return 0
+    fi
     if tpm_in_lockout; then
         cat <<'TEXT'
 
@@ -143,10 +183,33 @@ type what was written down at setup. Then press Enter. Typed characters are not 
 TEXT
 }
 
+# Says why the disk waits, then asks, on a machine whose TPM is missing. systemd waits for a chip the firmware
+# still reports (token-timeout in crypttab) and asks at once for one it does not. Nothing can be typed while
+# systemd waits: the prompt comes after.
+missing_tpm_notice() {
+    local waited
+    if [[ -e "$FIRMWARE_TPM" ]]; then
+        printf '\nMedBrains: waiting up to %s minutes for the security chip (TPM). If it was removed or turned\noff in the firmware (BIOS) settings, the recovery key is asked for after that.\n' $((TOKEN_WAIT_S / 60))
+        for ((waited = NOTICE_AFTER_S; waited < TOKEN_WAIT_S; waited++)); do
+            [[ -e "$MAPPED" || -e "$TPM_DEVICE" ]] && return 0
+            sleep 1
+        done
+    fi
+    cat <<'TEXT'
+
+MedBrains: security chip (TPM) not found, so the data disk did not open by itself.
+
+Type the recovery key that was written down at setup, then press Enter. Typed characters
+are not shown. Or turn the machine off, refit the chip or turn it on in the firmware (BIOS)
+settings, and start it again.
+
+TEXT
+}
+
 # Sets KEY_FILE to a private file on tmpfs, removed when this script ends, however it ends. Not a local:
 # the trap runs after the function has returned.
 use_key_file() {
-    KEY_FILE="$(mktemp -p /run)"
+    KEY_FILE="$(mktemp -p "$RUN")"
     trap 'rm -f "$KEY_FILE" "$KEY_FILE.lockout"' EXIT
 }
 
@@ -158,17 +221,16 @@ fail() {
     exit 1
 }
 
-# Makes a new recovery key and has the person prove they wrote it down, from their copy, with the screen
-# cleared. Replaces any earlier key: until the proof, nobody can be relied on to have saved that one.
+# Makes a new recovery key, unlocking with $1 and wiping slots of type $2 afterwards, and has the person prove
+# they wrote it down, from their copy, with the screen cleared. Replaces any earlier key: until the proof,
+# nobody can be relied on to have saved that one. Leaves the key in $KEY_FILE.
 show_recovery_key() {
     local key typed wanted group
     local -a groups
     # stderr holds a QR code of the key when it is a terminal, and must never reach the journal.
-    key="$(systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART" 2>/dev/null)" \
+    key="$(systemd-cryptenroll "$1" --wipe-slot="$2" --recovery-key "$PART" 2>/dev/null)" \
         || fail 'the recovery key could not be made.'
     [[ "$key" =~ $RECOVERY_KEY_SHAPE ]] || fail 'the recovery key could not be made.'
-    # Kept in memory-backed /run only for this run, to derive the TPM lockout password from.
-    printf '%s' "$key" > "$KEY_FILE"
     IFS=- read -r -a groups <<<"$key"
     # A loop with no limit, on purpose: the machine holds no data until the key is saved. Printed, not
     # `read -p`: that writes to stderr, which is the journal.
@@ -193,6 +255,8 @@ TEXT
         read -r typed
         [[ "$typed" == "$wanted" ]] && break
     done
+    # Kept in memory-backed /run only, to derive the TPM lockout password from.
+    printf '%s' "$key" > "$KEY_FILE"
     clear_screen
 }
 
@@ -283,10 +347,11 @@ write_record() {
     echo "data disk protection: $1" >&2
 }
 
-# First boot's sealed path: the key, then the PIN question, then the record.
+# First boot's sealed path: the key, then the PIN question, then the record. The key was shown before /var
+# opened, unless a power cut came since; then a new one replaces it.
 finish_first_time() {
     use_key_file
-    show_recovery_key
+    if [[ -s "$HANDOFF" ]]; then mv "$HANDOFF" "$KEY_FILE"; else show_recovery_key --unlock-tpm2-device=auto recovery; fi
     : > "$KEY_SAVED"
     # On disk before anything else happens: without it a power cut in the next seconds (ext4 commits every 5 s)
     # lost the marker, the next start took the first-time path and waited on a TPM PIN prompt nobody could see.
@@ -324,7 +389,8 @@ finish_after_interruption() {
 finish() {
     local slots
     slots="$(systemd-cryptenroll "$PART")" || fail 'its key slots could not be read.'
-    if grep -qw password <<<"$slots"; then
+    # Not beside a seal: that is setup's random key, left if a start was cut short, never a choice.
+    if grep -qw password <<<"$slots" && ! grep -qw tpm2 <<<"$slots"; then
         write_record unencrypted-chosen
     elif [[ -e "$KEY_SAVED" ]]; then
         finish_after_interruption

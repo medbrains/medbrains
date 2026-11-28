@@ -7,7 +7,7 @@ Thank you for helping. MedBrains runs hospitals, so the code can affect patient 
 - **Clinical review.** Doctors, nurses, pharmacists and administrators: tell us where a workflow or rule is wrong. Open an issue and describe what really happens on the ward.
 - **Code.** Fix a bug, finish a roadmap item, improve speed or accessibility.
 - **Translations.** The web app's interface text is translatable.
-- **Docs.** Setup guides, how-tos, screenshots.
+- **Docs.** Setup guides, how-tos, screenshots. Follow the [documentation style guide](./medbrains/apps/docs/STYLE.md).
 - **Triage.** Reproduce bugs and help others in Discussions.
 
 Good first tasks are listed in the README under [Contributing](./README.md#contributing) and labelled `good first issue`.
@@ -22,9 +22,7 @@ Good first tasks are listed in the README under [Contributing](./README.md#contr
 
 Outside pull requests are merged only after the contributor has signed the [contributor licence agreement](./CLA.md). It lets the project license your work under both the AGPL-3.0-only and the commercial licence. You keep your copyright.
 
-When you open your first pull request, the CLA bot comments with a link. Read [CLA.md](./CLA.md), then reply on the pull request with exactly:
-
-> I have read the CLA Document and I hereby sign the CLA
+Read [CLA.md](./CLA.md), then in your first pull request add your GitHub username and today's date as one line to [`signatures/cla.txt`](./signatures/cla.txt). The `CLA signed` check shows the exact line if it is missing.
 
 You sign once. Contributing for a company, hospital or university? Your organisation signs the entity agreement first; see [CLA.md](./CLA.md#how-to-sign).
 
@@ -52,7 +50,9 @@ The workspace has about 119 Rust crates. The first build is slow and uses a lot 
 
 ## Running the end-to-end tests
 
-The Playwright journeys live in `medbrains/apps/web/e2e/`. They need the server and the web app running, as in the setup above, against a development database (they sign in as the dev seed's `admin` and create their own temporary staff).
+The Playwright journeys live in `medbrains/apps/web/e2e/`. They need the server and the web app running, as in the setup above, against a development database. Start the server with `TRUSTED_PROXIES=127.0.0.1/32,::1/128`, as CI does, so each worker and each API sign-in counts as its own client for the five-a-minute sign-in limit.
+
+The suite runs four workers at once (`E2E_WORKERS`, default 4), and each worker has its own hospital. Global setup signs in as the dev seed's `admin` only to provision hospitals `E2E-W0` … `E2E-W3` through `/api/debug/e2e/tenant` (debug builds or `MEDBRAINS_ENABLE_E2E_SEED`). Each hospital gets the first hospital's masters, its own administrator, one temporary user per role and a saved browser session under `e2e/.auth/w<slot>/`. A test sees only its worker's hospital, so a test must not rely on rows another spec file created. The tests inside a file keep their order. A file whose tests are independent says so with `test.describe.configure({ mode: "parallel" })`, so they can be spread across workers and shards. Rerunning reuses the hospitals. The canonical fixture rows (`e2e/helpers/canonical-seed.ts`) have fixed ids, so they exist only in the first hospital that seeded them. The generated smoke layer, which addresses those ids, gets 404 for them in the per-worker hospitals.
 
 ```bash
 cd medbrains/apps/web
@@ -60,9 +60,11 @@ pnpm exec playwright install chromium   # once
 pnpm exec playwright test --project=journeys            # one layer
 pnpm exec playwright test e2e/journeys/access-alerts.spec.ts  # one file
 pnpm exec playwright test --ui           # watch them run
+E2E_WORKERS=1 pnpm exec playwright test --project=crud   # one worker, one hospital
+pnpm exec playwright test --project=mock-chromium --no-deps   # mocked API, no server
 ```
 
-CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
+CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, on every push to `main` and `release/**`, and nightly on `main`. A pull request runs only the projects its changed paths need: `medbrains/apps/web/e2e/path-projects.json` maps globs to projects (first match wins), `python3 medbrains/scripts/e2e_select.py --check` validates it, and a path no rule matches runs everything. A docs-only change runs nothing; a server-only change runs every project except the mocked one. Pushes and the nightly always run everything. The six shards are cut by measured duration, not test count (`medbrains/scripts/e2e_shards.py`, weights in `e2e/timings.json`). To rebalance, copy the `e2e-timings` artifact of a full run over that file and commit it. A file whose tests are independent can say `test.describe.configure({ mode: "parallel" })`, and its tests are then shared out one by one. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
 
 ### The test report
 
@@ -112,7 +114,7 @@ The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:
 3. Make the checks pass: `cargo fmt --check`, `cargo clippy`, `pnpm typecheck`, `pnpm build` and `make check-all`.
 4. In the description, say what changed, why, and how you checked it. Link the issue (`Closes #123`).
 5. Add tests for new endpoints and screens. A test should fail if the behaviour breaks.
-6. Sign the CLA when the bot asks. The pull request cannot be merged before you do.
+6. Sign the CLA by adding your line to `signatures/cla.txt`. The pull request cannot be merged before you do.
 
 A maintainer will review. Please be kind; see the [Code of Conduct](./CODE_OF_CONDUCT.md).
 

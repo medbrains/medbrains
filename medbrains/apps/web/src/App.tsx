@@ -14,13 +14,11 @@ function ScrollToTop() {
   return null;
 }
 
-// Every signed-in route, and the shell that draws them, live in AuthedRoutes:
+// Every signed-in route, and the shell that draws them, live in AuthedApp:
 // sign-in, the kiosk, the public pages and the TV board never use them, so
 // their route table (and the preload map of each page's chunks) is not part
 // of the entry every first load parses.
-const AuthedRoutes = lazy(() =>
-  import("./AuthedRoutes").then((m) => ({ default: m.AuthedRoutes })),
-);
+const AuthedApp = lazy(() => import("./AuthedApp").then((m) => ({ default: m.AuthedApp })));
 
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
 const TermsPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.TermsPage })));
@@ -134,7 +132,7 @@ export function App() {
             />
 
             {/* Signed in: the shell and every page inside it. */}
-            <Route path="/*" element={<AuthedRoutes />} />
+            <Route path="/*" element={<AuthedApp />} />
           </Routes>
         </Suspense>
       </RouteErrorBoundary>

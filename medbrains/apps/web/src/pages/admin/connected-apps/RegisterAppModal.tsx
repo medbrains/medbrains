@@ -1,5 +1,5 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import type { ConnectedAppCredentials } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -17,7 +17,7 @@ export function RegisterAppModal({ opened, onClose, onIssued }: RegisterAppModal
   const [text, setText] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
   const register = useMutation({
-    mutationFn: (manifest: unknown) => api.registerConnectedApp(manifest),
+    mutationFn: (manifest: unknown) => adminApi.registerConnectedApp(manifest),
     onSuccess: (issued) => {
       void queryClient.invalidateQueries({ queryKey: ["connected-apps"] });
       setText("");

@@ -26,6 +26,12 @@ variable "enable_interface_endpoints" {
   description = "Billed hourly per AZ. Set false in non-prod (NAT already reaches AWS APIs)."
 }
 
+variable "s3_endpoint_extra_object_arns" {
+  description = "S3 object ARNs in other accounts that hosts may read through the S3 gateway endpoint, besides this account's buckets, ECR image layers and the Amazon Linux package repos."
+  type        = list(string)
+  default     = []
+}
+
 variable "flow_log_kms_key_arn" {
   type        = string
   default     = null
@@ -207,6 +213,20 @@ resource "aws_route_table_association" "db" {
 
 # VPC endpoints — keep AWS API traffic on the VPC backbone
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
+# Endpoint policies: traffic through an endpoint may act only as this
+# account's principals, and S3 only on this account's buckets plus the
+# AWS-owned buckets that image pulls and package installs read. A stolen
+# credential from another account cannot use our endpoints as an exit.
+locals {
+  account_id = data.aws_caller_identity.current.account_id
+  s3_aws_owned_object_arns = concat([
+    "arn:aws:s3:::prod-${data.aws_region.current.name}-starport-layer-bucket/*",
+    "arn:aws:s3:::al2023-repos-${data.aws_region.current.name}-*/*",
+    "arn:aws:s3:::amazonlinux-2-repos-${data.aws_region.current.name}/*",
+  ], var.s3_endpoint_extra_object_arns)
+}
 
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
@@ -216,6 +236,31 @@ resource "aws_vpc_endpoint" "s3" {
     [aws_route_table.public.id, aws_route_table.db.id],
     [for rt in aws_route_table.private : rt.id],
   )
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnAccountBuckets"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource  = "*"
+        Condition = {
+          StringEquals = {
+            "aws:PrincipalAccount" = local.account_id
+            "aws:ResourceAccount"  = local.account_id
+          }
+        }
+      },
+      {
+        Sid       = "AwsOwnedReadOnly"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = local.s3_aws_owned_object_arns
+      },
+    ]
+  })
 }
 
 resource "aws_security_group" "interface_endpoints" {
@@ -247,6 +292,17 @@ resource "aws_vpc_endpoint" "interface" {
   subnet_ids          = [for s in aws_subnet.private : s.id]
   security_group_ids  = [aws_security_group.interface_endpoints.id]
   private_dns_enabled = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "OwnAccountPrincipals"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "*"
+      Resource  = "*"
+      Condition = { StringEquals = { "aws:PrincipalAccount" = local.account_id } }
+    }]
+  })
 }
 
 # Outputs

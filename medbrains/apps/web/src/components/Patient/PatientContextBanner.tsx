@@ -100,6 +100,7 @@ function PatientContextIdentity({
     uhid: uhidStr,
     ageYears: data.age_years,
     gender: data.gender,
+    opd: data,
   });
 
   const identity =
@@ -166,9 +167,7 @@ export function PatientContextBanner({
     return <Skeleton height={36} mb="sm" radius="sm" />;
   }
 
-  if (isError || !data) {
-    return null;
-  }
+  if (isError || !data) return null;
 
   const balance = Number(data.outstanding_balance);
   const hasBalance = Number.isFinite(balance) && balance > 0;

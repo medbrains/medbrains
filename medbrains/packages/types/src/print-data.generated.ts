@@ -82,6 +82,12 @@ export interface RadiologyReportPrintData {
 }
 
 export interface PatientCardPrintData {
+  /** `tenants.name`, printed when there is no name banner. */
+  hospital_name: string;
+  /** The branding emblem (`logo_url`), when the hospital set one. */
+  hospital_logo_url: string | null;
+  /** The branding `name_banner_url`, when the hospital set one. */
+  hospital_name_banner_url: string | null;
   patient_name: string;
   uhid: string;
   date_of_birth: string | null;
@@ -828,39 +834,6 @@ export interface IhcMarker {
   result: string;
   intensity: string | null;
   percentage: string | null;
-}
-
-export interface CrossmatchReportPrintData {
-  patient_name: string;
-  uhid: string;
-  age: string | null;
-  gender: string;
-  blood_group: string;
-  rh_type: string;
-  request_date: string;
-  request_number: string;
-  ward: string | null;
-  bed: string | null;
-  diagnosis: string | null;
-  requesting_doctor: string | null;
-  units_requested: number;
-  component_type: string;
-  crossmatch_results: CrossmatchUnit[];
-  antibody_screen: string | null;
-  special_requirements: string | null;
-  technician_name: string | null;
-  verified_by: string | null;
-  hospital_name: string | null;
-}
-
-export interface CrossmatchUnit {
-  bag_number: string;
-  donation_date: string;
-  expiry_date: string;
-  donor_blood_group: string;
-  volume_ml: number;
-  crossmatch_result: string;
-  issue_status: string;
 }
 
 export interface ComponentSlipPrintData {
@@ -2627,15 +2600,18 @@ export interface QualityIndicator {
   denominator: number | null;
   rate: number;
   benchmark: number | null;
+  /** `met`, `not_met`, `not_applicable` or `direction_not_set`. */
   status: string;
-  trend: string | null;
 }
 
 export interface QualitySummary {
   total_indicators: number;
   met_benchmark: number;
-  below_benchmark: number;
+  /** Indicators that miss their target in their own direction. */
+  not_met: number;
   not_applicable: number;
+  /** Indicators with a target but no direction; never counted as met. */
+  direction_not_set: number;
 }
 
 /** NMC Compliance Report */
@@ -4909,6 +4885,44 @@ export interface DispensingLabelPrintData {
   prescriber_name: string | null;
 }
 
+export interface CrossmatchReportPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  blood_group: string;
+  rh_type: string;
+  request_date: string;
+  request_number: string;
+  ward: string | null;
+  bed: string | null;
+  diagnosis: string | null;
+  requesting_doctor: string | null;
+  units_requested: number;
+  component_type: string;
+  /** The bank's crossmatch status: requested, testing, compatible, ... */
+  status: string;
+  result: string | null;
+  /** When the sample was tested, in the tenant's zone. */
+  tested_at: string | null;
+  /** The tied bag, or "No unit allocated yet": the web never ties one. */
+  unit_allocation: string;
+  crossmatch_results: CrossmatchUnit[];
+  special_requirements: string | null;
+  technician_name: string | null;
+  hospital_name: string | null;
+}
+
+export interface CrossmatchUnit {
+  bag_number: string;
+  donation_date: string;
+  expiry_date: string;
+  donor_blood_group: string;
+  volume_ml: number;
+  crossmatch_result: string;
+  issue_status: string;
+}
+
 export interface GstInvoicePrintData {
   invoice_number: string;
   patient_name: string;
@@ -4968,4 +4982,46 @@ export interface GstInvoiceItemLine {
   discount_amount: string;
   cgst_amount: string;
   sgst_amount: string;
+}
+
+export interface OpdCardPrintData {
+  /** `tenants.name`, never a product name. */
+  hospital_name: string;
+  /** The branding setting the admin screen and onboarding write. */
+  hospital_logo_url: string | null;
+  /** The branding `name_banner_url`: the hospital's name as an image. */
+  hospital_name_banner_url: string | null;
+  hospital_address: string | null;
+  hospital_phone: string | null;
+  /** The hospital's registration (Clinical Establishments) number. */
+  hospital_registration_no: string | null;
+  patient_name: string;
+  uhid: string;
+  /** "34 Y", "7 M" or "12 D". */
+  age: string | null;
+  gender: string;
+  phone: string;
+  /** Street and city, nothing more. */
+  address: string | null;
+  registered_on: string;
+  /**
+   * The hospital's own OPD number: the visit's when it numbers visits,
+   * else the patient's. Absent where the hospital keeps none.
+   */
+  opd_number: string | null;
+  /** The patient's OPD (register) date, "15-Aug-2026", with a patient's number. */
+  opd_date: string | null;
+  /** Present when the card is printed for an OPD visit. */
+  visit: OpdCardVisit | null;
+}
+
+export interface OpdCardVisit {
+  visit_date: string;
+  visit_time: string;
+  department: string | null;
+  doctor: string | null;
+  /** The number the board calls; null when the queue refused one. */
+  token_number: string | null;
+  /** True when the patient has an earlier OPD visit here. */
+  is_repeat: boolean;
 }

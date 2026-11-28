@@ -6,22 +6,19 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-health-services = { path = "../medbrains-health-services" }
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-forms = { path = "../medbrains-forms" }
-medbrains-radiology = { path = "../medbrains-radiology" }
-medbrains-lab = { path = "../medbrains-lab" }
 medbrains-tokens = { path = "../medbrains-tokens" }
 medbrains-telehealth = { path = "../medbrains-telehealth" }
 medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 medbrains-platform = { path = "../medbrains-platform" }
 medbrains-terminology = { path = "../medbrains-terminology" }
 medbrains-core = { path = "../medbrains-core" }
-medbrains-db = { path = "../medbrains-db" }
-medbrains-authz = { path = "../medbrains-authz" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 axum = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
 serde = { workspace = true }
@@ -31,6 +28,10 @@ chrono = { workspace = true }
 rust_decimal = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

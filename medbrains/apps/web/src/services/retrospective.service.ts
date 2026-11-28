@@ -1,9 +1,9 @@
-import { api } from "@medbrains/api";
+import { retrospectiveApi } from "@medbrains/api/modules/retrospective";
 
 export const retrospectiveService = {
-  listEntries: api.listRetroEntries,
-  approveEntry: api.approveRetroEntry,
-  rejectEntry: api.rejectRetroEntry,
-  getSettings: api.getRetroSettings,
-  updateSettings: api.updateRetroSettings,
+  listEntries: retrospectiveApi.listRetroEntries,
+  approveEntry: retrospectiveApi.approveRetroEntry,
+  rejectEntry: retrospectiveApi.rejectRetroEntry,
+  getSettings: retrospectiveApi.getRetroSettings,
+  updateSettings: retrospectiveApi.updateRetroSettings,
 };

@@ -21,4 +21,8 @@ sqlx = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

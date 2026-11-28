@@ -21,9 +21,14 @@ is wrong is the most valuable help of all. For code:
 5. **Define permissions first,** in Rust. See
    [permissions](/developer/reference/permissions/).
 6. **Document as you go:** every function gets a doc comment, and every
-   decision a row in `medbrains/docs/DECISIONS.md` in the same PR.
-7. **Make the checks pass** and say in the PR what changed, why, and how you
+   decision its own file in `medbrains/docs/decisions/` in the same PR.
+7. **Write docs to the style guide:**
+   [`STYLE.md`](https://github.com/medbrains/medbrains/blob/main/medbrains/apps/docs/STYLE.md)
+   covers page types, steps, callouts, terms and the review checklist.
+8. **Make the checks pass** and say in the PR what changed, why, and how you
    checked it. Link the issue with `Closes #123`.
+   The browser tests run when the pull request is queued to merge; add the
+   `run-e2e` label to run them on the pull request first.
 
 :::danger Never commit real patient data
 Use only synthetic data in code, tests, seeds, screenshots and issues.

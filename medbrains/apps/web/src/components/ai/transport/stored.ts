@@ -1,4 +1,4 @@
-import type { api } from "@medbrains/api";
+import type { aiApi } from "@medbrains/api/modules/ai";
 import type {
   AiWidget,
   ChatMessage,
@@ -9,7 +9,7 @@ import type {
 } from "./types";
 
 /** One stored message as the API returns it. */
-type StoredMessage = Awaited<ReturnType<typeof api.getAiConversationMessages>>[number];
+type StoredMessage = Awaited<ReturnType<typeof aiApi.getAiConversationMessages>>[number];
 
 /** A widget kept only as what to fetch again (it may have listed patients). */
 export interface StoredReplay {

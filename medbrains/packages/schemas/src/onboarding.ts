@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { serviceTypeFormSchema } from "./hms-forms.js";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "./password.js";
 
 // ── Shared patterns ──────────────────────────────────────
 
@@ -54,7 +55,7 @@ export const onboardingInitSchema = z.object({
   admin_email: z.string().email("Invalid email address"),
   admin_password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT)
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one digit")
@@ -193,7 +194,7 @@ export const createUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT)
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one digit")
@@ -218,8 +219,8 @@ export const sequencesSchema = z.object({
   uhid_pad_width: z.coerce
     .number()
     .int()
-    .min(3, "Pad width must be 3-10")
-    .max(10, "Pad width must be 3-10"),
+    .min(0, "Pad width must be 0-10")
+    .max(10, "Pad width must be 0-10"),
   invoice_prefix: z
     .string()
     .max(10, "Prefix must be at most 10 characters")
@@ -227,8 +228,8 @@ export const sequencesSchema = z.object({
   invoice_pad_width: z.coerce
     .number()
     .int()
-    .min(3, "Pad width must be 3-10")
-    .max(10, "Pad width must be 3-10"),
+    .min(0, "Pad width must be 0-10")
+    .max(10, "Pad width must be 0-10"),
 });
 
 export type SequencesInput = z.infer<typeof sequencesSchema>;
@@ -311,8 +312,8 @@ export const additionalSequenceSchema = z.object({
   pad_width: z.coerce
     .number()
     .int()
-    .min(3, "Pad width must be 3-10")
-    .max(10, "Pad width must be 3-10"),
+    .min(0, "Pad width must be 0-10")
+    .max(10, "Pad width must be 0-10"),
 });
 
 export type AdditionalSequenceInput = z.infer<typeof additionalSequenceSchema>;

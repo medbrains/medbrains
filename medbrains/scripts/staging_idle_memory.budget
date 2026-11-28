@@ -1,0 +1,13 @@
+# Idle memory budget for the last row of scripts/staging_update_e2e.sh (sourced by it).
+# The row fails when a release, installed on the 2 GB staging box and left alone for five
+# minutes, is over any of these. Raising a number needs the owner: each one is hardware a
+# hospital has to buy. Lowering one after a saving is welcome.
+# Start: v3.35.6 measured 2026-11-22 (154 MB, 161 MB, 21, 338 MB) plus 15%.
+# Server process RSS.
+SERVER_RSS_MB=177
+# Every PostgreSQL process, PSS.
+POSTGRES_MB=185
+# Client connections the server holds open.
+DB_CONNECTIONS=24
+# Every process on the box plus PostgreSQL, PSS.
+TOTAL_MB=389

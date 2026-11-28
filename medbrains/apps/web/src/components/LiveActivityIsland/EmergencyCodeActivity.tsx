@@ -1,5 +1,5 @@
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
+import { emergencyApi } from "@medbrains/api/modules/emergency";
+import { useHasPermission, useModuleStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -16,12 +16,14 @@ export function EmergencyCodeActivity() {
   const navigate = useNavigate();
   const setActivity = useLiveActivityStore((s) => s.setActivity);
   // A role that may not list codes is refused; it does not poll (it did,
-  // every 20 s, with a 403 each time).
-  const canList = useHasPermission(P.EMERGENCY.CODES.LIST);
+  // every 20 s, with a 403 each time). Nor does a hospital that switched the
+  // Emergency brick off: its server refuses the read for everyone.
+  const emergencyOn = useModuleStore((s) => !s.disabledModules.has("emergency"));
+  const canList = useHasPermission(P.EMERGENCY.CODES.LIST) && emergencyOn;
 
   const { data: codes = [] } = useQuery({
     queryKey: ["emergency-codes-active"],
-    queryFn: () => api.listCodeActivations(),
+    queryFn: () => emergencyApi.listCodeActivations(),
     refetchInterval: 20_000,
     retry: false,
     enabled: canList,

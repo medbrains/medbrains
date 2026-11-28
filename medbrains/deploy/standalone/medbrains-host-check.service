@@ -6,6 +6,7 @@ OnFailure=medbrains-alert@%n.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
+EnvironmentFile=-/etc/medbrains/postgres.env
 ExecStart=/usr/local/bin/medbrains-host-check
 # The S3 listings (backup, log archive) need a region; without one the AWS
 # CLI errors and the check reads it as "unknown" — silent forever.

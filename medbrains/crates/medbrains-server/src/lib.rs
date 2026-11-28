@@ -22,6 +22,7 @@
 //! - [`error`] — Unified error types and responses
 //! - [`validation`] — Request validation helpers
 
+pub mod actions;
 pub mod event_tokens;
 pub mod preflight;
 pub mod preflight_ai;
@@ -30,6 +31,7 @@ pub mod routes;
 pub mod secret_backend;
 pub mod services;
 pub mod storage_archive;
+pub mod worker_pool;
 
 // Shared server foundation — moved to `medbrains-server-core` and re-exported here
 // so `crate::error`, `crate::state`, `crate::middleware`, … keep resolving across

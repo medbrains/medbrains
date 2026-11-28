@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const curb65Service = {
-  computeCurb65: (data: Parameters<typeof api.computeCurb65>[0]) => api.computeCurb65(data),
+  computeCurb65: (data: Parameters<typeof clinicalApi.computeCurb65>[0]) =>
+    clinicalApi.computeCurb65(data),
 };

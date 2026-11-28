@@ -17,69 +17,83 @@
  * because clinicians round to the nearest 5 or 10.
  */
 
+import { isHypertensiveCrisis } from "@medbrains/schemas";
 import type { BadgeTone } from "@/components/ui";
 
 /** Stage 2 hypertension. Inclusive — 140/90 is stage 2, not "nearly". */
 export const SYSTOLIC_HIGH = 140;
 export const DIASTOLIC_HIGH = 90;
 
-/** Hypotension worth flagging at a desk. */
-export const SYSTOLIC_LOW = 90;
+/**
+ * Systolic at or below this is critical.
+ *
+ * Source: Royal College of Physicians, National Early Warning Score (NEWS) 2
+ * (2017) observation chart, where a systolic of 90 mmHg or less scores 3 — the
+ * chart's red band, which alone calls for urgent clinical review. It is the
+ * band this server already scores with (`score_sbp` in
+ * `crates/medbrains-clinical-scores/src/news2.rs`). Adult band; NEWS2 does not
+ * apply to children or in pregnancy. Before this, 70/40 was only "low", in
+ * amber with no word. TO CONFIRM by the hospital's clinical lead.
+ */
+export const SYSTOLIC_CRITICAL_LOW = 90;
 
-/** Below this, hypoxia. */
-export const SPO2_LOW = 94;
+export type VitalGrade = "normal" | "low" | "high" | "critical_low" | "critical_high";
 
-export type VitalSeverity = "high" | "low" | "normal";
+export interface VitalBands {
+  normal: readonly [number, number];
+  borderline: readonly [number, number];
+}
 
 /**
- * Blood pressure severity from both numbers.
- *
- * High wins over low: a reading that is somehow high on one and low on the
- * other is abnormal, and the abnormality that kills faster should be the one
- * on screen.
+ * The entry form's adult bands, here so the doctor's view grades the same
+ * reading the same way. (Temperature's depend on the unit: `getTemperatureConfig`.)
  */
-export function bloodPressureSeverity(
+export const ADULT_VITAL_BANDS = {
+  pulse: { normal: [60, 100], borderline: [50, 120] },
+  spo2: { normal: [95, 100], borderline: [90, 100] },
+  respiratory_rate: { normal: [12, 20], borderline: [10, 25] },
+} as const satisfies Record<string, VitalBands>;
+
+/** Grades a reading: inside normal, inside borderline (low/high), or beyond it (critical). */
+export function gradeVital(
+  value: number | string | null | undefined,
+  bands: VitalBands,
+): VitalGrade {
+  const reading = numeric(value);
+  if (reading === null) return "normal";
+  if (reading < bands.normal[0]) return reading >= bands.borderline[0] ? "low" : "critical_low";
+  if (reading > bands.normal[1]) return reading <= bands.borderline[1] ? "high" : "critical_high";
+  return "normal";
+}
+
+/**
+ * Blood pressure grade from both numbers. Critical wins over high: a crisis
+ * (180/120 and above) or a systolic of 90 or less cannot wait.
+ */
+export function bloodPressureGrade(
   systolic: number | null | undefined,
   diastolic: number | null | undefined,
-): VitalSeverity {
+): VitalGrade {
   const sys = numeric(systolic);
   const dia = numeric(diastolic);
-  if (sys === null && dia === null) {
-    return "normal";
-  }
+  if (isHypertensiveCrisis(sys, dia)) return "critical_high";
+  if (sys !== null && sys <= SYSTOLIC_CRITICAL_LOW) return "critical_low";
   if ((sys !== null && sys >= SYSTOLIC_HIGH) || (dia !== null && dia >= DIASTOLIC_HIGH)) {
     return "high";
-  }
-  if (sys !== null && sys < SYSTOLIC_LOW) {
-    return "low";
   }
   return "normal";
 }
 
-/** Oxygen saturation severity. Only one direction matters clinically. */
-export function spo2Severity(spo2: number | null | undefined): VitalSeverity {
-  const value = numeric(spo2);
-  if (value === null) {
-    return "normal";
-  }
-  return value < SPO2_LOW ? "low" : "normal";
+/** The grade in words, so the colour never carries the meaning alone. */
+export function gradeLabel(grade: VitalGrade): string {
+  const words = grade.replace("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/**
- * How a severity is painted.
- *
- * Low oxygen and high pressure are both `danger`: a nurse scanning a list
- * should not have to remember which colour means which direction.
- */
-export function severityTone(severity: VitalSeverity): BadgeTone {
-  switch (severity) {
-    case "high":
-      return "danger";
-    case "low":
-      return "warning";
-    default:
-      return "primary";
-  }
+/** How a grade is painted: critical in either direction is danger. */
+export function gradeTone(grade: VitalGrade): BadgeTone {
+  if (grade === "normal") return "primary";
+  return grade === "low" || grade === "high" ? "warning" : "danger";
 }
 
 /**

@@ -1,17 +1,20 @@
 import { Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { MpiMatchResult } from "@medbrains/types";
+import type { MpiMatchResult, PatientSearchBy } from "@medbrains/types";
 import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { IconUsers } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { type Column, DataTable } from "@/components";
-import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
+import { OpdNumberBadge } from "@/components/Patient/OpdNumberBadge";
+import { PrintIdCardButton } from "@/components/Print/PrintIdCardButton";
 import { lookupsService } from "@/services/lookups.service";
 
 interface RegisterMatchesProps {
   /** What the desk typed into the directory search. */
   search: string;
+  /** The field it searches; one field needs no three-character floor. */
+  by?: PatientSearchBy;
   /** Patients the directory already shows, so a patient is listed once. */
   shown: readonly { id: string }[] | undefined;
 }
@@ -28,14 +31,14 @@ const MIN_LOOKUP_CHARS = 3;
  * the desk lookup (`patients.find`, identity only) and lets the desk reprint
  * the patient's card (`patients.card.reprint`) without opening the chart.
  */
-export function RegisterMatches({ search, shown }: RegisterMatchesProps) {
+export function RegisterMatches({ search, by = "all", shown }: RegisterMatchesProps) {
   const { t } = useTranslation("patients");
   const canFind = useHasPermission(P.PATIENTS.FIND);
   const query = search.trim();
-  const isLookup = canFind && query.length >= MIN_LOOKUP_CHARS;
+  const isLookup = canFind && query.length >= (by === "all" ? MIN_LOOKUP_CHARS : 1);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["patient-register-lookup", query],
-    queryFn: () => lookupsService.findPatients(query),
+    queryKey: ["patient-register-lookup", query, by],
+    queryFn: () => lookupsService.findPatients(query, by),
     enabled: isLookup,
     staleTime: 30_000,
   });
@@ -70,10 +73,15 @@ export function RegisterMatches({ search, shown }: RegisterMatchesProps) {
       render: (row: MpiMatchResult) => row.phone || "-",
     },
     {
+      key: "opd_number",
+      label: t("label.opdNumber", "OPD no."),
+      render: (row: MpiMatchResult) => <OpdNumberBadge opd={row} />,
+    },
+    {
       key: "card",
       label: t("directory.register.card"),
       render: (row: MpiMatchResult) => (
-        <PrintPatientCardButton
+        <PrintIdCardButton
           patientId={row.id}
           ariaLabel={t("directory.register.printCardFor", { uhid: row.uhid })}
         />

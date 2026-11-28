@@ -8,7 +8,7 @@ import {
   SpotlightRoot,
   SpotlightSearch,
 } from "@mantine/spotlight";
-import { usePermissionStore } from "@medbrains/stores";
+import { useModuleStore, usePermissionStore } from "@medbrains/stores";
 import {
   IconBox,
   IconCornerDownLeft,
@@ -26,7 +26,7 @@ import { AiOrb } from "@/components/ui";
 import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import styles from "./SpotlightProvider.module.scss";
 
-interface SpotlightEntry {
+export interface SpotlightEntry {
   id: string;
   label: string;
   description: string;
@@ -35,6 +35,8 @@ interface SpotlightEntry {
   group: string;
   requiredPermission?: string;
   requiredPermissions?: readonly string[];
+  /** The app brick the entry belongs to; hidden while the hospital has that app off. */
+  moduleCode?: string;
   keywords?: string[];
 }
 
@@ -56,7 +58,7 @@ const NAV_DESCRIPTIONS: Record<string, string> = {
   "/admin/webhooks": "Send events to partner systems, signed and retried",
 };
 
-/** Build navigation entries from nav config. */
+/** Search's screen entries, one per path: an app's admin screen is in its app and Administration. */
 function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
   const entries: SpotlightEntry[] = [];
 
@@ -77,6 +79,7 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
         group: "Navigation",
         requiredPermission: item.requiredPermission,
         requiredPermissions: item.requiredPermissions,
+        moduleCode: item.moduleCode,
       });
     }
   }
@@ -85,7 +88,7 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
     walk(group.items);
   }
 
-  return entries;
+  return [...new Map(entries.map((entry) => [entry.path, entry])).values()];
 }
 
 /** Quick action entries (action-oriented, not nav duplication). */
@@ -112,6 +115,7 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     icon: <IconUserPlus size={18} stroke={1.5} />,
     group: "Quick Actions",
     requiredPermission: "patients.create",
+    moduleCode: "registration",
     keywords: ["register", "add"],
   },
   {
@@ -122,6 +126,7 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     icon: <IconReportMedical size={18} stroke={1.5} />,
     group: "Quick Actions",
     requiredPermission: "opd.visit.create",
+    moduleCode: "opd",
     keywords: ["visit", "consultation"],
   },
   {
@@ -132,6 +137,7 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     icon: <IconFileInvoice size={18} stroke={1.5} />,
     group: "Quick Actions",
     requiredPermission: "billing.invoices.create",
+    moduleCode: "billing",
     keywords: ["bill", "charge"],
   },
   {
@@ -145,6 +151,23 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     keywords: ["inventory", "consumable", "drug", "stock", "item", "catalog", "materials", "add"],
   },
 ];
+
+/**
+ * The entries a person may open: they hold the permission, and the app it belongs to is on for
+ * their hospital. Search must never offer a screen the menu leaves out.
+ */
+export function visibleEntries(
+  entries: readonly SpotlightEntry[],
+  hasPermission: (code: string) => boolean,
+  disabledModules: ReadonlySet<string>,
+): SpotlightEntry[] {
+  return entries.filter(
+    (e) =>
+      (!e.requiredPermission || hasPermission(e.requiredPermission)) &&
+      (!e.requiredPermissions || e.requiredPermissions.some(hasPermission)) &&
+      !(e.moduleCode && disabledModules.has(e.moduleCode)),
+  );
+}
 
 function filterActions(query: string, entries: SpotlightEntry[]): SpotlightEntry[] {
   const q = query.toLowerCase().trim();
@@ -162,20 +185,15 @@ export function SpotlightProvider() {
   const openAssistant = useAiAssistantStore((s) => s.open);
   const openAddProduct = useAddProductStore((s) => s.open);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
+  const disabledModules = useModuleStore((s) => s.disabledModules);
   const [query, setQuery] = useState("");
   const { t } = useTranslation("nav");
 
   const allEntries = useMemo(() => [...buildNavEntries(t), ...QUICK_ACTIONS], [t]);
 
   const permittedEntries = useMemo(
-    () =>
-      allEntries.filter(
-        (e) =>
-          (!e.requiredPermission || hasPermission(e.requiredPermission)) &&
-          (!e.requiredPermissions ||
-            e.requiredPermissions.some((permission) => hasPermission(permission))),
-      ),
-    [allEntries, hasPermission],
+    () => visibleEntries(allEntries, hasPermission, disabledModules),
+    [allEntries, hasPermission, disabledModules],
   );
 
   const filtered = useMemo(() => filterActions(query, permittedEntries), [query, permittedEntries]);

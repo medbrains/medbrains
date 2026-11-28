@@ -9,10 +9,8 @@
 use axum::{Extension, Json, extract::Query};
 use medbrains_core::indic::{self, Script};
 use medbrains_core::permissions;
-use medbrains_server_core::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-};
+use medbrains_kernel::authz::require_permission;
+use medbrains_server_core::{error::AppError, middleware::auth::Claims};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

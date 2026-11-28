@@ -430,36 +430,16 @@ impl AuthzBackend for SpiceDbBackend {
             ));
         }
 
-        let optional_expires_at = expires_at.map(|t| prost_types::Timestamp {
-            seconds: t.timestamp(),
-            nanos: t.timestamp_subsec_nanos() as i32,
-        });
-
-        let relationship = v1::Relationship {
-            resource: Some(v1::ObjectReference {
-                object_type: object_type.to_owned(),
-                object_id: object_id.to_string(),
-            }),
-            relation: relation_to_relname(relation).to_owned(),
-            subject: Some(Self::subject_to_ref(&subject)),
-            optional_caveat: None,
-            optional_expires_at,
-        };
-
-        let req = v1::WriteRelationshipsRequest {
-            updates: vec![v1::RelationshipUpdate {
-                operation: TupleOp::Touch as i32, // upsert — idempotent
-                relationship: Some(relationship),
-            }],
-            optional_preconditions: vec![],
-            optional_transaction_metadata: None,
-        };
-
-        let mut client = (*self.client).clone();
-        client
-            .write_relationships(Request::new(req))
-            .await
-            .map_err(|e| AuthzError::Other(format!("write_relationships: {e}")))?;
+        // Touch is an upsert, so a retried write is idempotent.
+        let key = (object_type, object_id, relation_to_relname(relation));
+        self.write_named(
+            TupleOp::Touch,
+            key,
+            subject.clone(),
+            expires_at,
+            "write_relationships",
+        )
+        .await?;
 
         // SpiceDB tuples don't have a sortable id; the caller usually
         // doesn't need one back, but the trait demands a Uuid so we
@@ -568,6 +548,53 @@ impl SpiceDbBackend {
             ));
         }
 
+        let key = (object_type, object_id, relation_name);
+        self.write_named(TupleOp::Touch, key, subject, expires_at, "write_raw")
+            .await
+    }
+
+    /// SpiceDB-native revoke: matches by (resource, relation, subject)
+    /// rather than by tuple id (which `SpiceDB` doesn't expose).
+    pub async fn revoke_specific(
+        &self,
+        object_type: &str,
+        object_id: Uuid,
+        relation: Relation,
+        subject: Subject,
+    ) -> Result<(), AuthzError> {
+        let rel = relation_to_relname(relation);
+        self.revoke_raw(object_type, object_id, rel, subject).await
+    }
+
+    /// Delete a relationship by its schema relation name — the counterpart of
+    /// `write_raw`, so a raw grant can be revoked as well as written.
+    pub async fn revoke_raw(
+        &self,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+    ) -> Result<(), AuthzError> {
+        let key = (object_type, object_id, relation_name);
+        self.write_named(
+            TupleOp::Delete,
+            key,
+            subject,
+            None,
+            "delete (write_relationships)",
+        )
+        .await
+    }
+
+    /// Send one touch or delete of `(object, relation name, subject)`.
+    async fn write_named(
+        &self,
+        op: TupleOp,
+        (object_type, object_id, relation_name): (&str, Uuid, &str),
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+        label: &str,
+    ) -> Result<(), AuthzError> {
         let optional_expires_at = expires_at.map(|t| prost_types::Timestamp {
             seconds: t.timestamp(),
             nanos: t.timestamp_subsec_nanos() as i32,
@@ -584,7 +611,7 @@ impl SpiceDbBackend {
         };
         let req = v1::WriteRelationshipsRequest {
             updates: vec![v1::RelationshipUpdate {
-                operation: TupleOp::Touch as i32,
+                operation: op as i32,
                 relationship: Some(relationship),
             }],
             optional_preconditions: vec![],
@@ -594,44 +621,7 @@ impl SpiceDbBackend {
         client
             .write_relationships(Request::new(req))
             .await
-            .map_err(|e| AuthzError::Other(format!("write_raw: {e}")))?;
-        Ok(())
-    }
-
-    /// SpiceDB-native revoke: matches by (resource, relation, subject)
-    /// rather than by tuple id (which `SpiceDB` doesn't expose).
-    pub async fn revoke_specific(
-        &self,
-        object_type: &str,
-        object_id: Uuid,
-        relation: Relation,
-        subject: Subject,
-    ) -> Result<(), AuthzError> {
-        let relationship = v1::Relationship {
-            resource: Some(v1::ObjectReference {
-                object_type: object_type.to_owned(),
-                object_id: object_id.to_string(),
-            }),
-            relation: relation_to_relname(relation).to_owned(),
-            subject: Some(Self::subject_to_ref(&subject)),
-            optional_caveat: None,
-            optional_expires_at: None,
-        };
-
-        let req = v1::WriteRelationshipsRequest {
-            updates: vec![v1::RelationshipUpdate {
-                operation: TupleOp::Delete as i32,
-                relationship: Some(relationship),
-            }],
-            optional_preconditions: vec![],
-            optional_transaction_metadata: None,
-        };
-
-        let mut client = (*self.client).clone();
-        client
-            .write_relationships(Request::new(req))
-            .await
-            .map_err(|e| AuthzError::Other(format!("delete (write_relationships): {e}")))?;
+            .map_err(|e| AuthzError::Other(format!("{label}: {e}")))?;
         Ok(())
     }
 }

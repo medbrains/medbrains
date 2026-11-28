@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE sequences SET current_val = GREATEST(current_val, $2) WHERE tenant_id = $1 AND seq_type = 'UHID'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ffe4d378687caf2e86d38d915353e0b12e0568cdb17e3b4ee14518efef63e608"
+}

@@ -304,5 +304,11 @@
   "vitalsCounter.emptyBody": "Every patient in this queue has had vitals taken.",
   "vitalsCounter.modalTitle": "Vitals — {{token}} · {{patient}}",
   "common.error": "Error",
-  "queueFilters.visitType": "Visit type"
+  "queueFilters.visitType": "Visit type",
+  "queueStatus.closedAutomatically": "Closed automatically",
+  "autoClose.label": "Close OPD visits automatically after",
+  "autoClose.off": "Off",
+  "autoClose.minutes": "{{count}} minutes",
+  "autoClose.loadFailed": "Could not load this setting",
+  "autoClose.saveFailed": "Not saved. Try again."
 }

@@ -1,6 +1,10 @@
 //! Postgres implementation of `AuthzBackend`. Reads/writes
 //! `relation_tuples` (migration 129) with tenant-context GUC set.
 
+mod bulk;
+
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -47,6 +51,8 @@ impl AuthzBackend for PgAuthzBackend {
         "postgres"
     }
 
+    /// One check is a bulk check of one item, so the two can never disagree:
+    /// the resolution rules live once, in [`bulk::bulk_check`].
     async fn check(
         &self,
         ctx: &AuthzContext,
@@ -54,100 +60,22 @@ impl AuthzBackend for PgAuthzBackend {
         object_type: &str,
         object_id: Uuid,
     ) -> Result<bool, AuthzError> {
-        if ctx.is_bypass {
-            return Ok(true);
-        }
+        let key = (object_type.to_owned(), relation, object_id);
+        self.bulk_check(ctx, std::slice::from_ref(&key))
+            .await?
+            .get(&key)
+            .copied()
+            .ok_or_else(|| AuthzError::Other("access check went unanswered".to_owned()))
+    }
 
-        // Validate registry — refuse silently to lookup unregistered types.
-        let spec = registry::lookup(object_type)
-            .ok_or_else(|| AuthzError::UnknownObjectType(object_type.to_string()))?;
-        if !spec.allowed_relations.contains(&relation) {
-            return Err(AuthzError::InvalidRelation {
-                relation: relation.as_code().to_string(),
-                object_type: object_type.to_string(),
-            });
-        }
-
-        // Implications — for "user has Viewer", any relation that IMPLIES
-        // Viewer satisfies (Owner, Editor, AttendingPhysician, Consultant, ...)
-        let candidate_relations = candidate_relation_codes(relation);
-
-        let mut tx = self.pool.begin().await?;
-        self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
-
-        // Single-round-trip resolution: the four subject-match paths (direct
-        // user / role / department / group) are OR-ed into one `EXISTS` instead
-        // of up to four sequential queries (DSA: batch N round-trips into 1 —
-        // see ENGINEERING.md). Semantics are byte-for-byte identical to the previous
-        // sequential checks.
-        //
-        // Multi-hop traversal (department hierarchy, nested groups, tuple-set
-        // rewrites) is intentionally NOT added: the SpiceDB schema — the source
-        // of truth the durable backend must agree with — models none of them
-        // (`department` has only `member: user`, `access_group_members` is flat,
-        // and the only `tuple_set` subjects written are the parent pointers
-        // below). Adding traversal here would make the PG fallback MORE
-        // permissive than SpiceDB, i.e. a security divergence. Caveated tuples
-        // are denied (the caveat evaluator is not run in SQL).
-        //
-        // The one hop the schema does model — the `<parent>->view` arrow (schema.zed: `permission view = … +
-        // patient->view`) rides in the same query: the order's parent-pointer
-        // tuple names the patient, and the subject match runs against the
-        // patient too. NULL when the type has no arrow or `relation` is not
-        // view — edit/cancel never traverse it, exactly as in the schema.
-        let arrow = view_arrow(object_type, relation);
-        let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
-        let allowed: bool = sqlx::query_scalar(
-            "SELECT EXISTS (
-                 SELECT 1 FROM relation_tuples rt
-                 WHERE rt.tenant_id = $1
-                   AND (
-                        (rt.object_type = $2 AND rt.object_id = $3)
-                     OR (rt.object_type = $9 AND rt.object_id IN (
-                            SELECT substr(a.subject_id, length($9) + 2)::uuid
-                            FROM relation_tuples a
-                            WHERE a.tenant_id = $1
-                              AND a.object_type = $2 AND a.object_id = $3
-                              AND a.relation = $9
-                              AND a.subject_type = 'tuple_set'
-                              AND a.subject_id LIKE $9 || ':%'
-                              AND a.status = 'active'
-                              AND (a.expires_at IS NULL OR a.expires_at > now())
-                         ))
-                   )
-                   AND rt.relation = ANY($4)
-                   AND rt.status = 'active'
-                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
-                   AND rt.caveat IS NULL
-                   AND (
-                        (rt.subject_type = 'user' AND rt.subject_id = $5)
-                     OR (rt.subject_type = 'role' AND rt.subject_id = $6)
-                     OR (rt.subject_type = 'department' AND rt.subject_id = ANY($7))
-                     OR (rt.subject_type = 'group' AND EXISTS (
-                            SELECT 1 FROM access_group_members m
-                            WHERE m.tenant_id = rt.tenant_id
-                              AND m.user_id = $8
-                              AND m.group_id::text = rt.subject_id
-                              AND m.deleted_at IS NULL
-                              AND (m.expires_at IS NULL OR m.expires_at > now())
-                         ))
-                   )
-             )",
-        )
-        .bind(ctx.tenant_id)
-        .bind(object_type)
-        .bind(object_id)
-        .bind(&candidate_relations)
-        .bind(ctx.user_id.to_string())
-        .bind(&ctx.role)
-        .bind(&dept_strs)
-        .bind(ctx.user_id)
-        .bind(arrow)
-        .fetch_one(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-        Ok(allowed)
+    /// Every (object, relation) pair in one statement and one transaction,
+    /// instead of the trait default's one transaction per pair.
+    async fn bulk_check(
+        &self,
+        ctx: &AuthzContext,
+        items: &[(String, Relation, Uuid)],
+    ) -> Result<HashMap<(String, Relation, Uuid), bool>, AuthzError> {
+        self.bulk_check_all(ctx, items).await
     }
 
     async fn expand(
@@ -415,7 +343,9 @@ impl AuthzBackend for PgAuthzBackend {
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
         sqlx::query(
             "UPDATE relation_tuples
-             SET status = 'revoked', revoked_at = now(), revoked_by = $1
+             SET status = 'revoked', revoked_at = now(), revoked_by = $1,
+                 spicedb_sync_status = 'pending', spicedb_next_attempt_at = now(),
+                 spicedb_last_error = NULL
              WHERE tenant_id = $2 AND tuple_id = $3 AND status = 'active'",
         )
         .bind(ctx.user_id)

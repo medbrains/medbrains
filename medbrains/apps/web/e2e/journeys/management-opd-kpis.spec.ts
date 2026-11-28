@@ -27,7 +27,8 @@ test("a hospital admin reads today's OPD against the usual day", async ({ hospit
   await page.keyboard.press("Enter");
   await page.keyboard.press("Escape");
   expect((await earlier).ok()).toBe(true);
-  await expect(visits.getByText(/yesterday$/)).toBeVisible();
+  // The comparison line, not the "vs yesterday" label of the compare menu.
+  await expect(visits.locator("p", { hasText: /yesterday$/ })).toBeVisible();
   await expect(visits.getByText(/by this time/)).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("management-kpis.png"), fullPage: true });
 });

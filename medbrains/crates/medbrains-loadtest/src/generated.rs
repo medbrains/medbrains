@@ -2077,13 +2077,6 @@ async fn t_get_api_quality_audits_id_ebcd38(user: &mut GooseUser) -> Transaction
     Ok(())
 }
 
-async fn t_post_api_quality_indicators_id_calculate_519a12(
-    user: &mut GooseUser,
-) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/quality/indicators/{id}/calculate").await;
-    crate::json_post(user, &path, &serde_json::json!({})).await
-}
-
 async fn t_post_api_quality_committees_id_auto_schedule_94ff7c(
     user: &mut GooseUser,
 ) -> TransactionResult {
@@ -6514,9 +6507,6 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_quality_compliance_6fe398))
         .register_transaction(transaction!(t_get_api_quality_audits_256f54))
         .register_transaction(transaction!(t_get_api_quality_audits_id_ebcd38))
-        .register_transaction(transaction!(
-            t_post_api_quality_indicators_id_calculate_519a12
-        ))
         .register_transaction(transaction!(
             t_post_api_quality_committees_id_auto_schedule_94ff7c
         ))

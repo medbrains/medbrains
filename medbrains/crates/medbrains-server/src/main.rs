@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // machine and wrong the moment the application stops being a superuser.
     let worker_pool = match std::env::var("WORKER_DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => {
-            let pool = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            let pool = medbrains_server::worker_pool::connect(&url, &pool_config).await?;
             tracing::info!("background workers have their own pool");
             pool
         }
@@ -249,21 +249,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ── ReBAC backend (SpiceDB sidecar; falls back to Postgres-native) ──
     //
     // SPICEDB_ENDPOINT and SPICEDB_TOKEN come from .env / k8s config.
-    // If unset (or connection fails), we silently fall back to the
-    // Postgres-native AuthzPgBackend so dev environments without
-    // SpiceDB running still boot. Production deploys always set these.
-    tracing::info!(
-        endpoint = ?std::env::var("SPICEDB_ENDPOINT").ok(),
-        "spicedb endpoint config"
-    );
+    // No endpoint (or a failed connection) falls back to the Postgres-native
+    // AuthzPgBackend so dev environments without SpiceDB still boot. An
+    // endpoint without a token refuses to boot outside development.
+    let spicedb = config.spicedb()?;
+    tracing::info!(endpoint = ?spicedb.as_ref().map(|s| &s.endpoint), "spicedb endpoint config");
     // SpiceDB connect outcome — used to decide whether the Watch consumer
     // should also be spawned (a Postgres fallback has nothing to watch).
     let mut spicedb_live: Option<(String, String)> = None;
     let mut spicedb_outbox_client = None;
-    let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Ok(endpoint) =
-        std::env::var("SPICEDB_ENDPOINT")
-    {
-        let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
+    let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Some(spicedb) = spicedb {
+        let (endpoint, token) = (spicedb.endpoint, spicedb.preshared_key);
         match medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token)
             .await
         {
@@ -474,7 +470,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_infra_settings::preflight::record(findings);
 
     if !bootstrap_pool.is_closed() && std::env::var("MIGRATION_DATABASE_URL").is_ok() {
-        bootstrap_pool.close().await;
+        // Not `close()` alone: that left the connection the checks above had just used open.
+        medbrains_db::pool::close_fully(&bootstrap_pool).await;
     }
 
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey
@@ -632,10 +629,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.notifications.clone(),
     );
 
-    // Clone state for the simulator scheduler before `state` is moved into
-    // the router below — the scheduler needs AppState (AI config) to run
-    // agent simulations.
-    let scheduler_state = state.clone();
+    // The jobs that need AppState start before the router moves `state`. Brick
+    // jobs (OPD auto-close, room rent, escalations, ...) run only while some
+    // hospital has their brick on (`bricks::BRICK_JOBS`). The simulator cron
+    // scheduler (AI config) fires enabled simulator_schedules every 30 seconds
+    // unless disabled by the env var.
+    medbrains_server::services::brick_jobs::supervise(
+        medbrains_server::services::brick_jobs::Ctx {
+            state: state.clone(),
+            worker: worker_pool.clone(),
+            secrets: medbrains_server::secret_backend::build_secret_resolver().await,
+        },
+    );
+    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
+        tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
+    } else {
+        medbrains_server::services::simulator::scheduler::spawn(state.clone());
+    }
 
     // www.medbrains.in is the landing page: the web build copies it in as
     // home.html and it answers `/`. Every other path still falls back to the
@@ -695,9 +705,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(medbrains_error_tracking::http_layer())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
 
-    // Make the finalized router available to the AI assistant's in-process read
-    // tool (call_api), so it dispatches GETs through the real middleware stack.
-    let _ = medbrains_ai::AI_ROUTER.set(app.clone());
+    medbrains_server::actions::hand_to_assistant(app.clone());
 
     // Start orchestration background tasks
     orchestration::jobs::start_job_worker(worker_pool.clone());
@@ -747,42 +755,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("outbox worker spawned");
     }
 
-    // Simulator cron scheduler — fires enabled simulator_schedules with
-    // a cron expression every 30 seconds. Disabled via env var if needed.
-    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
-        tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
-    } else {
-        medbrains_server::services::simulator::scheduler::spawn(scheduler_state);
-    }
-
-    // Room-rent auto-billing — hourly idempotent pass posting one
-    // bed charge per occupied admission per hospital-local day.
-    medbrains_server::services::room_rent::spawn(worker_pool.clone());
-    // Revenue leakage — daily pass queueing orders done but never billed.
-    medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
     // Paperless meter — daily recount of the last week's documents and paper.
     medbrains_server::services::paperless_meter::spawn(worker_pool.clone());
-    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
-    // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
-    medbrains_hrms_gateway::spawn(worker_pool.clone());
 
-    // Appointment reminders — 5-min pass enqueuing outbox SMS events
-    // for appointments entering their reminder windows.
-    medbrains_server::services::appointment_reminders::spawn(worker_pool.clone());
     medbrains_server::services::vaccination_reminders::spawn(worker_pool.clone());
 
-    // Critical-value escalation — unacknowledged lab alerts escalate
-    // to the doctor's supervisor after the tenant's ack window.
-    // It needs the credential store to know whether SMS is set up: an
-    // escalation it cannot text is reported as blocked, never as sent.
-    medbrains_server::services::critical_alert_escalation::spawn(
-        worker_pool.clone(),
-        medbrains_server::secret_backend::build_secret_resolver().await,
-    );
     // A code blue nobody answers is re-paged wider, a bounded number of times.
     medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
-    // Late or missing MRD files to the supervisor; tomorrow's pull list each evening.
-    medbrains_mrd::file_requests::jobs::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
@@ -797,43 +776,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         medbrains_security_intel::all_checks(chrono::Utc::now()),
     )
     .spawn();
-    medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
-    medbrains_server::services::pacs_sync::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
-    // Verbal/telephone order countersignature escalation — overdue orders
-    // notify the prescriber + supervisor (NABH medication safety).
-    medbrains_server::services::verbal_order_escalation::spawn(worker_pool.clone());
     medbrains_server::services::notifiable_report_escalation::spawn(worker_pool.clone());
     // Health intelligence (RFC-OSINT §4) — hourly condition counts vs usual,
     // weather + air per hospital, notice tagging; each writes a heartbeat.
     medbrains_health_intel::job::spawn(worker_pool.clone());
     medbrains_server::services::crs_registration_escalation::spawn(worker_pool.clone());
 
-    // Nurse-call escalation — an unanswered call reaches the ward's on-call
-    // nurse, then the supervisor. The board already coloured it; nobody was
-    // told (NABH CL-3).
-    medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
-
-    // MedBrains Flow — one bounded aggregate per source per tenant a minute
-    // into flow_zone_minute, then alerts and recommendations (#4901). Only
-    // tenants with the `flow` add-on enabled are read.
-    medbrains_flow::aggregate::spawn(worker_pool.clone());
-
-    // Restraint observations — a restrained patient missing the 30-minute
-    // check reaches the on-call nurse and whoever started the restraint
-    // (MHCA 2017 s.97).
-    medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
     // Dictation recordings never outlive 24 hours unsaved.
     medbrains_dictation::purge::spawn(worker_pool.clone());
-
-    // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
-    // acknowledges goes to the duty doctor, then wider (NABH/IPSG).
-    medbrains_server::services::ews_escalation::spawn(worker_pool.clone());
-
-    // Calibration lock — equipment past its calibration date is locked and
-    // taken out of service, so an analyser cannot report on an expired one.
-    medbrains_server::services::calibration_lock::spawn(worker_pool.clone());
 
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
@@ -847,18 +799,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown: stop accepting new connections on SIGTERM/SIGINT
     // and let in-flight requests (and their transactions) finish instead
-    // of aborting mid-write on every deploy restart.
-    // Not `axum::serve(listener, app)`: that form copies the whole route table for every
-    // connection (DECISIONS, 2026-11-04), and gives handlers no connecting address, leaving them
-    // only headers that a client can write.
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
-
-    tracing::info!("shutdown complete — all in-flight requests drained");
+    // of aborting mid-write on every deploy restart; but only for
+    // `DRAIN_DEADLINE`, so a stream held open by a browser tab cannot keep
+    // the process up until the supervisor kills it.
+    let deadline = medbrains_server_core::shutdown::DRAIN_DEADLINE;
+    medbrains_server_core::shutdown::serve_until(listener, app, shutdown_signal(), deadline)
+        .await?;
     Ok(())
 }
 
@@ -891,6 +837,7 @@ async fn run_preflight(config: &AppConfig) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Resolves on SIGTERM or SIGINT: the moment the server stops accepting and starts draining.
 async fn shutdown_signal() {
     let ctrl_c = async {
         if let Err(error) = tokio::signal::ctrl_c().await {

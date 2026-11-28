@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO outbox_events (tenant_id, aggregate_type, aggregate_id, event_type, payload, idempotency_key, next_retry_at) VALUES ($1, 'abdm_care_context', $2, 'abdm.care_context.link', jsonb_build_object('care_context_id', $2::uuid), 'ccl-2406:' || $2::text, now() + make_interval(secs => $3)) ON CONFLICT (tenant_id, event_type, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "80de23f36a0fe15674e58f407ba9a25ec0476baa09e2c42cc7a8304c57b75b33"
+}

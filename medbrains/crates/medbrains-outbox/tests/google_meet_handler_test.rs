@@ -1,5 +1,6 @@
 //! Google Meet handler tests — `wiremock`, no live Google app.
 //! Covers the refresh-token + create-space two-step error mapping.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use async_trait::async_trait;
 use medbrains_core::secrets::{SecretError, SecretResolver};

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1\n         AND category = 'security' AND key = 'restrict_copy'\n         AND value IN ('true'::jsonb, '\"true\"'::jsonb)) AS \"restricted!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "restricted!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8b4d86a331f42ccbf2cdeba092d1c1a7a8d906540269a57adb0c3d4a87118961"
+}

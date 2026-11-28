@@ -1,14 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
-import { useAuthStore } from "@medbrains/stores";
+import { authApi } from "@medbrains/api/modules/auth";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@medbrains/schemas";
+import { clearSession, useAuthStore } from "@medbrains/stores";
+import { applyServerErrors, ValidationError } from "@medbrains/utils";
 import { IconLock } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, NewPasswordField } from "@/components/ui";
 
 /** The placeholder address the first administrator is seeded with. */
 const SEED_ADMIN_DOMAIN = "@medbrains.localhost";
@@ -29,7 +31,7 @@ function schemaFor(needsEmail: boolean) {
   return z
     .object({
       current_password: z.string().min(1, "Current password is required"),
-      new_password: z.string().min(8, "New password must be at least 8 characters"),
+      new_password: z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT),
       confirm_password: z.string().min(1, "Confirm the new password"),
       email: z.string(),
     })
@@ -70,7 +72,7 @@ export function ForcePasswordChangePage() {
 
   const changeMutation = useMutation({
     mutationFn: (values: ForcePasswordChangeInput) =>
-      api.changePassword({
+      authApi.changePassword({
         current_password: values.current_password,
         new_password: values.new_password,
         ...(needsEmail ? { email: values.email.trim() } : {}),
@@ -78,9 +80,10 @@ export function ForcePasswordChangePage() {
     onSuccess: () => {
       // Password change revokes every refresh token server-side —
       // a fresh login is required.
-      useAuthStore.getState().clearAuth();
+      clearSession();
       void navigate("/login", { replace: true });
     },
+    onError: (error) => applyServerErrors(error, form.setError),
   });
 
   if (!user) {
@@ -102,7 +105,7 @@ export function ForcePasswordChangePage() {
                 email address: password resets and security notices go there.
               </Text>
             )}
-            {changeMutation.isError && (
+            {changeMutation.isError && !(changeMutation.error instanceof ValidationError) && (
               <Alert tone="danger" title="Password change failed">
                 {changeMutation.error instanceof Error
                   ? changeMutation.error.message
@@ -126,12 +129,11 @@ export function ForcePasswordChangePage() {
               control={form.control}
               name="new_password"
               render={({ field, fieldState }) => (
-                <PasswordInput
+                <NewPasswordField
                   {...field}
                   label="New password"
                   leftSection={<IconLock size={16} />}
                   error={fieldState.error?.message}
-                  autoComplete="new-password"
                 />
               )}
             />

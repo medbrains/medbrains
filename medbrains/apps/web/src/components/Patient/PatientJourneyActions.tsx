@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Badge,
   Button,
   Group,
@@ -44,6 +43,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import { useCollect } from "@/components/payments/collect/collect-store";
+import { useIsActionHidden } from "./journey-action-brick";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
@@ -70,7 +70,6 @@ interface PatientJourneyActionsProps {
   onEdit?: () => void;
   onOpenOrderBasket?: (tab: PatientOrderTab) => void;
   onShare?: () => void;
-  onPrintPatientCard?: () => void;
 }
 
 const ORDER_TABS: Partial<Record<ClinicalJourneyActionId, PatientOrderTab>> = {
@@ -93,6 +92,7 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return <IconRadioactive size={14} />;
     case "billing.prepare_discharge_bill":
     case "billing.collect_payment":
+    case "billing.open_ledger":
       return <IconFileInvoice size={14} />;
     case "pharmacy.dispense_order":
       return <IconPill size={14} />;
@@ -100,13 +100,10 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
     case "ipd.admit":
       return <IconBed size={14} />;
     case "emergency.open_visit":
-      return <IconAlertTriangle size={14} />;
     case "emergency.open_mlc":
       return <IconAlertTriangle size={14} />;
     case "camp.open_context":
       return <IconBuildingStore size={14} />;
-    case "billing.open_ledger":
-      return <IconFileInvoice size={14} />;
     case "patient.share":
       return <IconShare size={14} />;
     case "patient.print_card":
@@ -139,19 +136,18 @@ function actionVariant(intent: ClinicalJourneyActionIntent) {
   return intent === "primary" ? "filled" : "light";
 }
 
+/** Whether this screen can carry out the action: some need a handler the screen passes. */
 function supportsAction(
   actionId: ClinicalJourneyActionId,
   context: ClinicalJourneyContext,
-  handlers: Pick<
-    PatientJourneyActionsProps,
-    "onOpenOrderBasket" | "onPrintPatientCard" | "onShare"
-  >,
+  handlers: Pick<PatientJourneyActionsProps, "onOpenOrderBasket" | "onShare">,
 ) {
   switch (actionId) {
     case "patient.share":
       return Boolean(handlers.onShare);
     case "patient.print_card":
-      return Boolean(handlers.onPrintPatientCard);
+      // The patient header's Print menu owns the slip; no rail offers it twice.
+      return false;
     case "orders.medication":
     case "orders.lab":
     case "orders.radiology":
@@ -222,6 +218,7 @@ function ActionTooltip({ action, t }: { action: ResolvedClinicalJourneyAction; t
   );
 }
 
+/** The patient's next steps, resolved from the journey catalogue and the user's permissions. */
 export function PatientJourneyActions({
   context,
   localOrderContext,
@@ -233,7 +230,6 @@ export function PatientJourneyActions({
   onEdit,
   onOpenOrderBasket,
   onShare,
-  onPrintPatientCard,
 }: PatientJourneyActionsProps) {
   const navigate = useNavigate();
   const { t } = useTranslation("clinical");
@@ -243,16 +239,15 @@ export function PatientJourneyActions({
     ...context,
     completedEvents: mergeJourneyEventNames(context, recentEvents),
   };
-  const hiddenActions = new Set(hiddenActionIds);
+  const isHidden = useIsActionHidden(hiddenActionIds);
   const includePermissionDenied = showUnavailable ?? layout === "rail";
   const actions = resolveClinicalJourneyActions(journeyContext, hasPermission, "web", {
     includePermissionDenied,
   }).filter(
     (action) =>
-      !hiddenActions.has(action.id) &&
+      !isHidden(action.id) &&
       supportsAction(action.id, journeyContext, {
         onOpenOrderBasket,
-        onPrintPatientCard,
         onShare,
       }),
   );
@@ -285,11 +280,6 @@ export function PatientJourneyActions({
 
     if (actionId === "patient.share") {
       onShare?.();
-      return;
-    }
-
-    if (actionId === "patient.print_card") {
-      onPrintPatientCard?.();
       return;
     }
 
@@ -448,6 +438,7 @@ function JourneyReadinessSummary({
   );
 }
 
+/** One journey action: a rail button or an inline button, with its readiness tooltip. */
 function PatientJourneyActionButton({
   action,
   size,
@@ -483,26 +474,6 @@ function PatientJourneyActionButton({
             {journeyActionLabel(t, action.id)}
           </Button>
         </div>
-      </Tooltip>
-    );
-  }
-
-  if (action.id === "patient.print_card") {
-    const icon = (
-      <ActionIcon
-        variant="light"
-        color={actionColor(action.intent)}
-        size={size}
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={journeyActionLabel(t, action.id)}
-      >
-        {actionIcon(action.id)}
-      </ActionIcon>
-    );
-    return (
-      <Tooltip label={tooltip} multiline w={280}>
-        <span>{icon}</span>
       </Tooltip>
     );
   }

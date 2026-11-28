@@ -17,9 +17,11 @@
 //! **What retires this:** a relation saying which lists an OT scheduler runs.
 
 mod billing;
+pub mod blood_gate;
 pub mod consent;
 pub mod consent_link;
 pub mod emergency_consent;
+mod period;
 
 use axum::{
     Extension, Json,
@@ -37,6 +39,7 @@ use uuid::Uuid;
 
 use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::hospital_time::tenant_local_today;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{
     require_any_permission, require_permission,
@@ -757,7 +760,7 @@ pub async fn update_booking(
     Json(body): Json<UpdateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
-    // This one also reads the case's blood requests and consents.
+    // This one also reads the case's crossmatches and consents.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -786,33 +789,16 @@ pub async fn update_booking(
         return Err(AppError::BadRequest(reason));
     }
 
-    // Blood arranged may only be set true when a live blood request exists for the patient.
-    // ponytail: gates on "a request was raised", not full cross-match/reservation — the blood_requests
-    // status vocabulary is free-text; tighten to reserved/crossmatched once that's normalised.
-    if body.blood_arranged == Some(true) {
-        let patient_id = sqlx::query_scalar::<_, Uuid>(
-            "SELECT patient_id FROM ot_bookings WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
-        let has_request = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS (SELECT 1 FROM blood_requests \
-             WHERE tenant_id = $1 AND patient_id = $2 AND status NOT IN ('cancelled', 'rejected'))",
-        )
-        .bind(claims.tenant_id)
-        .bind(patient_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if !has_request {
-            return Err(AppError::BadRequest(
-                "Cannot mark blood arranged — no active blood request is on file for this patient. \
-                 Raise the blood request / cross-match first."
-                    .to_owned(),
-            ));
-        }
+    // Blood arranged only on a compatible crossmatch still valid at the start.
+    if body.blood_arranged == Some(true)
+        && let Some(reason) =
+            blood_gate::blood_arranged_gap(&mut tx, claims.tenant_id, id, body.scheduled_start)
+                .await?
+    {
+        let values = serde_json::json!({ "reason": reason });
+        consent::audit(&mut tx, &claims, "ot.blood_arranged.blocked", id, &values).await?;
+        tx.commit().await?;
+        return Err(AppError::BadRequest(reason.to_owned()));
     }
 
     let row = sqlx::query_as::<_, OtBooking>(
@@ -2449,10 +2435,12 @@ pub async fn get_schedule(
     )
     .await?;
 
-    let date = params.date.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let date = match params.date {
+        Some(date) => date,
+        None => tenant_local_today(&mut *tx, claims.tenant_id).await?,
+    };
 
     let rows = if let Some(room_id) = params.room_id {
         sqlx::query_as::<_, OtBooking>(
@@ -2516,13 +2504,10 @@ pub async fn ot_utilization(
     )
     .await?;
 
-    let from = params
-        .from
-        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(30)).date_naive());
-    let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let (from, to) = period::range(params.from, params.to, today, 30);
 
     let rows = sqlx::query_as::<_, RoomUtilization>(
         "SELECT r.id AS room_id, r.name AS room_name, \
@@ -2565,13 +2550,10 @@ pub async fn get_surgeon_caseload(
     )
     .await?;
 
-    let from = params
-        .from
-        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(90)).date_naive());
-    let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let (from, to) = period::range(params.from, params.to, today, 90);
 
     let rows = sqlx::query_as::<_, SurgeonCaseloadEntry>(
         "SELECT \
@@ -2628,13 +2610,10 @@ pub async fn list_anesthesia_complications(
     .await?;
     let visible = medbrains_authz_gate::patient_filter(&state, &claims, None).await?;
 
-    let from = params
-        .from
-        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(90)).date_naive());
-    let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let (from, to) = period::range(params.from, params.to, today, 90);
 
     let rows = sqlx::query_as::<_, AnesthesiaComplicationEntry>(
         "SELECT \

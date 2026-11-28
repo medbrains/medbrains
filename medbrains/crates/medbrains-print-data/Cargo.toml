@@ -6,14 +6,14 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-health-services = { path = "../medbrains-health-services" }
+medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-signing = { path = "../medbrains-signing" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-print = { path = "../medbrains-print" }
 medbrains-workflow = { path = "../medbrains-workflow" }
-medbrains-db = { path = "../medbrains-db" }
-medbrains-authz = { path = "../medbrains-authz" }
 medbrains-tv = { path = "../medbrains-tv" }
 axum = { workspace = true }
 serde = { workspace = true }
@@ -25,3 +25,6 @@ sqlx = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

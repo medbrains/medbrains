@@ -1,5 +1,5 @@
 import { Group, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useHasAnyPermission } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -50,7 +50,7 @@ export function TokenDisplayPage() {
   const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => setupApi.listDepartments(),
     enabled: canListDepartments,
     staleTime: 600_000,
   });

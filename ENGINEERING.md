@@ -45,7 +45,7 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.99.1) |
+| Language | Rust (edition 2024, MSRV 1.97.1; toolchain pinned 1.100.0) |
 | Web framework | Axum 0.8 + Tower 0.5 |
 | Async runtime | Tokio 1.54.1+ (full features; 1.54.0 is yanked and denied) |
 | Serialization | serde + serde_json |
@@ -92,16 +92,16 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; React Native CLI + Paper is the outgoing stack, no new RN screens |
+| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; the React Native apps were deleted on 2026-11-17 (git history keeps them) |
 | UI library | Apple HIG system components (incl. iPhone Duo adaptivity) / Material 3 Expressive (`MaterialExpressiveTheme`) |
-| Navigation | React Navigation v7 |
+| Navigation | SwiftUI `NavigationStack` / Navigation Compose |
 | Offline storage | SwiftData / Room, keys in Keychain / Keystore; offline authz + CRDT via the Rust core (`crates/medbrains-edge-rn`, UniFFI Swift + Kotlin) |
 
 ### TV Displays
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; React Native outgoing |
+| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; the React Native TV app was deleted on 2026-11-17 |
 | Real-time | WebSocket-driven updates |
 
 ### Monorepo
@@ -162,7 +162,7 @@ Six codes, fixed hexes, identical on every deployment regardless of theme:
 - Each feature developed in isolation, merged via PR
 - Do NOT commit directly to `master` — always use feature branches
 - Commit messages: imperative, concise, explain "why" not "what"
-- **Record decisions:** a PR that makes or reverses a decision adds a row to `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was rejected
+- **Record decisions:** a PR that makes or reverses a decision adds one file to `medbrains/docs/decisions/` in the same PR, named `YYYY-MM-DD-short-slug.md`: what, why, what was rejected. Never a row in `medbrains/docs/DECISIONS.md`: that file is the history up to 2026-11-22 and is closed
 
 ---
 
@@ -190,7 +190,6 @@ medbrains/
 │   ├── web/                      # React 19 + Mantine 9 + SCSS
 │   ├── ios/                      # SwiftUI apps: MedBrainsStaff / Patient / Camp / Vendor + Core/Kit/UI packages
 │   ├── android/                  # Compose apps: app-staff / patient / camp / vendor / tv + core/kit/ui modules
-│   ├── mobile-*/, tv/            # React Native (outgoing — deleted per app at parity)
 └── packages/
     ├── types/                    # Shared TypeScript interfaces
     ├── api/                      # HTTP client (auth methods only currently)
@@ -205,7 +204,7 @@ medbrains/
 
 ### Rust
 
-- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.99.1)
+- **Edition 2024**, minimum Rust version **1.97.1** (workspace `rust-version`; toolchain pinned to 1.100.0)
 - `unsafe` code is **forbidden**
 - **Strict clippy** — `clippy::all` denied, `clippy::pedantic` + `clippy::nursery` warned
 - The following are **denied** (will not compile):
@@ -248,6 +247,68 @@ answer.
 Stale jobs are stopped with `TERM`, never `KILL` — cargo removes its lock file
 on the way out, and a `-9` leaves a lock that blocks the next run with a
 "waiting for file lock" message that explains nothing.
+
+#### Check once, properly, before every push (MANDATORY)
+
+CI must never be the first place a Rust or gate failure is found. Every change runs **one
+complete local gate, after the last edit**, with the commands CI runs, then pushes. Not after
+every edit, and never a guess: a push that fails CI on fmt, clippy, `unreachable_pub`, `.sqlx`,
+a missing doc comment or a ratchet costs a full CI run in a shared queue, a fix, and another run.
+
+In one target dir, in this order, stopping at the first failure:
+
+1. `cargo fmt --all -- --check`
+2. `cargo clippy --locked --all-targets` on the touched crates and their dependents
+   (test modules allow `clippy::unwrap_used`/`expect_used` explicitly; the ratchet counts the rest)
+3. `cargo build --locked -p medbrains-server --bin medbrains-server` (catches `unreachable_pub`)
+4. the touched crates' tests, with a time limit so nothing can hang
+5. the repo checks CI runs on a branch: `check_docs_on_new_functions.py`, `check_decisions.py`,
+   the rust, shell and web size checks, `check_kernel_boundary.py`, `check_brick_edges.py`,
+   `check_query_in_loop.py`, and `check_pr_evidence.py` on the PR body
+6. web changes: Biome, typecheck, and vitest for the touched files
+
+`.sqlx` is regenerated against a throwaway database, never written by hand. Each worktree has its
+own target dir: a shared one runs another branch's code and reports passes that are not real.
+The PR body names the commands that ran and their results; "should pass" is not a result.
+
+#### Pull request guidelines (MANDATORY)
+
+A pull request is work in progress, and work in progress is a cost: every open PR conflicts
+with the others, reruns CI when the base moves, and waits for somebody's attention. 126 were
+open on 2026-11-26; most were waiting for a read nobody had time for.
+
+1. **Limits.** At most 30 open PRs, and at most 10 waiting on the owner. Above either limit,
+   nobody (person or agent) opens a new PR except a security fix or a fix to the release branch
+   itself; finish and merge first.
+2. **One change per PR, small enough to review well**, with a linked issue, a `Risk class:`
+   line, `## Not verified` first, and proof (test output; screenshots for a screen). Size,
+   following Google's small-CL guidance and the review studies behind it (reviewers find
+   fewer defects once a change passes a few hundred lines):
+
+   | Measure (hand-written: excludes lockfiles, `.sqlx`, generated code, snapshots) | Aim | Hard limit |
+   |---|---|---|
+   | Lines changed (added + removed) | about 200 | 400 |
+   | Files changed | 5 or fewer | 10 |
+   | Concerns | one | one |
+
+   - **Refactor apart from behaviour.** A move, rename or split goes in its own PR, before the
+     change that uses it, so the behaviour change is small and readable.
+   - **Tests count toward the limit** but may take it to 500 when the test is most of the diff.
+   - **Over the limit** only for a pure move, a generated file or a mechanical rename, said in
+     the body ("mechanical: <how it was produced>"); never for a safety, money or security change.
+   - **Too big?** Split it: schema first, then the server, then the screen; or feature-flag the
+     unfinished part.
+3. **Checked before it is pushed** (the section above). CI is a confirmation, not a search.
+4. **Every open PR waits on one named thing:** CI, a fix, the owner, a clinician, an accountant,
+   or merge. A PR that waits on nothing is merged.
+5. **Seven days without movement** and it is triaged: merge it, fix it, or propose closing it.
+   Closing needs the owner's yes for that PR.
+6. **Stacks are at most two deep.** A child is retargeted to the release branch when its parent
+   merges, and its CI runs again.
+7. **Drafts are for designs being discussed,** at most 5 at a time; an idea with no design yet
+   is an issue, not a draft PR.
+8. **Avoid shared hot spots:** a decision is a file in `docs/decisions/`, never a row in a shared
+   table; `Cargo.lock` is regenerated, never hand-merged.
 
 #### Cross-compilation
 
@@ -294,8 +355,8 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 
 ### API Contract Rule
 
-- **Every API method** added to `packages/api/src/client.ts` MUST have a corresponding route handler in the backend `routes/mod.rs`.
-- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in the frontend `client.ts`.
+- **Every API method** goes in its API area's module, `packages/api/src/modules/<area>.ts` (the area is the request path's first segment: `/pharmacy/...` → `pharmacy.ts`, `pharmacyApi`), and MUST have a corresponding route handler in the backend `routes/mod.rs`. `client.ts` holds only the transport (request, session, errors).
+- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in its area module.
 - Run `make check-api` to verify. This is a blocking check — no module is complete until the contract passes.
 - The script (`scripts/check_api_contract.py`) statically parses both files — no running server required.
 
@@ -317,9 +378,14 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
    Rust, TypeScript, Swift, Kotlin, Python. Say what the name cannot. Tests and generated files are
    exempt. `make check-docs` and CI fail on any function a branch adds or changes without one.
    Existing functions get theirs when they are touched.
-2. **Every decision** gets a row in `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was
-   rejected. Reversals add a new row; history is never edited.
-3. **Every failure that could recur** gets a row there too: what happened, the cause, the fix.
+2. **Every decision** gets its own file in `medbrains/docs/decisions/` in the same PR, named
+   `YYYY-MM-DD-short-slug.md`: a front section (`date`, `title`, `status`: `decided`, `proposed`
+   or `reversal-of:<file or row>`, `area`) and three headings, What, Why, Rejected. One file per
+   decision, so two PRs never edit the same lines. A reversal is a new file; history is never
+   edited. `make check-decisions` and CI check the shape; `make decisions-index` lists them.
+   `medbrains/docs/DECISIONS.md` holds everything up to 2026-11-22 and takes no new rows.
+3. **Every failure that could recur** gets a file there too, its title starting `Failure:`: what
+   happened and the fix under What, the cause under Why.
 4. **Every module and feature** has its RFC or guide updated in the same PR, and every build or setup
    has the exact commands to repeat it.
 
@@ -339,6 +405,28 @@ failure tables, fault injection, physics limits, proven algorithms). Apps reach 
 (`make check-kernel-boundary`), and the kernel holds nothing about hospitals
 (`make check-kernel-no-domain`). A design that breaks a principle needs a written reason in its RFC;
 "it was quicker" is not a reason.
+
+## Change Policy: Small, Reviewed, Understood (MANDATORY, adopted 2026-11-15)
+
+**The owner must be able to understand everything that ships.** Most code here is written with AI,
+and AI output adds and never simplifies. Measured on 2026-11-15: 45% of 11,249 Rust functions are
+over 20 lines, 593 are over 80, the longest is 1,615 lines, and 204 files are over 450 lines. One
+4,600-line feature took three review rounds to clear 30 real bugs, one of them a patient-safety bug.
+
+1. **Small PRs.** About 400 changed lines at most, generated files excluded. A big feature lands as
+   a series of PRs, each readable in one sitting.
+2. **Review before the PR opens.** An independent review and its fixes come first. A PR is never
+   opened as work in progress.
+3. **A plain summary the owner can check:** what changes, why, and what could break. If the owner
+   cannot follow it, the PR is not ready.
+4. **Every fixed bug gets a test that failed on the old code.** "Confirmed by reading" is not proof.
+5. **Safety-class changes wait for the owner's read** even when CI is green: medication, patient
+   identity, money, authorization and migrations.
+6. **AI-written PRs carry the `ai-authored` label.**
+7. **One job per function.** Aim for 20 lines; 40 is the cap for new or changed functions. Name the
+   steps so the top-level function reads like the hospital's procedure. Types, not strings, for
+   rules (an `OrderMode` enum, not `"verbal"`). Delete before adding, reuse before writing, and add
+   no dependency a few lines can replace.
 
 ## Code Quality Bar
 
@@ -490,6 +578,8 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 ---
 
 ## Ticket / Story Execution Workflow
+
+**The whole lifecycle, stage by stage with its gates and evidence, is `medbrains/docs/AI-SDLC.md`.** This section is its Spec stage.
 
 When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
 
@@ -691,9 +781,9 @@ Every module follows this. No skipping.
 4. **Mark In Progress** in Excel via openpyxl script.
 5. **DB layer** — migration `crates/medbrains-db/src/migrations/NNN_<module>.sql`, masters first, RLS, indexes.
 6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
-7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
+7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/modules/<area>.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
    - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
-   - **7c TV (if TV=Y)**: `apps/tv/src/screens/<Module>/`, D-pad focus nav, WebSocket realtime, large fonts.
+   - **7c TV (if TV=Y)**: Compose for TV under `apps/android/` (per `RFCs/RFC-NATIVE-MOBILE.md`), D-pad focus nav, WebSocket realtime, large fonts.
 8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.
 9. **Smoke tests** — `make dev-backend && make smoke-test`.
 10. **Mark Done/Partial** in Excel.

@@ -383,9 +383,10 @@ mod tests {
             abdm_message(r#"{"error":{"message":"Txn expired"}}"#),
             "Txn expired"
         );
+        // ABDM's words first, ours beneath as the hint (CRT_ABHA_105, 107).
         assert!(
             abdm_message(r#"{"error":{"code":"ABDM-1017: ","message":"Invalid TransactionId"}}"#)
-                .starts_with("This ABDM step has expired")
+                .starts_with("Invalid TransactionId\nThis ABDM step has expired")
         );
         assert_eq!(
             abdm_message("<html>"),

@@ -313,6 +313,36 @@ const flowTicket = z.looseObject({
 export const flowTicketResponseSchema = flowTicket;
 export const flowTicketOrNullResponseSchema = flowTicket.nullable();
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
+
+/** The OPD reports screen: every figure a count, so a missing one fails rather than reading 0. */
+export const opdReportResponseSchema = z.looseObject({
+  data: z.looseObject({
+    totals: z.looseObject({
+      visits: count,
+      registrations: count,
+      new_patients: count,
+      repeat_patients: count,
+    }),
+    by_day: z.array(
+      z.looseObject({
+        date: isoDate,
+        visits: count,
+        registrations: count,
+        new: count,
+        repeat: count,
+      }),
+    ),
+    by_doctor: z.array(
+      z.looseObject({
+        doctor_id: id.nullable(),
+        doctor_name: z.string().nullable(),
+        visits: count,
+      }),
+    ),
+  }),
+});
+
 /**
  * Where `data` departs from `schema`, as one line naming each field and the
  * problem — never the values, which are patient data. Null when it conforms.

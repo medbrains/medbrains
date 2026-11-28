@@ -36,6 +36,16 @@ variable "kms_key_arns" {
   default     = {}
 }
 
+variable "endpoint_public_access_cidrs" {
+  description = "CIDRs that may reach the cluster API from the internet. Empty (the default) keeps the endpoint private: kubectl and helm run from inside the VPC or over the VPN."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = !contains(var.endpoint_public_access_cidrs, "0.0.0.0/0")
+    error_message = "List the operators' addresses; 0.0.0.0/0 would open the cluster API to the internet."
+  }
+}
+
 variable "kubernetes_version" {
   type    = string
   default = "1.31"
@@ -117,6 +127,33 @@ resource "aws_iam_role_policy_attachment" "node_ecr" {
 
 # ── EKS cluster + managed node group ──────────────────────────────────
 
+# Kubernetes secrets are always envelope-encrypted: with the hospital's
+# `secrets` key when it brings one, otherwise with a key made here.
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+resource "aws_kms_key" "eks_secrets" {
+  count                   = local.secrets_kms_key_arn == null ? 1 : 0
+  description             = "${var.hostname}-eks Kubernetes secrets"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  tags                    = local.tags
+
+  # Written out rather than left to AWS's default, so the key's access is
+  # read from this file. Same as the default key policy: IAM in this account
+  # decides, and the cluster role reaches the key through its IAM policy.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AccountAdmin"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+}
+
 # Control-plane logs: without `audit` nobody can say who read which secret.
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.hostname}-eks/cluster"
@@ -126,8 +163,6 @@ resource "aws_cloudwatch_log_group" "cluster" {
 }
 
 resource "aws_eks_cluster" "this" {
-  #checkov:skip=CKV_AWS_38: this tier has no bastion or in-VPC runner; operators run kubectl/helm from outside, authenticated by IAM
-  #checkov:skip=CKV_AWS_39: as above - the public endpoint is the only way in for this tier's operators
   name     = "${var.hostname}-eks"
   role_arn = aws_iam_role.cluster.arn
   version  = var.kubernetes_version
@@ -136,18 +171,16 @@ resource "aws_eks_cluster" "this" {
 
   vpc_config {
     subnet_ids              = data.aws_subnets.default.ids
-    endpoint_public_access  = true
+    endpoint_public_access  = length(var.endpoint_public_access_cidrs) > 0
+    public_access_cidrs     = length(var.endpoint_public_access_cidrs) > 0 ? var.endpoint_public_access_cidrs : null
     endpoint_private_access = true
   }
 
-  dynamic "encryption_config" {
-    for_each = local.secrets_kms_key_arn == null ? [] : [local.secrets_kms_key_arn]
-    content {
-      provider {
-        key_arn = encryption_config.value
-      }
-      resources = ["secrets"]
+  encryption_config {
+    provider {
+      key_arn = local.eks_secrets_key_arn
     }
+    resources = ["secrets"]
   }
 
   depends_on = [aws_iam_role_policy_attachment.cluster_policy, aws_cloudwatch_log_group.cluster]
@@ -396,6 +429,7 @@ locals {
   db_kms_key_arn      = lookup(var.kms_key_arns, "db", null)
   secrets_kms_key_arn = lookup(var.kms_key_arns, "secrets", null)
   audit_kms_key_arn   = lookup(var.kms_key_arns, "audit", null)
+  eks_secrets_key_arn = coalesce(local.secrets_kms_key_arn, one(aws_kms_key.eks_secrets[*].arn))
 
   tags = {
     Name      = var.hostname

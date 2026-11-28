@@ -1,47 +1,62 @@
-import { api } from "@medbrains/api";
+import { housekeepingApi } from "@medbrains/api/modules/housekeeping";
+import { infectionControlApi } from "@medbrains/api/modules/infection-control";
 
-export type ListBiowasteParams = Parameters<typeof api.listBiowasteRecords>[0];
-export type CreateCleaningTaskInput = Parameters<typeof api.createCleaningTask>[0];
-export type UpdateCleaningTaskStatusInput = Parameters<typeof api.updateCleaningTaskStatus>[1];
-export type CreateTurnaroundInput = Parameters<typeof api.createTurnaround>[0];
-export type CreateCleaningScheduleInput = Parameters<typeof api.createCleaningSchedule>[0];
-export type CreatePestControlScheduleInput = Parameters<typeof api.createPestControlSchedule>[0];
-export type CreatePestControlLogInput = Parameters<typeof api.createPestControlLog>[0];
-export type CreateLinenItemInput = Parameters<typeof api.createLinenItem>[0];
-export type CreateLinenMovementInput = Parameters<typeof api.createLinenMovement>[0];
-export type CreateLaundryBatchInput = Parameters<typeof api.createLaundryBatch>[0];
-export type UpsertParLevelInput = Parameters<typeof api.upsertParLevel>[0];
-export type CreateBiowasteRecordInput = Parameters<typeof api.createBiowasteRecord>[0];
-export type SharpReplacementInput = Parameters<typeof api.createSharpReplacement>[0];
+export type ListBiowasteParams = Parameters<typeof infectionControlApi.listBiowasteRecords>[0];
+export type CreateCleaningTaskInput = Parameters<typeof housekeepingApi.createCleaningTask>[0];
+export type UpdateCleaningTaskStatusInput = Parameters<
+  typeof housekeepingApi.updateCleaningTaskStatus
+>[1];
+export type CreateTurnaroundInput = Parameters<typeof housekeepingApi.createTurnaround>[0];
+export type CreateCleaningScheduleInput = Parameters<
+  typeof housekeepingApi.createCleaningSchedule
+>[0];
+export type CreatePestControlScheduleInput = Parameters<
+  typeof housekeepingApi.createPestControlSchedule
+>[0];
+export type CreatePestControlLogInput = Parameters<typeof housekeepingApi.createPestControlLog>[0];
+export type CreateLinenItemInput = Parameters<typeof housekeepingApi.createLinenItem>[0];
+export type CreateLinenMovementInput = Parameters<typeof housekeepingApi.createLinenMovement>[0];
+export type CreateLaundryBatchInput = Parameters<typeof housekeepingApi.createLaundryBatch>[0];
+export type UpsertParLevelInput = Parameters<typeof housekeepingApi.upsertParLevel>[0];
+export type CreateBiowasteRecordInput = Parameters<
+  typeof infectionControlApi.createBiowasteRecord
+>[0];
+export type SharpReplacementInput = Parameters<typeof housekeepingApi.createSharpReplacement>[0];
 
 export const housekeepingService = {
-  listCleaningTasks: () => api.listCleaningTasks(),
-  listTurnarounds: () => api.listTurnarounds(),
-  createCleaningTask: (data: CreateCleaningTaskInput) => api.createCleaningTask(data),
+  listCleaningTasks: () => housekeepingApi.listCleaningTasks(),
+  listTurnarounds: () => housekeepingApi.listTurnarounds(),
+  createCleaningTask: (data: CreateCleaningTaskInput) => housekeepingApi.createCleaningTask(data),
   updateCleaningTaskStatus: (id: string, data: UpdateCleaningTaskStatusInput) =>
-    api.updateCleaningTaskStatus(id, data),
-  verifyCleaningTask: (id: string) => api.verifyCleaningTask(id),
-  createTurnaround: (data: CreateTurnaroundInput) => api.createTurnaround(data),
-  completeTurnaround: (id: string) => api.completeTurnaround(id),
-  listCleaningSchedules: () => api.listCleaningSchedules(),
-  listPestControlSchedules: () => api.listPestControlSchedules(),
-  listPestControlLogs: () => api.listPestControlLogs(),
-  createCleaningSchedule: (data: CreateCleaningScheduleInput) => api.createCleaningSchedule(data),
+    housekeepingApi.updateCleaningTaskStatus(id, data),
+  verifyCleaningTask: (id: string) => housekeepingApi.verifyCleaningTask(id),
+  createTurnaround: (data: CreateTurnaroundInput) => housekeepingApi.createTurnaround(data),
+  completeTurnaround: (id: string) => housekeepingApi.completeTurnaround(id),
+  listCleaningSchedules: () => housekeepingApi.listCleaningSchedules(),
+  listPestControlSchedules: () => housekeepingApi.listPestControlSchedules(),
+  listPestControlLogs: () => housekeepingApi.listPestControlLogs(),
+  createCleaningSchedule: (data: CreateCleaningScheduleInput) =>
+    housekeepingApi.createCleaningSchedule(data),
   createPestControlSchedule: (data: CreatePestControlScheduleInput) =>
-    api.createPestControlSchedule(data),
-  createPestControlLog: (data: CreatePestControlLogInput) => api.createPestControlLog(data),
-  listLinenItems: () => api.listLinenItems(),
-  listLinenMovements: () => api.listLinenMovements(),
-  listLaundryBatches: () => api.listLaundryBatches(),
-  createLinenItem: (data: CreateLinenItemInput) => api.createLinenItem(data),
-  createLinenMovement: (data: CreateLinenMovementInput) => api.createLinenMovement(data),
-  createLaundryBatch: (data: CreateLaundryBatchInput) => api.createLaundryBatch(data),
-  completeLaundryBatch: (id: string) => api.completeLaundryBatch(id),
-  listParLevels: () => api.listParLevels(),
-  listLinenCondemnations: () => api.listLinenCondemnations(),
-  upsertParLevel: (data: UpsertParLevelInput) => api.upsertParLevel(data),
-  listBiowasteRecords: (params?: ListBiowasteParams) => api.listBiowasteRecords(params),
-  createBiowasteRecord: (data: CreateBiowasteRecordInput) => api.createBiowasteRecord(data),
-  getBmwSchedule: () => api.getBmwSchedule(),
-  createSharpReplacement: (data: SharpReplacementInput) => api.createSharpReplacement(data),
+    housekeepingApi.createPestControlSchedule(data),
+  createPestControlLog: (data: CreatePestControlLogInput) =>
+    housekeepingApi.createPestControlLog(data),
+  listLinenItems: () => housekeepingApi.listLinenItems(),
+  listLinenMovements: () => housekeepingApi.listLinenMovements(),
+  listLaundryBatches: () => housekeepingApi.listLaundryBatches(),
+  createLinenItem: (data: CreateLinenItemInput) => housekeepingApi.createLinenItem(data),
+  createLinenMovement: (data: CreateLinenMovementInput) =>
+    housekeepingApi.createLinenMovement(data),
+  createLaundryBatch: (data: CreateLaundryBatchInput) => housekeepingApi.createLaundryBatch(data),
+  completeLaundryBatch: (id: string) => housekeepingApi.completeLaundryBatch(id),
+  listParLevels: () => housekeepingApi.listParLevels(),
+  listLinenCondemnations: () => housekeepingApi.listLinenCondemnations(),
+  upsertParLevel: (data: UpsertParLevelInput) => housekeepingApi.upsertParLevel(data),
+  listBiowasteRecords: (params?: ListBiowasteParams) =>
+    infectionControlApi.listBiowasteRecords(params),
+  createBiowasteRecord: (data: CreateBiowasteRecordInput) =>
+    infectionControlApi.createBiowasteRecord(data),
+  getBmwSchedule: () => housekeepingApi.getBmwSchedule(),
+  createSharpReplacement: (data: SharpReplacementInput) =>
+    housekeepingApi.createSharpReplacement(data),
 };

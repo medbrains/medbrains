@@ -55,7 +55,22 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 ## Test an image
 
-`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
+`make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI ([Tests in CI](#tests-in-ci)).
+
+### Tests in CI
+
+| Test | Where it runs | What it needs |
+|---|---|---|
+| `tests/check-units.sh` | `ci.yml`, job "OS image unit rules", on every pull request that touches `os/` or `deploy/`; again in `release.yml`'s OS image job | the source tree only |
+| `tests/check-image.sh <image.raw>` | `release.yml`'s OS image job, on the image it has just built, for both architectures. A FAIL stops the job before any file is uploaded | the built image; reads it with `debugfs`, no boot and no mount |
+| `medbrains-os-test` (the VM suite) | nowhere in CI; on a Mac before a release (`make os-test`) | a debug image, QEMU with hardware acceleration, swtpm |
+
+Why the VM suite is not in CI, so nobody assumes it is: it drives the machine through a root shell on the
+serial port, which only a debug image has, and the release job never builds one (`release` mode checks a
+release image from outside, and only that it offers no login). Its arm64 platform needs KVM on an arm64
+host, which GitHub's hosted arm64 runners do not offer; its x86-64 platform is written for a Mac host
+(emulation, every limit times eight) and has never run on Linux. `check-image.sh` covers the part of it
+that failed to catch the v3.35.6 Ctrl+Alt+Del defect; the rest still depends on someone running the suite.
 
 `cargo run -p medbrains-os-test -- <release image> release` checks a release image from outside, since it has no
 shell to check from: SSH does not answer, and its serial port shows no login and runs no command. Set
@@ -83,12 +98,28 @@ on a small SD card or the EEPROM, with the image on NVMe:
 
 ```sh
 # from a Linux machine, with the NVMe in a USB enclosure; check the device name first
-sudo dd if=medbrains-os_<commit>.raw of=/dev/sdX bs=4M conv=fsync status=progress
+zstd -d medbrains-os-<ver>-arm64.raw.zst   # a release file; a local build is medbrains-os_<commit>.raw
+sudo dd if=medbrains-os-<ver>-arm64.raw of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 **NVMe only.** SD cards are unsupported for data (§8a, §8o): a database wears them out, and a worn
 card corrupts clinical records. Active cooling is required too. The Debian kernel's Pi 5 support is
 partial, so expect gaps; that is what D2 is for.
+
+### Device trees
+
+The image carries none. Debian's arm64 kernel package installs about a thousand under
+`/usr/lib/linux-image-<version>/` (56 MB; the x86-64 package has no such folder), and `mkosi.conf` removes
+them. Nothing read them: the boot file has no device-tree section (`Devicetree=` is unset), there is no
+boot loader entry that could name one, and neither the image nor the updater opens that folder. An arm64
+machine is described to the kernel by its UEFI firmware, with ACPI tables or the firmware's own device
+tree; QEMU does this, and so does the community UEFI firmware above, which keeps the Pi's device tree
+on its own SD card or EEPROM. A board whose firmware expects the operating system to bring the device
+tree does not boot this image, and did not before either: firmware cannot read the system partition, and
+nothing copied a device tree to the boot partition. Debian's package does carry the Pi 5's
+(`broadcom/bcm2712-rpi-5-b.dtb`). The Pi image (D2) would put it into the boot file with `Devicetree=`;
+mkosi reads it from this folder after `RemoveFiles` has run, so that change must also stop removing it.
+Proven by booting on QEMU arm64 only; no real ARM board has run this image.
 
 ## Install and run
 
@@ -349,7 +380,7 @@ it can restrict sign-in to approved key models; see `docs/DECISIONS.md`.
 
 | What | How |
 |---|---|
-| Build | `build-kanidm.sh` compiles one release with zigbuild, pinned by commit, by the source's SHA-256 and by the SHA-256 of `Cargo.lock`, from a vendored copy with `--frozen`. A changed upstream stops the build (`tests/kanidm-pin-test.sh`). Debian's OpenSSL debs are pinned too. No Docker, no upstream image. Its UI is server-rendered, so there is no JavaScript build |
+| Build | `build-kanidm.sh` compiles one release with zigbuild, pinned by commit, by the source's SHA-256 and by the SHA-256 of `Cargo.lock`, from a vendored copy with `--frozen`, with the Rust toolchain pinned for that release (upstream's `#![deny(warnings)]` fails on newer lints). A changed upstream stops the build (`tests/kanidm-pin-test.sh`). Debian's OpenSSL debs are pinned too. No Docker, no upstream image. Its UI is server-rendered, so there is no JavaScript build |
 | Runs as | `kanidmd.service`, its own user, hardened, on `127.0.0.1:8444`. `IPAddressDeny=any` except localhost, so it cannot call out. It speaks only TLS, so the front reaches it over TLS and trusts that one certificate. It makes its own certificate on first start (`kanidm-tls`), because setup starts it before first boot |
 | Reached at | `https://idm.medbrains.local:9443`, through `medbrains-front` (the `identity` site in `front.toml`; its certificates come from `front-certs`, under `/var/lib/medbrains-front/idp/`). **A name of its own:** its session cookies go to its whole domain and browsers send cookies to every port of a name, so `medbrains.local` would hand them to the app. A hospital's LAN has to resolve this name; `medbrains.local` is the only one announced today |
 | Data | Its own SQLite store, its keys and its backups, all in `/var/lib/kanidm`. No PostgreSQL connection |
@@ -1060,8 +1091,9 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `update-keys/`: public keys that may sign updates. None yet.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
+- `mkosi.finalize.chroot`: runs after mkosi's preset pass and fails the build if a unit the postinst masked is not masked.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
-- `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
+- `tests/`: `check-units.sh` and `console-status.sh` run alone; `check-image.sh` checks a built image file from outside; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `tests/cis-check.sh`: the CIS-style hardening report (X16). `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
@@ -1106,6 +1138,27 @@ number, and the RFC's Pi targets stay unproven.
 | System partition used | 1,158 MB (the ≤ 1 GB target for what is installed: not met) |
 | Largest parts | server binary 88 MB, libLLVM 116 MB (for software GL), kernel modules 128 MB, WPE WebKit 111 MB, PostgreSQL 45 MB, web app 26 MB |
 | Data partition after first boot | 216 MB, of which PostgreSQL 188 MB |
+
+**Where the size goes** (2026-11-22). Disk figures are from the published v3.35.6 arm64 release image,
+mounted read-only. Boot and memory are from a debug image built here from that release's binaries, in QEMU
+(HVF, 4 vCPUs, 4 GB), one run each, so small differences mean nothing. The image table above is older.
+
+| What | Value |
+|---|---|
+| Download (`.raw.zst`) | 526 MB |
+| Raw image | 4.83 GB: boot partition 512 MB (183 MB used) and two 2 GB system slots |
+| System partition used | 1,297 MB of the 1,300 MB budget, in 434 packages and 20,585 files |
+| Boot file | 153 MB: kernel 38 MB, initrd 115 MB (its base system 33 MB, all 4,351 kernel modules 77 MB) |
+| Largest parts of the system partition | server binary 193 MB (stripped), kernel modules 128 MB, WebKitGTK and JavaScriptCore 128 MB, libLLVM 116 MB with libz3 26 MB (Mesa and PostgreSQL's JIT both depend on it), device trees 56 MB, Perl 55 MB (PostgreSQL's cluster tools), kanidmd 49 MB, PostgreSQL 50 MB, Mesa 34 MB, ICU data 31 MB, web app 30 MB, libflite 27 MB (a WebKitGTK dependency), udev hardware database 23 MB, icons 18 MB, dpkg database 17 MB |
+| Already absent | documentation, man pages, translations, apt lists and apt itself; no package is installed as a recommendation (apt's own simulation of the package list gives the same set) |
+| Normal boot, set-up main machine | kernel 0.4 s, initrd 1.7 s, user space 8.3 to 9.7 s. Slowest on the path to `graphical.target`: `medbrains-role-network` 5.2 s (it restarts resolved and chrony), then opening the data disk 2.2 to 3.5 s (no-TPM path) and PostgreSQL 2.3 s |
+| Memory, idle five minutes after that boot | 595 to 613 MB used. By unit (cgroup `memory.current`): PostgreSQL 219 MB (136 MB of it file pages), server 197 MB, screen (cage and shell) 247 MB, kanidmd 39 to 68 MB, front 13 MB, agent 13 MB, udevd 12 MB. zram swap 1.9 GB, none used |
+
+`RemoveFiles` in `mkosi.conf` then took out what nothing here reads: locale sources (16 MB), shell completions,
+reportbug scripts and the `-old` copies of the dpkg and debconf databases. Debug image, same inputs: **1,302 MB
+before, 1,283 MB after**; first boot, setup, restart and `/api/health` unchanged. The rest of the size is in parts
+that need a decision (the server binary, all modules in the initrd, the unused device trees): `docs/DECISIONS.md`,
+2026-11-22.
 
 **Boot, release image, first boot** (one run, sampled every 0.1 s or so)
 
@@ -1280,6 +1333,7 @@ How D1 was built, kept so nobody has to rediscover it.
 | `postgresql@17-main: Could not change user id` | Debian's unit starts as root and setuid()s down; the empty `CapabilityBoundingSet=` removes that | `User=postgres` in the drop-in |
 | PostgreSQL: `could not open .../conf.d/10-medbrains.conf: Permission denied` | the first-boot script runs under `UMask=0077` as root | `chown` the file to `postgres` |
 | `pg_receivewal@17-main` failed on every boot | mkosi applies presets to the image and Debian's enable anything not listed, so unwanted templates were on | `10-medbrains.preset` disables them |
+| Ctrl+Alt+Del restarted the machine although the postinst masks `ctrl-alt-del.target` (shipped in v3.35.6) | mkosi's preset pass runs after the postinst; Debian's preset enables `reboot.target`, whose `Alias=ctrl-alt-del.target` replaced the mask | `10-medbrains.preset` disables `reboot.target`; `mkosi.finalize.chroot` fails the build if any masked unit is not masked in the finished tree |
 | Black screen; `cage: Unable to open Wayland socket: Invalid argument`; `strace` showed `EACCES` on `/run/user/987/wayland-*.lock` | `ProtectHome=yes` hides `/run/user` too. Changing `ProtectSystem` made no difference, which pointed away from it | removed `ProtectHome` from the screen unit, added `ReadWritePaths=/run/user` |
 | `cage -D` exited 1 and sent the diagnosis the wrong way | cage 0.2.0 has no `-D`; `strace` showed the usage error | no flag |
 | `systemctl restart cage-console` hung for 90 seconds | the stop waited out the default timeout on a stuck cage | `TimeoutStopSec=5s` |

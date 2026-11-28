@@ -41,6 +41,11 @@ pub struct Encounter {
     /// everywhere else (camp registrations, consultations), so it is renamed here.
     #[sqlx(rename = "chief_complaints")]
     pub chief_complaint: Option<String>,
+    /// The hospital's own OPD number for this visit, when it keeps one per
+    /// visit (`opd_number` policy). Per patient it is on the patient instead.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub encounter_number: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
