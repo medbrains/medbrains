@@ -77,6 +77,11 @@ shell to check from: SSH does not answer, and its serial port shows no login and
 `MB_OS_TEST_BROWSER=1` to also sign in through a real browser and open Patients (`tests/patients-journey.mjs`;
 needs the web app's Playwright on the test computer).
 
+`python3 os/tests/check-image-modes.py <image.raw>` reads the system partition offline (no mount, works on a
+Mac) and fails if a file the OS adds is less readable than git says, a directory on the way is not searchable,
+or anything is not owned by root. The release job runs it on every image before upload (v3.35.6 shipped every
+added file root-only and could not set itself up).
+
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
 ## Boot in UTM
