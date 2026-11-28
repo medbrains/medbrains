@@ -6,7 +6,7 @@ import { Card, Group, Select, SimpleGrid, Stack, Text, Textarea, Tooltip } from 
 import { useDisclosure } from "@mantine/hooks";
 import type { OpdLabOrderFormInput } from "@medbrains/schemas";
 import { opdLabOrderFormSchema } from "@medbrains/schemas";
-import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   DuplicateOrderInfo,
   LabOrder,
@@ -49,6 +49,7 @@ import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
+import { useLabReadGates } from "./lab-read-gates";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
 
@@ -110,14 +111,9 @@ export function InvestigationsTab({
   // its count in a badge — so "Imaging 0" on a doctor's investigations tab
   // would have stated that the patient has never been imaged.
   const canViewImaging = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
-  // `/patients/{id}/lab-orders` answers `lab.orders.list`; without it the
-  // query is not issued and the card says so rather than "nothing ordered".
-  const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
-  const canReadLabCatalog = useHasAnyPermission([
-    P.LAB.ORDERS_LIST,
-    P.LAB.ORDERS_CREATE,
-    P.CAMP.LAB_MANAGE,
-  ]);
+  // Without `lab.orders.list` the query is not issued and the card says so
+  // rather than "nothing ordered".
+  const { canListLabOrders, canReadLabCatalog } = useLabReadGates();
   // `cancel_order`: lab.orders.create, and the order is yours or you are the lab desk.
   const canCancelLab = useCanCancelOrder(P.LAB.ORDERS_CREATE, P.LAB.ORDERS_CANCEL_ANY);
   const [openVisitOrders, toggleVisitOrder] = useToggleSet();

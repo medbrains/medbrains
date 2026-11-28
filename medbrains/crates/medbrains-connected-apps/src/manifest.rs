@@ -182,7 +182,8 @@ fn check_identity(m: &Manifest, errors: &mut Vec<String>) {
     }
 }
 
-/// What it may do: permissions, FHIR reads, events.
+/// What it may do: permissions (each real and grantable to an app), FHIR
+/// reads, events.
 fn check_access(m: &Manifest, errors: &mut Vec<String>) {
     if m.permissions.is_empty() || m.permissions.len() > MAX_PERMISSIONS {
         errors.push(format!("permissions must list 1–{MAX_PERMISSIONS} codes"));
@@ -193,6 +194,8 @@ fn check_access(m: &Manifest, errors: &mut Vec<String>) {
             errors.push(format!(
                 "'{p}' is not a permission code (like patients.view)"
             ));
+        } else if let Some(why) = crate::grantable::refusal(p) {
+            errors.push(why);
         }
     }
 

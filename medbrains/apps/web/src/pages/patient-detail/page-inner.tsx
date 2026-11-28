@@ -38,14 +38,14 @@ import { AbdmOtherHospitalsSection } from "@/components/Patient/abdm/AbdmOtherHo
 import { AbdmRecordsSection } from "@/components/Patient/abdm/AbdmRecordsSection";
 import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
 import { GroupIdentitySection } from "@/components/Patient/groupIdentity/GroupIdentitySection";
+import { OpdNumberBadge } from "@/components/Patient/OpdNumberBadge";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientUnavailable } from "@/components/Patient/PatientUnavailable";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
-import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
-import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
+import { PatientPrintMenu } from "@/components/Print/PatientPrintMenu";
 import { PANEL_COMPONENTS } from "@/components/panels/registry";
 import { usePanels } from "@/components/panels/use-panels";
 import { QueryError } from "@/components/QueryError";
@@ -344,7 +344,8 @@ export function PatientDetailPageInner() {
       expires_at: grant.expiresAt,
     });
   };
-  const printPatientCard = async () => {
+  /** Prints the A4 registration slip and records that the card packet was printed. */
+  const printRegistrationSlip = async () => {
     const printed = await handlePrintPatientCard(patient.id);
     if (!printed) return;
 
@@ -379,8 +380,11 @@ export function PatientDetailPageInner() {
               context={{ patient_id: patient.id }}
               label="Ask AI"
             />
-            <PrintPatientCardButton patientId={patient.id} />
-            <OpdCardPrintMenu patientId={patient.id} />
+            <PatientPrintMenu
+              patientId={patient.id}
+              encounterId={activeEncounter?.id}
+              onRegistrationSlip={() => void printRegistrationSlip()}
+            />
             {canViewBillingLedger && (
               <Button
                 tone="secondary"
@@ -426,9 +430,6 @@ export function PatientDetailPageInner() {
                   onEdit={() => navigate(`/patients/${patient.id}/edit`)}
                   onOpenOrderBasket={openOrderBasket}
                   onShare={openShare}
-                  onPrintPatientCard={() => {
-                    void printPatientCard();
-                  }}
                   size="xs"
                 />
               }
@@ -471,6 +472,7 @@ export function PatientDetailPageInner() {
                   <Badge tone="primary" variant="light">
                     UHID {displayUhid}
                   </Badge>
+                  <OpdNumberBadge opd={patientContext} />
                   {patient.gender && <Badge tone="neutral">{snakeToTitle(patient.gender)}</Badge>}
                   {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
                   {displayPhone && displayPhone !== "-" && (

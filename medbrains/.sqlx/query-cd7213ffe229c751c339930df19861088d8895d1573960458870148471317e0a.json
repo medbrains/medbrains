@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patients SET opd_date = $3 WHERE tenant_id = $1 AND id = $2 RETURNING uhid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "uhid",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cd7213ffe229c751c339930df19861088d8895d1573960458870148471317e0a"
+}

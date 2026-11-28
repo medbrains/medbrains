@@ -14,4 +14,5 @@ pub mod opd_number;
 pub mod patient_identity;
 pub mod patient_match;
 pub mod pharmacy_customer;
+mod reversal_share;
 pub mod room_eligibility;

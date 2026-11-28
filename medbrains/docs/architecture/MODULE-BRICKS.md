@@ -2,6 +2,8 @@
 
 Owner direction 2026-11-07: the native Slint apps, the web apps and the backend are built like Lego. Each app in the catalogue (`OS-NATIVE-GUI.md`: Pharmacy, Patient Registration, EMR and the rest) is one **brick**, and a brick has the same shape on every layer.
 
+How bricks are released, tested and updated (one signed release for every hospital, bricks picked in core): `medbrains/RFCs/RFC-ONE-RELEASE-LEGO-BRICKS.md`.
+
 ## What one brick is
 
 | Layer | Part of the brick | Today |
@@ -26,9 +28,27 @@ A brick touches the rest of the system only through these, so it can be added, r
 ## Rules
 
 - **No brick imports another brick, on any layer.** A check fails CI if a module crate, web package or Slint app depends on another module's code (backend, web and native alike).
+  - Backend crates: `make check-brick-edges` (`scripts/check_brick_edges.py`). `bricks/crates.txt` gives every workspace crate a class (kernel/base, shared health service, a brick, shell, tooling, native). A new dependency from one brick's crate to another brick's, from a base crate to a domain crate, or from a shared health service to a brick fails; the edges that exist are listed in `scripts/brick_edges.baseline.txt`, which only shrinks. Listing a brick in `depends_on` does not allow a crate edge to it: `depends_on` says what must be switched on together, not what may be linked.
 - **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its background jobs stop, its native app is not started, and nothing else breaks.
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
+  - Measured, not yet enforced: `make brick-tables-report` (`scripts/check_brick_tables.py`) counts SQL in one brick's crates that reads or writes a table another brick owns, per brick pair, against `scripts/brick_tables.baseline.txt`. CI prints the change and warns when a pair's writes rise. The owner of a table is guessed from who writes it most, and only upper-case SQL in `src/` is seen, so the numbers are a floor.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
+- **The server is a shell, and it only shrinks.** `crates/medbrains-server` still holds whole areas of domain code and declares routes itself. `make check-shell-size` (`scripts/check_shell_size.py`) fails when the lines under its `src/` or its own `.route(` calls rise above `scripts/shell_size.baseline.txt`; a PR that moves code out lowers the file with `--update`. A handler, a job or a route goes in the crate that owns it.
+
+## Switching a brick off (2026-11-22)
+
+A brick goes off unless a brick that **is on** needs it. "On" is what the module check sees
+(`effective_outcome`): a stored `enabled`, and equally an edition brick nobody set up (no
+`module_config` row, or the seed's `available`), because a missing row counts as on and that
+brick answers its API. The server then refuses (409) and names every such brick with why it is
+on: "Nursing Station (switched on), Maternity (on, never set up)". The Modules screen sends the
+switch, shows the server's sentence when it is refused, and asks once. One confirm sends
+`together: true`, and the server switches them all off in one transaction, writing an explicit
+`disabled` row for a brick that had none. So a hospital that really uses Maternity without ever
+having set it up is told before it goes off, and a hospital that does not can still switch IPD
+off in one step. The screen holds no list of its own for this: a brick with no row is not in what
+it loads, so only the server can name it. Records are kept either way. The rule is `switch_plan`
+in `medbrains-server-core/src/middleware/entitlement.rs`.
 
 ## A brick's background jobs (2026-11-19)
 
@@ -123,6 +143,10 @@ Inside an app the side panel (`apps/web/src/layouts/appPanel.ts`) lists **only t
 What this does **not** shrink: the shell already code-split every page, so a Registration + OPD session downloads the same ~1.8 MB on first load and ~2.4 MB after opening both apps as before. The weight that belongs to other apps sits in the monolithic `@medbrains/api` client (every module's methods, loaded by the shell) and in other apps' components the OPD and patient screens import directly (Lab, Radiology, Pharmacy, IPD, Billing, ~190 KB of source). Splitting the client per brick and turning those imports into plugged-in tabs are the next steps.
 
 If `/auth/me` cannot answer and this tab has no cached permissions, the signed-in app shows **We couldn't check your access** with a retry, never an empty launcher: an unknown answer is not "no apps".
+
+## Web source of one brick imports no other brick's (2026-11-23)
+
+`apps/web/brick-units.json` gives every unit of `apps/web/src` (`pages/<entry>`, `components/<entry>`, `features/<entry>`, `services/<file>`, each other top-level folder) to a brick, to `core` (the shell and Administration) or to `shared` (design system, hooks, shared clinical pieces, and the patient, patient-name, doctor and drug pickers). `make check-web-brick-imports` (`scripts/check_web_brick_imports.py`) counts import statements from one brick's units into another's, per brick pair, against `scripts/web_brick_imports.baseline.txt`: a pair above its number, a new pair, or a unit with no row fails. A brick shows another brick's screen through a panel slot (next section) or by opening its route. The map is not yet checked against the screen registry, so a page that changes app needs its row changed by hand.
 
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 

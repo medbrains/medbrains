@@ -19,6 +19,15 @@
 //! caller holds `patients.opd_number.backdate`; never in the future. It is its
 //! own column: `created_at` stays the real entry time, and nothing else (no
 //! visit, bill, token or queue row) is created for a backdated record.
+//!
+//! Mode `uhid` is "one number": there is no OPD number at all, and the paper
+//! register's number is typed as the UHID itself (see [`uhid`]).
+
+mod assign;
+mod uhid;
+
+pub use assign::{Assigned, Entry, Target, assign, check_date, patient_number};
+pub use uhid::{parse_register_number, series_prefix, suggest_uhid, take_typed_uhid};
 
 use medbrains_server_core::error::AppError;
 use serde::{Deserialize, Serialize};
@@ -30,7 +39,8 @@ const MAX_DIGITS: usize = 12;
 /// Longest prefix, so a card still has room for the number.
 const MAX_PREFIX: usize = 12;
 
-/// Whether the hospital uses an OPD number, and who picks it.
+/// Whether the hospital uses an OPD number, and who picks it. `Uhid`: no OPD
+/// number; the desk types the register number as the UHID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
@@ -38,6 +48,16 @@ pub enum Mode {
     Off,
     Manual,
     Auto,
+    Uhid,
+}
+
+impl Mode {
+    /// Whether patients carry an OPD number beside the UHID, so screens offer
+    /// the "OPD no." column and search. Never in `off` or one-number mode.
+    #[must_use]
+    pub const fn keeps_opd_number(self) -> bool {
+        matches!(self, Self::Manual | Self::Auto)
+    }
 }
 
 /// What one OPD number belongs to.
@@ -178,6 +198,11 @@ pub async fn write_policy(
     policy: &Policy,
 ) -> Result<(), AppError> {
     policy.validate()?;
+    if policy.mode == Mode::Uhid && !series_prefix(conn, tenant_id).await?.is_empty() {
+        return Err(AppError::BadRequest(
+            "One number needs plain-number UHIDs: set the UHID prefix to empty first".into(),
+        ));
+    }
     let value = serde_json::to_value(policy).map_err(|e| AppError::Internal(e.to_string()))?;
     sqlx::query!(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \

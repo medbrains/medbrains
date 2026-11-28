@@ -751,6 +751,9 @@ export const P = {
     PM_LIST: "bme.pm.list",
     PM_MANAGE: "bme.pm.manage",
   },
+  BRANDING: {
+    VIEW: "branding.view",
+  },
   CAMP: {
     ASSETS: {
       MANAGE: "camp.assets.manage",
@@ -905,6 +908,10 @@ export const P = {
   },
   CLINICAL_NOTES: {
     COSIGN: "clinical_notes.cosign",
+    DISPLAY_SETTINGS: {
+      READ: "clinical_notes.display_settings.read",
+    },
+    DISPLAY_SETTINGS_READ: "clinical_notes.display_settings.read",
     EXPORT: "clinical_notes.export",
     MARK_IN_ERROR: "clinical_notes.mark_in_error",
     PRINT: "clinical_notes.print",
@@ -2622,6 +2629,10 @@ export const P = {
     },
     NOTES_EDIT: "patients.notes.edit",
     NOTES_VIEW: "patients.notes.view",
+    OPD_NUMBER: {
+      BACKDATE: "patients.opd_number.backdate",
+    },
+    OPD_NUMBER_BACKDATE: "patients.opd_number.backdate",
     PRIVACY_REQUESTS: {
       CREATE: "patients.privacy_requests.create",
       DECIDE: "patients.privacy_requests.decide",

@@ -62,6 +62,7 @@ mod cash_closing;
 // billing entities and lanes behind them.
 pub mod collect;
 pub mod final_bill;
+mod installment_dates;
 
 // Who pays each bill line: insurer, scheme or corporate, or the patient.
 pub mod payer_split;
@@ -3115,15 +3116,12 @@ async fn create_installment(
     .execute(&mut *tx)
     .await?;
 
-    // Generate installment items
-    let base_date = chrono::Utc::now().date_naive();
+    // Generate installment items, dated from the hospital's own today.
+    let start =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, tenant_id).await?;
     for i in 1..=count {
-        let due = match frequency.as_str() {
-            "weekly" => base_date + chrono::Duration::weeks(i64::from(i)),
-            "biweekly" => base_date + chrono::Duration::weeks(2 * i64::from(i)),
-            "quarterly" => base_date + chrono::Duration::days(90 * i64::from(i)),
-            _ => base_date + chrono::Duration::days(30 * i64::from(i)),
-        };
+        let due = installment_dates::due_date(start, &frequency, i.unsigned_abs())
+            .ok_or_else(|| AppError::BadRequest("installment falls past the calendar".into()))?;
         let item_id = Uuid::new_v4();
         let amount = if i < count {
             installment_amount

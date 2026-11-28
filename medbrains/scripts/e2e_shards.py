@@ -12,7 +12,10 @@ lightest shard (LPT), deterministically, so every shard job computes the same pl
 
 Durations come from `apps/web/e2e/timings.json` ({"file": seconds}), refreshed with the
 `timings` command from a run's merged JUnit file. A file with no measurement is weighed at
-the median per-test time, so a new spec still lands somewhere sensible.
+the median per-test time, so a new spec still lands somewhere sensible. A file measured at
+zero counts as unmeasured: a zero comes from a run that skipped it. #6102's timings had 73
+such files, one of them 30 to 50 minutes long; free to the planner, they all landed on
+shard 2, which took 67 minutes while the others took 12 to 31.
 
   e2e_shards.py plan <list.json> <shard>/<total>   # prints a --test-list file on stdout
   e2e_shards.py timings <playwright.xml>           # rewrites timings.json from a run
@@ -50,7 +53,11 @@ def list_tests(listing: dict) -> list[tuple[str, str, str]]:
 
 
 def make_units(tests, timings: dict, parallel_files: set) -> list[tuple[float, str, list[str]]]:
-    """Group tests into weighted units: one per (project, file), or per test for parallel files."""
+    """Group tests into weighted units: one per (project, file), or per test for parallel files.
+
+    A file whose measured time is zero (or less) is weighed as unmeasured; see the module doc.
+    """
+    timings = {f: s for f, s in timings.items() if s > 0}
     groups: dict[tuple[str, str], list[str]] = {}
     for project, file, title in tests:
         groups.setdefault((project, file), []).append(f"[{project}] › {file} › {title}")
@@ -108,6 +115,8 @@ def self_test() -> None:
     listed = [("p", "new.spec.ts", "a"), ("p", "new.spec.ts", "b"), ("p", "s.spec.ts", "x")]
     unknown = make_units(listed, {"s.spec.ts": 3.0}, set())
     assert unknown[0][0] == 6.0
+    zeroed = make_units(listed, {"s.spec.ts": 3.0, "new.spec.ts": 0.0}, set())
+    assert zeroed[0][0] == 6.0, "a zero measurement is weighed as unmeasured"
     print("self-test passed")
 
 

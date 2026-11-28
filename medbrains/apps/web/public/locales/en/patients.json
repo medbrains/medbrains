@@ -207,6 +207,7 @@
   "directory.register.card": "Card",
   "directory.register.description": "Patients registered elsewhere in the hospital. Identity only: reprint a lost card here; the record opens for the staff caring for the patient.",
   "directory.register.printCardFor": "Print card for {{uhid}}",
+  "directory.printIdCardFor": "Print ID card for {{uhid}}",
   "directory.register.title": "In the hospital register",
   "directory.searchLabel": "Search patients by name, phone, UHID or Aadhaar",
   "directory.tooltip.mlc": "MLC",

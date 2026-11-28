@@ -2,6 +2,7 @@ import { campApi } from "@medbrains/api/modules/camp";
 import { marketingApi } from "@medbrains/api/modules/marketing";
 import { patientsApi } from "@medbrains/api/modules/patients";
 import { printDataApi } from "@medbrains/api/modules/print-data";
+import { registrationApi } from "@medbrains/api/modules/registration";
 import { setupApi } from "@medbrains/api/modules/setup";
 
 export type CreatePatientInput = Parameters<typeof patientsApi.createPatient>[0];
@@ -17,6 +18,12 @@ export const patientsService = {
   getPatientContext: (...args: Parameters<typeof patientsApi.getPatientContext>) =>
     patientsApi.getPatientContext(...args),
   createPatient: (data: CreatePatientInput) => patientsApi.createPatient(data),
+  getOpdNumber: () => registrationApi.getOpdNumber(),
+  getSearchSettings: () => registrationApi.getSearchSettings(),
+  updateSearchSettings: (data: Parameters<typeof registrationApi.updateSearchSettings>[0]) =>
+    registrationApi.updateSearchSettings(data),
+  updateOpdNumberPolicy: (data: Parameters<typeof registrationApi.updateOpdNumberPolicy>[0]) =>
+    registrationApi.updateOpdNumberPolicy(data),
   transliterateName: (text: string, to: string) => patientsApi.transliterateName(text, to),
   updatePatient: (...args: Parameters<typeof patientsApi.updatePatient>) =>
     patientsApi.updatePatient(...args),

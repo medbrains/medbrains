@@ -258,7 +258,7 @@ function VisitRow(props: RegistrationRequiredFieldsProps) {
 }
 
 /**
- * Step 1's required fields, together and in typing order (owner, Rishi Hospital 2026-11-17):
+ * Step 1's required fields, together and in typing order (owner, first standalone hospital, 2026-11-17):
  * name, sex and age, phone, then the visit. Each required field carries its own marker, and the
  * markers drop for an unknown patient, whom the rules do not ask for them. DOM order is tab order.
  */

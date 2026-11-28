@@ -240,7 +240,7 @@ fn is_common_password(value: &str) -> bool {
 }
 
 /// True when `needle` appears inside the password, both lowercased with everything but letters
-/// and digits removed, so `Rishi-Care#1` holds "Rishi Care". Needles shorter than three
+/// and digits removed, so `Sample-Care#1` holds "Sample Care". Needles shorter than three
 /// characters are ignored.
 fn contains_context(password: &str, needle: &str) -> bool {
     let squash = |s: &str| -> String {
@@ -410,13 +410,13 @@ mod password_tests {
 
     #[test]
     fn password_holding_hospital_name_or_code_refused() {
-        let base = PasswordCheck::from("Rishi-Care#2049x");
+        let base = PasswordCheck::from("Sample-Care#2049x");
         assert!(refused(PasswordCheck {
-            hospital_code: "RISHI",
+            hospital_code: "SAMPLE",
             ..base
         }));
         assert!(refused(PasswordCheck {
-            hospital_name: "Rishi Care",
+            hospital_name: "Sample Care",
             ..base
         }));
         assert!(!refused(base));

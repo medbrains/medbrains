@@ -3,7 +3,7 @@ import { adminApi } from "@medbrains/api/modules/admin";
 import type { ConnectedApp, ConnectedAppDelivery } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Card, Modal } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Card, Modal } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
 
 const DELIVERY_TONE: Record<ConnectedAppDelivery["status"], BadgeTone> = {
@@ -30,6 +30,37 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {children}
       </Stack>
     </Card>
+  );
+}
+
+/** Names the codes the server refused; an app asking for any can never be approved. */
+function RefusedAlert({ codes }: { codes: string[] }) {
+  if (codes.length === 0) return null;
+  return (
+    <Alert tone="danger" title="This app cannot be approved or sign in">
+      It asks for codes MedBrains never gives an app, because they do not exist or they change who
+      may do what: {codes.join(", ")}. Ask the vendor for a manifest without them, revoke this app
+      and register the new one.
+    </Alert>
+  );
+}
+
+/** The permissions the app would get: refused codes are named in the warning, never listed as granted. */
+function PermissionsSection({ app }: { app: ConnectedApp }) {
+  const grantable = app.permissions.filter((p) => !app.refused_permissions.includes(p));
+  return (
+    <Section title="Permissions it gets">
+      <Group gap={6}>
+        {grantable.map((p) => (
+          <Badge key={p} tone="neutral">
+            {p}
+          </Badge>
+        ))}
+      </Group>
+      <Text size="xs" c="dimmed">
+        Nothing else: no role, and per-patient access checks still apply.
+      </Text>
+    </Section>
   );
 }
 
@@ -60,19 +91,9 @@ export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
               )}
             </Text>
           </Stack>
+          <RefusedAlert codes={app.refused_permissions} />
           <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Section title="Permissions it gets">
-              <Group gap={6}>
-                {app.permissions.map((p) => (
-                  <Badge key={p} tone="neutral">
-                    {p}
-                  </Badge>
-                ))}
-              </Group>
-              <Text size="xs" c="dimmed">
-                Nothing else: no role, and per-patient access checks still apply.
-              </Text>
-            </Section>
+            <PermissionsSection app={app} />
             <Section title="Kinds of data it touches">
               <Group gap={6}>
                 {m.dataClasses.map((c) => (

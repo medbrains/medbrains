@@ -79,12 +79,14 @@ Prerequisites:
   - Ubuntu 22.04 / 24.04 or Debian 12 host (root access)
   - DNS A/AAAA record for <domain> already pointing at this server's
     public IP — Let's Encrypt verification needs port 80 reachable
-  - Pre-built binaries on this host:
-      /tmp/medbrains-server      (the Rust API server)
-      /tmp/medbrains-archive     (the storage sweeper)
-      /tmp/medbrains-proxy       (the Pingora edge proxy)
-      /tmp/medbrains-edge        (the Loro CRDT edge sync server)
-      /tmp/medbrains-web/        (apps/web/dist contents)
+  - Pre-built binaries in the staging folder MEDBRAINS_STAGE (default /tmp;
+    use a root-only folder such as /var/lib/medbrains/releases/<version>).
+    Every staged file must be owned by root and writable by nobody else:
+      $MEDBRAINS_STAGE/medbrains-server      (the Rust API server)
+      $MEDBRAINS_STAGE/medbrains-archive     (the storage sweeper)
+      $MEDBRAINS_STAGE/medbrains-proxy       (the Pingora edge proxy)
+      $MEDBRAINS_STAGE/medbrains-edge        (the Loro CRDT edge sync server)
+      $MEDBRAINS_STAGE/medbrains-web/        (apps/web/dist contents)
 USAGE
     exit 1
 fi
@@ -95,6 +97,19 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+STAGE="${MEDBRAINS_STAGE:-/tmp}"
+
+# Refuse a staged file or folder that is not root's, or that another user can
+# write: in a shared /tmp anyone can plant /tmp/medbrains-server before the
+# upload lands, and root would install it.
+stage_trusted() {
+    local bad
+    bad="$(find "$1" \( ! -user root -o -perm /022 \) -print -quit)"
+    if [[ -n "$bad" ]]; then
+        echo "ERROR: $bad is not root's or is writable by others; refusing to install it."
+        exit 1
+    fi
+}
 # shellcheck source=./native-postgres.sh
 . "$DEPLOY_DIR/native-postgres.sh"
 
@@ -371,7 +386,7 @@ echo "==> [5/9] Installing binaries to /usr/local/bin"
 # over a service that cannot be built, so it is installed when present and
 # skipped - loudly - when it is not.
 HAVE_EDGE=0
-if [[ -f /tmp/medbrains-edge ]]; then
+if [[ -f "$STAGE/medbrains-edge" ]]; then
     HAVE_EDGE=1
 else
     echo "    note: medbrains-edge not supplied - edge sync will not be installed"
@@ -384,15 +399,16 @@ if [[ "$HAVE_EDGE" == "1" ]]; then
     BINARIES+=(medbrains-edge)
 fi
 for bin in "${BINARIES[@]}"; do
-    if [[ ! -f "/tmp/$bin" ]]; then
-        echo "ERROR: /tmp/$bin missing. Build and copy target/release/$bin to /tmp/$bin on this host."
+    if [[ ! -f "$STAGE/$bin" ]]; then
+        echo "ERROR: $STAGE/$bin missing. Build and copy target/release/$bin to $STAGE/$bin on this host."
         exit 1
     fi
+    stage_trusted "$STAGE/$bin"
     # Keep the running version for one-command rollback (medbrains-rollback).
     if [[ -f "/usr/local/bin/$bin" ]]; then
         cp -p "/usr/local/bin/$bin" "/usr/local/bin/$bin.prev"
     fi
-    install -m 0755 "/tmp/$bin" "/usr/local/bin/$bin"
+    install -m 0755 "$STAGE/$bin" "/usr/local/bin/$bin"
 done
 
 # Host-side rollback helper — swaps every .prev binary and the previous
@@ -436,23 +452,26 @@ echo "==> [6/9] Installing SPA static files to /var/www/medbrains"
 # Both forms are accepted: a kit and a terraform module can be a version apart
 # during a rollout, and a deploy that half-recognises its own payload is worse
 # than either convention on its own.
-if [[ -f /tmp/medbrains-web.tgz ]]; then
-    echo "    unpacking /tmp/medbrains-web.tgz"
-    rm -rf /tmp/medbrains-web
-    mkdir -p /tmp/medbrains-web
-    tar -xzf /tmp/medbrains-web.tgz -C /tmp/medbrains-web
+if [[ -f "$STAGE/medbrains-web.tgz" ]]; then
+    stage_trusted "$STAGE/medbrains-web.tgz"
+    echo "    unpacking $STAGE/medbrains-web.tgz"
+    rm -rf "$STAGE/medbrains-web"
+    mkdir -m 0755 "$STAGE/medbrains-web"
+    # Root-owned on unpack: an archive built in CI carries its builder's uid.
+    tar --no-same-owner -xzf "$STAGE/medbrains-web.tgz" -C "$STAGE/medbrains-web"
 fi
 
-if [[ -d /tmp/medbrains-web ]]; then
+if [[ -d "$STAGE/medbrains-web" ]]; then
+    stage_trusted "$STAGE/medbrains-web"
     if [[ -d /var/www/medbrains ]]; then
         rm -rf /var/www/medbrains.prev
         mv /var/www/medbrains /var/www/medbrains.prev
     fi
     mkdir -p /var/www/medbrains
-    cp -r /tmp/medbrains-web/. /var/www/medbrains/
+    cp -r "$STAGE/medbrains-web/." /var/www/medbrains/
     chown -R medbrains:medbrains /var/www/medbrains
 else
-    echo "    /tmp/medbrains-web/ not found — leaving SPA static dir as-is."
+    echo "    $STAGE/medbrains-web/ not found — leaving SPA static dir as-is."
 fi
 
 
@@ -605,10 +624,11 @@ if ! command -v aws >/dev/null 2>&1; then
         x86_64)  AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" ;;
         *) echo "ERROR: unsupported arch $AWS_ARCH for AWS CLI"; exit 1 ;;
     esac
-    curl -fsSL "$AWSCLI_URL" -o /tmp/awscliv2.zip
-    unzip -q -o /tmp/awscliv2.zip -d /tmp
-    /tmp/aws/install --update
-    rm -rf /tmp/awscliv2.zip /tmp/aws
+    AWS_TMP="$(mktemp -d)"
+    curl -fsSL "$AWSCLI_URL" -o "$AWS_TMP/awscliv2.zip"
+    unzip -q -o "$AWS_TMP/awscliv2.zip" -d "$AWS_TMP"
+    "$AWS_TMP/aws/install" --update
+    rm -rf "$AWS_TMP"
 fi
 
 # Persist BACKUP_BUCKET (set by install.sh's third arg from terraform)

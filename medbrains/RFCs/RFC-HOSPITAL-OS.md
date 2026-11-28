@@ -258,6 +258,9 @@ Numbers measured 2026-11-02 and enforced by `scripts/check_size_budgets.py` (bas
 | Web app first load | budgeted per screen | 1,060,297 bytes gzip for the JS `index.html` loads up front, one entry rather than per screen; ceiling 10% above it, checked after the CI web build |
 
 ### How we get small
+> **2026-11-22: SM2 and step 1 below are retired.** Every hospital gets one signed release and
+> switches bricks on in core; see `RFC-ONE-RELEASE-LEGO-BRICKS.md` and DECISIONS.md. The text is kept as history.
+
 1. **Profiles at compile time:** modules become Cargo features grouped into profiles (`clinic`,
    `hospital`, `full`); the Pi image builds `clinic` (patients, OPD, billing, pharmacy, lab basics),
    so specialties, marketing, research and similar are not even in the binary. Runtime module

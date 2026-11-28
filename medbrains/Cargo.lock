@@ -3265,9 +3265,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "form_urlencoded"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+checksum = "afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e"
 dependencies = [
  "percent-encoding",
 ]
@@ -5526,7 +5526,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-abdm"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "chrono",
  "reqwest",
@@ -5538,7 +5538,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-adapter-sdk"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "chrono",
  "serde",
@@ -5565,7 +5565,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-agent"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5601,7 +5601,6 @@ dependencies = [
  "medbrains-db",
  "medbrains-health-services",
  "medbrains-kernel",
- "medbrains-patients",
  "medbrains-pharmacy",
  "medbrains-research",
  "medbrains-server-core",
@@ -5978,7 +5977,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-bridge"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6099,7 +6098,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-clinical-core"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -6268,7 +6267,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-core"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6365,7 +6364,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-db"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "chrono",
  "hex",
@@ -6409,7 +6408,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-desktop"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "base64 0.22.1",
  "reqwest",
@@ -6598,7 +6597,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6623,7 +6622,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-app"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -6647,7 +6646,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-rn"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "getrandom 0.4.3",
  "hex",
@@ -6751,7 +6750,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-fhir-api"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "axum",
  "chrono",
@@ -6822,7 +6821,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-health-services"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
@@ -6892,7 +6891,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-hrms-gateway"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "axum",
  "chrono",
@@ -7008,7 +7007,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-integration-hub"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -7089,19 +7088,21 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-kernel",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
 
 [[package]]
 name = "medbrains-kernel"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "chrono",
  "medbrains-authz",
@@ -7186,7 +7187,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-loadtest"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "chrono",
  "goose",
@@ -7448,7 +7449,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-offline-core"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -7496,11 +7497,9 @@ dependencies = [
  "medbrains-forms",
  "medbrains-health-services",
  "medbrains-kernel",
- "medbrains-lab",
  "medbrains-notifications",
  "medbrains-pharmacy",
  "medbrains-platform",
- "medbrains-radiology",
  "medbrains-server-core",
  "medbrains-server-services",
  "medbrains-telehealth",
@@ -7558,7 +7557,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-setup"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "argon2",
  "data-encoding",
@@ -7573,14 +7572,14 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-test"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "medbrains-os-update"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -7871,7 +7870,6 @@ dependencies = [
  "medbrains-kernel",
  "medbrains-pharmacy",
  "medbrains-server-core",
- "medbrains-tokens",
  "serde",
  "serde_json",
  "sqlx",
@@ -8006,7 +8004,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-printing"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "printers",
  "serde",
@@ -8016,7 +8014,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-proxy"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8183,7 +8181,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-security-intel"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "argon2",
  "async-trait",
@@ -8222,7 +8220,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-server"
-version = "3.35.2"
+version = "3.35.6"
 dependencies = [
  "anyhow",
  "argon2",
@@ -8464,6 +8462,7 @@ dependencies = [
  "medbrains-anthropic-auth",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "rig-agent",
  "rig-core",
@@ -8474,6 +8473,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "strsim",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -8489,6 +8489,7 @@ dependencies = [
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-vpn",
@@ -8734,10 +8735,12 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -14402,9 +14405,9 @@ dependencies = [
 
 [[package]]
 name = "url"
-version = "2.5.8"
+version = "2.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+checksum = "f00cd2407bb42c0ef17be88d4cf020f5cceffd121665bac9b8b9493a369b3b1a"
 dependencies = [
  "form_urlencoded",
  "idna",

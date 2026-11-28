@@ -60,6 +60,8 @@ export interface ModuleConfig {
   updated_at: string;
   /** This brick's background jobs and whether this server runs them. */
   background_jobs: BackgroundJobStatus[];
+  /** Whether the server answers for it now; on with a status other than `enabled` is "never set up". */
+  on: boolean;
 }
 
 /** One brick background job on the Modules screen. */
@@ -88,6 +90,15 @@ export interface TenantSettingsRow {
   value: unknown;
   created_at: string;
   updated_at: string;
+}
+
+/** The hospital's marks for the app header: `GET /branding/marks`. */
+export interface BrandingMarks {
+  display_name: string | null;
+  /** The emblem: a data URL or web address, from branding `logo_url`. */
+  emblem: string | null;
+  /** The hospital's name as an image, from branding `name_banner_url`. */
+  name_banner: string | null;
 }
 
 export type SecureDeviceSettingsKey =

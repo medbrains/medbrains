@@ -42,15 +42,10 @@ pub(super) async fn sweep_stale_copies(admin: &mut PgConnection) -> Result<(), T
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    let copies = sqlx::query_scalar!(
-        r#"SELECT datname::text AS "n!" FROM pg_database WHERE datname LIKE 'mb\_t\_%'"#
-    )
-    .fetch_all(&mut *admin)
-    .await
-    .map_err(fail("list copies"))?;
-    for name in copies
+    for name in list_copies(admin)
+        .await?
         .into_iter()
-        .filter(|n| is_ours(n) && is_stale(n, now))
+        .filter(|n| is_stale(n, now))
     {
         let _ = admin
             .execute(sqlx::raw_sql(&format!(
@@ -59,6 +54,18 @@ pub(super) async fn sweep_stale_copies(admin: &mut PgConnection) -> Result<(), T
             .await;
     }
     Ok(())
+}
+
+/// Every copy on the server whose name this module generated: tests' own and
+/// runner slots'.
+pub(super) async fn list_copies(admin: &mut PgConnection) -> Result<Vec<String>, TestDbError> {
+    let copies = sqlx::query_scalar!(
+        r#"SELECT datname::text AS "n!" FROM pg_database WHERE datname LIKE 'mb\_t\_%'"#
+    )
+    .fetch_all(&mut *admin)
+    .await
+    .map_err(fail("list copies"))?;
+    Ok(copies.into_iter().filter(|n| is_ours(n)).collect())
 }
 
 /// Whether `name` is one this module generates (`^mb_(t|tpl)_[0-9a-z_]+$`),

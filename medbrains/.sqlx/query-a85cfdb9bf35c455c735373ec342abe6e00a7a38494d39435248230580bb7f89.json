@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id AS \"id!\", COALESCE(p.opd_number, v.encounter_number) AS opd_number,\n                  CASE WHEN p.opd_number IS NOT NULL THEN p.opd_date ELSE v.encounter_date END\n                    AS opd_date\n             FROM patients p\n             LEFT JOIN LATERAL (\n               SELECT e.encounter_number, e.encounter_date FROM encounters e\n                WHERE e.tenant_id = p.tenant_id AND e.patient_id = p.id\n                  AND e.encounter_number IS NOT NULL AND e.deleted_at IS NULL\n                ORDER BY e.encounter_date DESC, e.created_at DESC LIMIT 1\n             ) v ON true\n            WHERE p.tenant_id = $1 AND p.id = ANY($2)\n              AND (p.opd_number IS NOT NULL OR v.encounter_number IS NOT NULL)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "opd_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "opd_date",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "a85cfdb9bf35c455c735373ec342abe6e00a7a38494d39435248230580bb7f89"
+}

@@ -253,6 +253,10 @@ export const opdApi = {
       body: JSON.stringify(data),
     }),
 
+  /** The hospital's vitals set and ROS list, readable by the clinicians who chart with them. */
+  listClinicalDisplaySettings: () =>
+    request<Array<{ key: string; value: unknown }>>("/clinical/display-settings"),
+
   // ── Procedure Catalog & Orders ──────────────────────────
   listProcedureCatalog: () => request<ProcedureCatalog[]>("/opd/procedure-catalog"),
   importProcedureCatalog: (data: CsvImportRequest) =>

@@ -865,6 +865,8 @@ export interface Encounter {
   notes: string | null;
   attributes: Record<string, unknown>;
   visit_type: string | null;
+  /** The hospital OPD number for this visit, when it keeps one per visit. */
+  encounter_number?: string | null;
   /** Recorded at reception. The doctor's clinical version lives on the consultation. */
   chief_complaint: string | null;
   created_at: string;
@@ -969,6 +971,10 @@ export interface CreateEncounterRequest {
   visit_type?: string;
   camp_id?: string;
   chief_complaint?: string;
+  /** The hospital OPD number for this visit (or, per patient, for a patient without one). */
+  opd_number?: string;
+  /** Its register date (YYYY-MM-DD), for a patient numbered at this visit. */
+  opd_date?: string;
 }
 
 export interface CreateEncounterResponse {

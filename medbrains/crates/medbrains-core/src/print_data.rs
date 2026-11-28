@@ -94,6 +94,12 @@ pub struct RadiologyReportPrintData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatientCardPrintData {
+    /// `tenants.name`, printed when there is no name banner.
+    pub hospital_name: String,
+    /// The branding emblem (`logo_url`), when the hospital set one.
+    pub hospital_logo_url: Option<String>,
+    /// The branding `name_banner_url`, when the hospital set one.
+    pub hospital_name_banner_url: Option<String>,
     pub patient_name: String,
     pub uhid: String,
     pub date_of_birth: Option<String>,
