@@ -11,6 +11,7 @@ use medbrains_core::permissions;
 use medbrains_core::radiology::{
     RadiationDoseRecord, RadiologyModality, RadiologyOrder, RadiologyReport,
 };
+use medbrains_health_services::egfr::{EgfrLookup, patient_latest_egfr};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -60,37 +61,18 @@ pub struct ContrastScreeningRequest {
 
 #[derive(Debug, Serialize)]
 pub struct ContrastScreeningResult {
-    /// Latest eGFR (mL/min/1.73m²) from labs, if any is recorded.
+    /// Latest verified eGFR (mL/min/1.73 m²) within the hospital's window for
+    /// an inpatient or outpatient; `None` means kidney risk was not checked.
     pub egfr: Option<f64>,
+    /// The day that eGFR sample was taken.
+    pub egfr_measured_on: Option<chrono::NaiveDate>,
     pub cin_risk: &'static str,
     pub reaction_risk: &'static str,
     pub metformin_action: &'static str,
-    /// Overall recommendation: proceed | proceed_with_caution | hold_review.
+    /// Overall recommendation: `proceed`, `proceed_with_caution`, `hold_review`, or
+    /// `egfr_required` (no qualifying eGFR: order one before contrast).
     pub clearance: &'static str,
     pub flags: Vec<String>,
-}
-
-async fn latest_egfr(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    patient_id: Uuid,
-) -> Result<Option<f64>, AppError> {
-    let egfr = sqlx::query_scalar::<_, Option<f64>>(
-        // Verified only -- see the same query in telehealth's renal CDS. This
-        // one decides whether a patient is held for review before contrast.
-        "SELECT lr.numeric_value::float8 FROM lab_results lr \
-         JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
-         WHERE lr.tenant_id = $1 AND lo.patient_id = $2 AND lr.numeric_value IS NOT NULL \
-           AND lo.status = 'verified'::lab_order_status \
-           AND (lower(lr.parameter_name) LIKE '%egfr%' OR lower(lr.parameter_name) LIKE '%gfr%') \
-         ORDER BY lr.created_at DESC LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
-    Ok(egfr)
 }
 
 async fn has_documented_contrast_allergy(
@@ -113,26 +95,27 @@ async fn has_documented_contrast_allergy(
     Ok(found)
 }
 
+/// Contrast-induced nephropathy, reaction and metformin advice from the
+/// screened eGFR and history. No qualifying eGFR is "not checked", never low,
+/// and the clearance asks for a creatinine/eGFR first, never "proceed".
 fn compute_contrast_screening(
-    egfr: Option<f64>,
+    egfr: &EgfrLookup,
     prior_reaction: &str,
     on_metformin: bool,
     contrast_allergy_on_record: bool,
 ) -> ContrastScreeningResult {
     let mut flags = Vec::new();
 
-    // CIN risk from renal function.
-    let cin_risk = match egfr {
-        None => {
-            flags.push(
-                "No recent eGFR on record — check renal function before contrast.".to_owned(),
-            );
-            "unknown"
-        }
-        Some(e) if e < 30.0 => {
+    // CIN risk from renal function. Hold below the hospital's threshold:
+    // eGFR 30 (ACR–NKF consensus, Davenport et al., Radiology 2020) by
+    // default, or 45 (ESUR; KDIGO). 30–44 is moderate when 30 is chosen.
+    let threshold = f64::from(egfr.settings.contrast_threshold);
+    let cin_risk = match egfr.reading.map(|r| r.value) {
+        None => egfr_required(egfr, &mut flags),
+        Some(e) if e < threshold => {
             flags.push(format!(
-                "eGFR {e:.0} — high CIN risk; radiologist review, consider non-contrast or \
-                 alternative imaging and peri-procedure hydration."
+                "eGFR {e:.0} — below {threshold:.0}, high CIN risk; radiologist review, consider \
+                 non-contrast or alternative imaging and peri-procedure hydration."
             ));
             "high"
         }
@@ -180,7 +163,7 @@ fn compute_contrast_screening(
 
     // Metformin must be withheld when renal function is impaired or unknown.
     let metformin_action = if on_metformin {
-        let impaired = egfr.is_none_or(|e| e < 45.0);
+        let impaired = egfr.reading.is_none_or(|r| r.value < 45.0);
         if impaired {
             flags.push(
                 "On metformin with impaired/unknown renal function — hold metformin at contrast and \
@@ -195,22 +178,34 @@ fn compute_contrast_screening(
     };
 
     // Overall clearance.
-    let clearance = if cin_risk == "high" || reaction_risk == "severe" {
-        "hold_review"
-    } else if cin_risk == "moderate" || cin_risk == "unknown" || reaction_risk == "moderate" {
-        "proceed_with_caution"
-    } else {
-        "proceed"
+    let clearance = match (cin_risk, reaction_risk) {
+        ("high", _) | (_, "severe") => "hold_review",
+        ("not_checked", _) => "egfr_required",
+        ("moderate", _) | (_, "moderate") => "proceed_with_caution",
+        _ => "proceed",
     };
 
     ContrastScreeningResult {
-        egfr,
+        egfr: egfr.reading.map(|r| r.value),
+        egfr_measured_on: egfr.reading.map(|r| r.measured_at.date_naive()),
         cin_risk,
         reaction_risk,
         metformin_action,
         clearance,
         flags,
     }
+}
+
+/// No eGFR qualifies: flag "order one before contrast", naming the hospital's
+/// window for this patient, and grade the CIN risk `not_checked`.
+fn egfr_required(egfr: &EgfrLookup, flags: &mut Vec<String>) -> &'static str {
+    let who = ["an outpatient", "an inpatient"][usize::from(egfr.inpatient)];
+    flags.push(format!(
+        "Order a creatinine/eGFR before contrast: no verified eGFR (mL/min/1.73 m²) in the last \
+         {} days for {who}, so kidney risk is not checked.",
+        egfr.window_days
+    ));
+    "not_checked"
 }
 
 /// `POST /api/radiology/contrast-screening` — pre-contrast CIN + reaction risk from the patient's
@@ -230,65 +225,119 @@ pub async fn contrast_screening(
         "radiology",
     )
     .await?;
-    let prior = body.prior_contrast_reaction.as_deref().unwrap_or("none");
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let egfr = latest_egfr(&mut tx, claims.tenant_id, body.patient_id).await?;
-    let contrast_allergy =
-        has_documented_contrast_allergy(&mut tx, claims.tenant_id, body.patient_id).await?;
+    let result = screen_patient(&mut tx, claims.tenant_id, &body).await?;
     tx.commit().await?;
-    Ok(Json(compute_contrast_screening(
-        egfr,
-        prior,
-        body.on_metformin,
-        contrast_allergy,
-    )))
+    Ok(Json(result))
+}
+
+/// Screen one patient for contrast from their records and the attested
+/// history: the shared eGFR selector, then the documented contrast allergy.
+async fn screen_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    body: &ContrastScreeningRequest,
+) -> Result<ContrastScreeningResult, AppError> {
+    let prior = body.prior_contrast_reaction.as_deref().unwrap_or("none");
+    let egfr = patient_latest_egfr(tx, tenant_id, body.patient_id).await?;
+    let allergy = has_documented_contrast_allergy(tx, tenant_id, body.patient_id).await?;
+    let metformin = body.on_metformin;
+    Ok(compute_contrast_screening(&egfr, prior, metformin, allergy))
 }
 
 #[cfg(test)]
 mod contrast_tests {
-    use super::compute_contrast_screening;
+    use medbrains_health_services::egfr::EgfrReading;
+    use medbrains_health_services::kidney_settings::KidneySettings;
+
+    use super::{EgfrLookup, compute_contrast_screening};
+
+    /// An outpatient lookup: `value` taken today, or none, at `threshold`.
+    fn lookup(value: Option<f64>, threshold: i32) -> EgfrLookup {
+        EgfrLookup {
+            reading: value.map(|value| EgfrReading {
+                value,
+                measured_at: chrono::Utc::now(),
+            }),
+            window_days: 30,
+            inpatient: false,
+            settings: KidneySettings {
+                contrast_threshold: threshold,
+                ..KidneySettings::default()
+            },
+        }
+    }
+
+    /// An eGFR of `value` taken today, at the default threshold of 30.
+    fn at(value: f64) -> EgfrLookup {
+        lookup(Some(value), 30)
+    }
 
     #[test]
     fn good_renal_no_history_proceeds() {
-        let r = compute_contrast_screening(Some(90.0), "none", false, false);
+        let r = compute_contrast_screening(&at(90.0), "none", false, false);
         assert_eq!(r.cin_risk, "low");
         assert_eq!(r.clearance, "proceed");
     }
 
     #[test]
     fn low_egfr_holds_for_review() {
-        let r = compute_contrast_screening(Some(25.0), "none", false, false);
+        let r = compute_contrast_screening(&at(25.0), "none", false, false);
         assert_eq!(r.cin_risk, "high");
         assert_eq!(r.clearance, "hold_review");
     }
 
+    /// Each side of each cut-off, at 30 (ACR–NKF) and at 45 (ESUR / KDIGO).
+    #[test]
+    fn the_hospital_threshold_decides_high_risk() {
+        let cases = [
+            (30, 29.0, "high"),
+            (30, 30.0, "moderate"),
+            (30, 44.0, "moderate"),
+            (30, 45.0, "low_moderate"),
+            (45, 29.0, "high"),
+            (45, 44.0, "high"),
+            (45, 45.0, "low_moderate"),
+            (45, 60.0, "low"),
+        ];
+        for (threshold, egfr, want) in cases {
+            let r =
+                compute_contrast_screening(&lookup(Some(egfr), threshold), "none", false, false);
+            assert_eq!(r.cin_risk, want, "eGFR {egfr} at threshold {threshold}");
+        }
+    }
+
     #[test]
     fn severe_reaction_holds_even_with_good_renal() {
-        let r = compute_contrast_screening(Some(90.0), "severe", false, false);
+        let r = compute_contrast_screening(&at(90.0), "severe", false, false);
         assert_eq!(r.clearance, "hold_review");
     }
 
     #[test]
     fn metformin_held_when_renal_impaired() {
-        let r = compute_contrast_screening(Some(40.0), "none", true, false);
+        let r = compute_contrast_screening(&at(40.0), "none", true, false);
         assert_eq!(r.metformin_action, "hold_48h");
     }
 
     #[test]
-    fn unknown_egfr_proceeds_with_caution() {
-        let r = compute_contrast_screening(None, "none", false, false);
-        assert_eq!(r.cin_risk, "unknown");
-        assert_eq!(r.clearance, "proceed_with_caution");
+    fn no_egfr_asks_for_one_and_never_proceeds() {
+        let r = compute_contrast_screening(&lookup(None, 30), "none", false, false);
+        assert_eq!(r.cin_risk, "not_checked");
+        assert!(r.flags[0].starts_with("Order a creatinine/eGFR before contrast"));
+        assert_eq!(r.clearance, "egfr_required");
     }
 
     #[test]
     fn documented_allergy_holds_even_with_good_renal_and_no_attested_history() {
-        let r = compute_contrast_screening(Some(90.0), "none", false, true);
+        let r = compute_contrast_screening(&at(90.0), "none", false, true);
         assert_eq!(r.reaction_risk, "severe");
         assert_eq!(r.clearance, "hold_review");
     }
 }
+
+#[cfg(test)]
+mod contrast_db_tests;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types

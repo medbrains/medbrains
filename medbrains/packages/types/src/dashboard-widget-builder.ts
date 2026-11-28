@@ -1076,10 +1076,14 @@ export interface ContrastScreeningRequest {
 }
 
 export interface ContrastScreeningResult {
+  /** Latest verified eGFR per 1.73 m² within the hospital's window; null = not checked. */
   egfr: number | null;
+  /** The day that eGFR sample was taken (YYYY-MM-DD). */
+  egfr_measured_on: string | null;
   cin_risk: string;
   reaction_risk: string;
   metformin_action: string;
+  /** proceed, proceed_with_caution, hold_review, or egfr_required (no qualifying eGFR). */
   clearance: string;
   flags: string[];
 }

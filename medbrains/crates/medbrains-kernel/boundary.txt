@@ -127,7 +127,7 @@ medbrains-print-data on_facade 0 -
 medbrains-printing not_yet 0 -
 medbrains-proxy not_yet 0 -
 medbrains-quality not_yet 89 medbrains-db
-medbrains-radiology not_yet 130 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-radiology partial 130 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-regulatory not_yet 124 medbrains-db,medbrains-authz-gate
 medbrains-reports not_yet 5 medbrains-db
 medbrains-research on_facade 0 -
