@@ -15,13 +15,17 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main, 'release/**', 'hotfix/**']
+  # A merge queue tests each queued pull request on a temporary branch and reads the required
+  # checks from this event; without it they never report and the queue stalls.
+  merge_group:
   schedule:
     # Daily: new advisories land against unchanged code, and a week is too long for a hospital.
     - cron: "0 0 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never a merge-group run: cancelling one drops the pull request out of the queue.
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 permissions:
   contents: read
@@ -48,7 +52,7 @@ jobs:
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
           HEAD: ${{ github.sha }}
         run: |
           set -u
@@ -173,6 +177,10 @@ jobs:
       # Pinned: a scanner on a moving branch runs whatever that branch holds today. v3.99.8.
       - uses: trufflesecurity/trufflehog@ea68ca03c865c5f324e86e849ced20ed3cf9dbbb
         with:
+          # The action knows push, pull_request and the nightly; a merge group it would scan as
+          # the whole history. Both are empty on every other event, which is the action's default.
+          base: ${{ github.event.merge_group.base_sha }}
+          head: ${{ github.event.merge_group.head_sha }}
           extra_args: --only-verified
 
   dependency-review:
@@ -343,8 +351,8 @@ jobs:
 
   sbom:
     # The bill of materials a hospital's security team (and CERT-In) asks for,
-    # kept 90 days per commit on main and nightly. Not run on PRs.
-    if: github.event_name != 'pull_request'
+    # kept 90 days per commit on main and nightly. Not run on PRs or merge groups.
+    if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
     name: SBOM (CycloneDX)
     runs-on: ubuntu-latest
     env:
