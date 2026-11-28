@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { bloodPressureSeverity, severityTone, spo2Severity } from "./vitals-thresholds";
+import {
+  ADULT_VITAL_BANDS,
+  bloodPressureGrade,
+  gradeLabel,
+  gradeTone,
+  gradeVital,
+} from "./vitals-thresholds";
 
-describe("bloodPressureSeverity", () => {
+describe("bloodPressureGrade", () => {
   /**
    * The bug this was written for. The badge used `systolic > 140`, so a
    * reading of exactly 140 painted as normal — while the camp analytics
@@ -12,8 +18,8 @@ describe("bloodPressureSeverity", () => {
    * case here; it is one of the commonest values recorded.
    */
   it("treats exactly 140 systolic as high, not normal", () => {
-    expect(bloodPressureSeverity(140, 85)).toBe("high");
-    expect(bloodPressureSeverity(139, 85)).toBe("normal");
+    expect(bloodPressureGrade(140, 85)).toBe("high");
+    expect(bloodPressureGrade(139, 85)).toBe("normal");
   });
 
   /**
@@ -21,22 +27,27 @@ describe("bloodPressureSeverity", () => {
    * the diastolic alone and rendered as a normal blue pill.
    */
   it("flags a high diastolic even when systolic looks fine", () => {
-    expect(bloodPressureSeverity(130, 95)).toBe("high");
-    expect(bloodPressureSeverity(130, 90)).toBe("high");
-    expect(bloodPressureSeverity(130, 89)).toBe("normal");
+    expect(bloodPressureGrade(130, 95)).toBe("high");
+    expect(bloodPressureGrade(130, 90)).toBe("high");
+    expect(bloodPressureGrade(130, 89)).toBe("normal");
   });
 
-  it("still flags hypotension", () => {
-    expect(bloodPressureSeverity(85, 60)).toBe("low");
-    expect(bloodPressureSeverity(90, 60)).toBe("normal");
+  /** 70/40 was amber with no word. NEWS2's red band is a systolic of 90 or less, inclusive. */
+  it("grades a systolic of 90 or less as critical low", () => {
+    expect(bloodPressureGrade(70, 40)).toBe("critical_low");
+    expect(bloodPressureGrade(90, 60)).toBe("critical_low");
+    expect(bloodPressureGrade(91, 60)).toBe("normal");
   });
 
-  /**
-   * High beats low when a reading is somehow both. Whichever number is wrong,
-   * the one that kills faster belongs on screen.
-   */
-  it("prefers high over low on a contradictory reading", () => {
-    expect(bloodPressureSeverity(85, 95)).toBe("high");
+  it("grades a hypertensive crisis as critical high, on either number", () => {
+    expect(bloodPressureGrade(180, 100)).toBe("critical_high");
+    expect(bloodPressureGrade(150, 120)).toBe("critical_high");
+    expect(bloodPressureGrade(179, 119)).toBe("high");
+  });
+
+  /** Critical beats high when a reading is somehow both. */
+  it("prefers critical low over a high diastolic", () => {
+    expect(bloodPressureGrade(85, 95)).toBe("critical_low");
   });
 
   /**
@@ -46,44 +57,45 @@ describe("bloodPressureSeverity", () => {
    * patient.
    */
   it("says nothing about a patient whose pressure was never taken", () => {
-    expect(bloodPressureSeverity(null, null)).toBe("normal");
-    expect(bloodPressureSeverity(undefined, undefined)).toBe("normal");
-    expect(bloodPressureSeverity("" as unknown as number, "" as unknown as number)).toBe("normal");
+    expect(bloodPressureGrade(null, null)).toBe("normal");
+    expect(bloodPressureGrade(undefined, undefined)).toBe("normal");
+    expect(bloodPressureGrade("" as unknown as number, "" as unknown as number)).toBe("normal");
   });
 
   /** Half a reading is still a reading — flag on the half that exists. */
   it("uses whichever number was recorded", () => {
-    expect(bloodPressureSeverity(160, null)).toBe("high");
-    expect(bloodPressureSeverity(null, 100)).toBe("high");
-    expect(bloodPressureSeverity(120, null)).toBe("normal");
+    expect(bloodPressureGrade(160, null)).toBe("high");
+    expect(bloodPressureGrade(null, 100)).toBe("high");
+    expect(bloodPressureGrade(120, null)).toBe("normal");
   });
 
   it("ignores a value that will not parse rather than trusting it", () => {
-    expect(bloodPressureSeverity("abc" as unknown as number, 80)).toBe("normal");
+    expect(bloodPressureGrade("abc" as unknown as number, 80)).toBe("normal");
   });
 });
 
-describe("spo2Severity", () => {
-  it("flags below 94 and not at 94", () => {
-    expect(spo2Severity(93)).toBe("low");
-    expect(spo2Severity(94)).toBe("normal");
+describe("gradeVital", () => {
+  /** The entry form's bands, now the doctor's too: RR 32 was not flagged at all there. */
+  it("grades the readings the walk-through entered the same on every screen", () => {
+    expect(gradeVital(32, ADULT_VITAL_BANDS.respiratory_rate)).toBe("critical_high");
+    expect(gradeVital(85, ADULT_VITAL_BANDS.spo2)).toBe("critical_low");
+    expect(gradeVital(92, ADULT_VITAL_BANDS.spo2)).toBe("low");
+    expect(gradeVital(110, ADULT_VITAL_BANDS.pulse)).toBe("high");
+    expect(gradeVital(72, ADULT_VITAL_BANDS.pulse)).toBe("normal");
   });
 
   /** 226 real registrations have no SpO2. Absent is not hypoxic. */
   it("says nothing when it was never measured", () => {
-    expect(spo2Severity(null)).toBe("normal");
-    expect(spo2Severity(undefined)).toBe("normal");
+    expect(gradeVital(null, ADULT_VITAL_BANDS.spo2)).toBe("normal");
   });
-});
 
-describe("severityTone", () => {
-  /**
-   * Both directions of danger read as danger. A nurse scanning a ward list
-   * should not have to recall which colour means high and which means low.
-   */
-  it("paints high as danger and low as warning", () => {
-    expect(severityTone("high")).toBe("danger");
-    expect(severityTone("low")).toBe("warning");
-    expect(severityTone("normal")).toBe("primary");
+  /** Critical in either direction is danger, and every grade has a word. */
+  it("pairs each colour with a word", () => {
+    expect([gradeTone("critical_low"), gradeLabel("critical_low")]).toEqual([
+      "danger",
+      "Critical low",
+    ]);
+    expect([gradeTone("high"), gradeLabel("high")]).toEqual(["warning", "High"]);
+    expect(gradeTone("normal")).toBe("primary");
   });
 });
