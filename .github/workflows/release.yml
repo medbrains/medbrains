@@ -497,6 +497,8 @@ jobs:
             printf '%s' "$SB_KEY" > "$RUNNER_TEMP/sb.key"; printf '%s' "$SB_CERT" > "$RUNNER_TEMP/sb.crt"
             export OS_SB_KEY="$RUNNER_TEMP/sb.key" OS_SB_CERT="$RUNNER_TEMP/sb.crt"
           fi
+          # Back to the normal umask before anything is built: 077 is for the key files above only.
+          umask 022
           MEDBRAINS_SERVER_BIN="$PWD/bins/medbrains-server" MEDBRAINS_WEB_DIST="$PWD/web-dist" \
             KANIDM_DIR="$PWD/kanidm" OS_WORK="$RUNNER_TEMP/os" medbrains/os/build.sh --arch ${{ matrix.arch }}
           rm -f "$RUNNER_TEMP/pcr.key"
