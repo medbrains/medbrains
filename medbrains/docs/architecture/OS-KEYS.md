@@ -10,7 +10,7 @@ a design: root, machine and licence keys are plan T2. A key not listed here is a
 The data partition is `/var`: the database, secrets, files, logs. It is LUKS2, created on first boot, so no
 plaintext copy of it ever exists (`os/mkosi.extra/usr/lib/medbrains/disk-setup`).
 
-The seal is **PCR 4 and 7, and PCR 11 by signature when the image is signed**. **In one line: this protects a disk that
+The seal is **PCR 4 and 7, and PCR 11 by signature when the image is signed and the TPM can load its key**. **In one line: this protects a disk that
 has left the machine. Without a PIN it does not protect a stolen machine from someone able to change its disk.**
 
 | Attack | Result today | Evidence |
@@ -263,6 +263,7 @@ disk to a file on that disk. A test found this: the disk would not open.
 | Disk copied to another machine | TPM refuses | Unseal fails | Prompt on the screen, with a notice after 20 s. `/var` not mounted; no service starts | `copy_stays_locked` |
 | Recovery key lost **and** TPM gone | **Data lost** | Nothing opens | Stays at the prompt. Restore from backup; no backup exists until D2 | none: by design |
 | Power cut during partition creation | Half-written | repart writes the table last | Next boot starts over | Reasoned from repart's design, **not injected**: timing not reliably reachable. F3 |
+| TPM cannot open its own seal on the first start (KAN-2: v3.35.6's RSA 4096 PCR signing key, which TPMs cannot load) | Before this fix: the disk had no recovery key yet, so systemd asked nothing, `/var` failed, emergency mode with root locked | `TPM_RC_VALUE` from `LoadExternal`, then "No passphrase or recovery key registered" | The recovery key is made and shown **before** the first unlock, from a random setup key, so the disk asks for it on the screen. A PCR key the TPM cannot load (`tpm2_testparms`) is left out of the seal, which is then PCR 4+7. `build.sh` refuses a PCR key that is not RSA 2048 | `os/tests/disk-setup.sh`; QEMU x86 + swtpm on the v3.35.6 image |
 | Power cut with the key on screen | Key may be unsaved | No `disk-protection` record | Next boot wipes the slot and shows a new key; old one stops working | `power_cut_replaces_unconfirmed_key` |
 | Key slots unreadable, or a recovery key cannot be made | No way back if the TPM fails | Exit status, and an empty-key slot required before recording unencrypted | Plain message stays on screen; no secrets written; the screen unit does not start | `failed_disk_step_stops_first_boot_visibly`, `os/tests/disk-setup.sh` |
 | Partition creation fails, disk full or TPM error | No data disk | repart's exit status | Message and reason on screen; boot waits with no device | Not injected: gap |
