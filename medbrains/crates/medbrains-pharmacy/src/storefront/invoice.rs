@@ -2,16 +2,19 @@
 //! outpatient retail supply and always taxable (research brief §6: the
 //! in-patient composite exemption never applies to it), and the sale is
 //! made in the hospital's licensing state, so it is CGST + SGST, half each,
-//! with the item's HSN code (CGST Rules 2017, Rule 46).
+//! with the item's HSN code (CGST Rules 2017, Rule 46). The line's tax is
+//! rounded to the paisa once; CGST is half of it rounded and SGST the rest, so
+//! the two always add up to the tax (rounding each half on its own did not).
 
 use medbrains_server_core::error::AppError;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 /// Fill the GST columns of `order_id`'s invoice lines from the catalogue,
-/// and say on the invoice that it was ordered online.
+/// CGST + SGST adding up to each line's tax, and say on the invoice that it
+/// was ordered online. Takes the caller's connection, inside its transaction.
 pub(crate) async fn tax_lines(
-    tx: &mut Transaction<'_, Postgres>,
+    conn: &mut PgConnection,
     tenant_id: Uuid,
     order_id: Uuid,
 ) -> Result<(), AppError> {
@@ -20,8 +23,9 @@ pub(crate) async fn tax_lines(
             SET gst_rate = r.rate, \
                 gst_type = CASE WHEN r.rate > 0 THEN 'cgst_sgst'::gst_type \
                                 ELSE 'exempt'::gst_type END, \
-                cgst_amount = round(ii.unit_price * ii.quantity * r.rate / 200, 2), \
-                sgst_amount = round(ii.unit_price * ii.quantity * r.rate / 200, 2), \
+                cgst_amount = round(round(ii.unit_price * ii.quantity * r.rate / 100, 2) / 2, 2), \
+                sgst_amount = round(ii.unit_price * ii.quantity * r.rate / 100, 2) \
+                            - round(round(ii.unit_price * ii.quantity * r.rate / 100, 2) / 2, 2), \
                 igst_amount = 0, \
                 hsn_sac_code = COALESCE(r.hsn, ii.hsn_sac_code) \
            FROM (SELECT oi.id, COALESCE(NULLIF(c.gst_rate, 0), c.tax_percent, 0) AS rate, \
@@ -34,7 +38,7 @@ pub(crate) async fn tax_lines(
     )
     .bind(tenant_id)
     .bind(order_id)
-    .execute(&mut **tx)
+    .execute(&mut *conn)
     .await?;
     sqlx::query(
         "UPDATE invoices i SET notes = concat_ws(' · ', NULLIF(i.notes, ''), 'Ordered online') \
@@ -44,7 +48,11 @@ pub(crate) async fn tax_lines(
     )
     .bind(tenant_id)
     .bind(order_id)
-    .execute(&mut **tx)
+    .execute(&mut *conn)
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "invoice_tests.rs"]
+mod tests;
