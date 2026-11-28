@@ -15,12 +15,13 @@ use medbrains_core::encounter::OpdQueue;
 use medbrains_core::permissions;
 use medbrains_kernel as kernel;
 use medbrains_kernel::Actor;
-use medbrains_kernel::authz::is_bypass_role;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::referral_access::{require_addressee_access, require_sender_access};
 
 #[derive(Debug, Deserialize)]
 pub struct DeclineReferralRequest {
@@ -49,25 +50,8 @@ pub struct ReferralStep {
     pub token_number: Option<String>,
 }
 
-/// The referral, locked, if it is the caller's to act on — otherwise 404, so
-/// the endpoint is not a way to learn which referrals exist.
-async fn load_addressed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    id: Uuid,
-) -> Result<Referral, AppError> {
-    let referral = lock(tx, claims, id).await?;
-    let to_me = referral.to_doctor_id == Some(claims.sub)
-        || (referral.to_doctor_id.is_none()
-            && claims.department_ids.contains(&referral.to_department_id));
-    if to_me || is_bypass_role(claims) {
-        Ok(referral)
-    } else {
-        Err(AppError::NotFound)
-    }
-}
-
-async fn lock(
+/// The referral row in this tenant, locked for the update that follows; 404 when absent.
+pub(crate) async fn lock(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     id: Uuid,
@@ -178,7 +162,7 @@ pub async fn accept_referral(
 ) -> Result<Json<ReferralStep>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::referrals::RESPOND)?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let pending = load_addressed(&mut tx, &claims, id).await?;
+    let pending = require_addressee_access(&mut tx, &claims, id).await?;
     require_status(&pending, "pending")?;
 
     let referral = sqlx::query_as::<_, Referral>(
@@ -236,7 +220,7 @@ pub async fn decline_referral(
     let permit = kernel::authz::permit(&claims, permissions::opd::referrals::RESPOND)?;
     let reason = required_text(&body.reason, "reason for declining")?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let pending = load_addressed(&mut tx, &claims, id).await?;
+    let pending = require_addressee_access(&mut tx, &claims, id).await?;
     require_status(&pending, "pending")?;
     let referral = sqlx::query_as::<_, Referral>(
         "UPDATE referrals SET status = 'declined', response_notes = $2, responded_at = now(), \
@@ -259,10 +243,7 @@ pub async fn cancel_referral(
 ) -> Result<Json<ReferralStep>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::referrals::CANCEL)?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let pending = lock(&mut tx, &claims, id).await?;
-    if pending.from_doctor_id != Some(claims.sub) && !is_bypass_role(&claims) {
-        return Err(AppError::NotFound);
-    }
+    let pending = require_sender_access(&mut tx, &claims, id).await?;
     require_status(&pending, "pending")?;
     let referral = sqlx::query_as::<_, Referral>(
         "UPDATE referrals SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
@@ -285,7 +266,7 @@ pub async fn complete_referral(
     let permit = kernel::authz::permit(&claims, permissions::opd::referrals::RESPOND)?;
     let opinion = required_text(&body.opinion, "opinion")?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let accepted = load_addressed(&mut tx, &claims, id).await?;
+    let accepted = require_addressee_access(&mut tx, &claims, id).await?;
     require_status(&accepted, "accepted")?;
     let referral = sqlx::query_as::<_, Referral>(
         "UPDATE referrals SET status = 'completed', response_notes = $2, \

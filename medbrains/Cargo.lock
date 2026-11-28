@@ -5871,6 +5871,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "medbrains-db-migrations",
  "serde",
  "serde_json",
  "sqlx",

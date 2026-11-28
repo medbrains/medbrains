@@ -3363,6 +3363,8 @@ pub async fn find_patients(
     Query(params): Query<FindPatientsQuery>,
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::FIND)?;
+    // authz: role-only — the desk's hospital-wide lookup, by design (above): identity
+    // only, each field masked by the caller's field access (DECISIONS 2026-11-19).
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let by = SearchBy::from_param(params.by.as_deref())?;
     let rows = actions::find_by(&mut tx, (&state, &claims), &params.q, by).await?;
@@ -3947,6 +3949,10 @@ pub async fn merge_patients(
 }
 
 /// POST /api/patients/unmerge/{id} — unmerge a previously merged patient.
+///
+/// Needs access to BOTH records, as [`merge_patients`] does: undoing a merge
+/// splits a record back out, and a caller who reaches only one side would be
+/// handed the other. Refused as 404, the answer for a merge that does not exist.
 pub async fn unmerge_patient(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -3963,8 +3969,10 @@ pub async fn unmerge_patient(
     )
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
-
+    .ok_or(AppError::NotFound)?;
+    for patient_id in [history.surviving_patient_id, history.merged_patient_id] {
+        gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
     // Restore the merged patient
     sqlx::query!(
         "UPDATE patients SET is_merged = false, merged_into_patient_id = NULL, is_active = true, updated_at = now()

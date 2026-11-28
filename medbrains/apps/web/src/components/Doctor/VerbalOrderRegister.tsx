@@ -27,6 +27,7 @@ import { useState } from "react";
 import type { Column, DataTableFilter } from "@/components/DataTable";
 import { DataTable } from "@/components/DataTable";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
+import { ClinicalText, RecordAccessNotice } from "@/components/RecordAccess";
 import { Badge, type BadgeTone, IconButton } from "@/components/ui";
 import { signoffService } from "@/services/signoff.service";
 
@@ -115,11 +116,7 @@ export function VerbalOrderRegister() {
       label: "Order",
       searchable: true,
       accessor: (r) => r.summary ?? "",
-      render: (r) => (
-        <Text size="sm" lineClamp={2}>
-          {r.summary || "—"}
-        </Text>
-      ),
+      render: (r) => <ClinicalText value={r.summary} access={r.access} empty="—" />,
     },
     {
       key: "ordering_doctor",
@@ -229,6 +226,7 @@ export function VerbalOrderRegister() {
 
   return (
     <>
+      <RecordAccessNotice rows={rows} />
       <DataTable<VerbalOrderEntry>
         columns={columns}
         data={rows}

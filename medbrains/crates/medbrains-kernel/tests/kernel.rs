@@ -73,6 +73,27 @@ async fn an_unreachable_backend_is_unknown_not_deny() {
     .await;
     assert_eq!(rows.len(), 2);
     assert!(rows.values().all(|o| *o == Outcome::Unknown));
+
+    // Mixed kinds (a visit and its patient) in one call: the same promise.
+    let mixed = [
+        Resource {
+            kind: "encounter",
+            id: ids[0],
+        },
+        Resource {
+            kind: "patient",
+            id: ids[1],
+        },
+    ];
+    let rows = medbrains_kernel::authz::authorize_each(
+        &backend,
+        &clinician(Uuid::new_v4()),
+        Relation::Viewer,
+        &mixed,
+    )
+    .await;
+    assert_eq!(rows.len(), 2);
+    assert!(rows.values().all(|o| *o == Outcome::Unknown));
 }
 
 /// A caller that lost its tenant gets `Unknown` before the backend is asked.
