@@ -45,11 +45,13 @@ export interface VitalUnitConfig {
  * lies in the range. So 96.9 °F (36.06 °C, charted 36.1) is normal.
  */
 function fahrenheitRange([low, high]: readonly [number, number]): [number, number] {
+  /** `c` °C in °F, rounded to a tenth in the direction `round` gives. */
   const tenths = (c: number, round: (x: number) => number) =>
     round(celsiusToFahrenheit(c) * 10) / 10;
   return [tenths(low - 0.05, Math.ceil), tenths(high + 0.05, Math.floor)];
 }
 
+/** Input limits and NEWS2 grading bands for temperature in the hospital's unit. */
 export function getTemperatureConfig(tempUnit: TemperatureUnit): VitalUnitConfig {
   if (tempUnit === "fahrenheit") {
     return {
