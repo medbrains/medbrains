@@ -402,3 +402,52 @@ async fn closing_a_pool_closes_the_connection_that_was_on_its_way_back() {
         "a closed pool still holds a connection to the database"
     );
 }
+
+// ============================================================= hospital date
+
+/// A zone whose date differs from UTC's right now (UTC+14 or UTC−12; at any
+/// instant one of them does), and that date: the gap 01:00 IST opens nightly.
+fn zone_off_utc() -> (&'static str, chrono::NaiveDate) {
+    let now = chrono::Utc::now();
+    let day = chrono::Days::new(1);
+    if chrono::Timelike::hour(&now) >= 10 {
+        (
+            "Etc/GMT-14",
+            now.date_naive().checked_add_days(day).unwrap(),
+        )
+    } else {
+        (
+            "Etc/GMT+12",
+            now.date_naive().checked_sub_days(day).unwrap(),
+        )
+    }
+}
+
+#[tokio::test]
+async fn a_scoped_connection_dates_by_the_hospital_and_forgets_it_on_release() {
+    // The server's date on a tenant_conn: from 00:00 to 05:30 IST a DLT
+    // template expiring yesterday, or a stock transfer dated today, read wrong.
+    let (db, owner, tenant, _) = two_hospitals().await;
+    let (zone, local) = zone_off_utc();
+    sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
+        .bind(tenant)
+        .bind(zone)
+        .execute(&owner)
+        .await
+        .unwrap();
+    let pool = app_pool(&db, 1).await;
+    let before = setting_after_release(&pool, "TimeZone").await;
+    {
+        let mut conn = tenant_conn(&pool, &tenant).await.expect("scoped");
+        let today: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(
+            today, local,
+            "CURRENT_DATE on a {zone} hospital's connection"
+        );
+    }
+    let after = setting_after_release(&pool, "TimeZone").await;
+    assert_eq!(after, before, "the hospital's zone outlived the connection");
+}

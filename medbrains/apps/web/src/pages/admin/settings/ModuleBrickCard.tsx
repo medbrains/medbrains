@@ -2,7 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import type { ModuleConfig } from "@medbrains/types";
 import { Badge, Card, Switch } from "@/components/ui";
 import { BackgroundWork } from "./BackgroundWork";
-import { isOn, names, neededBy } from "./module-bricks";
+import { isOn, names, neededBy, stateWords } from "./module-bricks";
 
 interface ModuleBrickCardProps {
   mod: ModuleConfig;
@@ -14,6 +14,7 @@ interface ModuleBrickCardProps {
 /** One app brick on the Modules screen: its switch, what it needs and what needs it. */
 export function ModuleBrickCard({ mod, modules, pending, onToggle }: ModuleBrickCardProps) {
   const on = isOn(mod);
+  const words = stateWords(mod);
   const needs = modules.filter((m) => mod.depends_on.includes(m.code));
   const needed = neededBy(mod.code, modules);
 
@@ -45,7 +46,7 @@ export function ModuleBrickCard({ mod, modules, pending, onToggle }: ModuleBrick
           checked={on}
           onChange={(e) => onToggle(mod, e.currentTarget.checked)}
           disabled={pending}
-          label={on ? "On" : "Off"}
+          label={words}
           aria-label={`${mod.name}: ${on ? "on" : "off"}`}
         />
       </Stack>

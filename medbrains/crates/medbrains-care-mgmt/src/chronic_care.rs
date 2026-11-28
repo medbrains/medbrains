@@ -15,6 +15,8 @@ use medbrains_server_core::{
     middleware::client_ip::ClientIp, state::AppState,
 };
 
+mod interactions;
+
 /// ReBAC pre-check: the caller must hold `view` on the patient whose chronic-care data is being read.
 /// Patient `view` is granted to the registering clerk (owner), the attending, department/ward members,
 /// care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit
@@ -1479,6 +1481,8 @@ pub async fn list_interaction_alerts(
     Ok(Json(rows))
 }
 
+/// POST — check a patient's active drugs against `drug_interactions` and
+/// raise an alert for each interacting pair not already alerted.
 pub async fn check_polypharmacy(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1527,67 +1531,43 @@ pub async fn check_polypharmacy(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Cross-check against drug_interactions table
+    // Cross-check against drug_interactions table: every pair in one query.
+    let names: Vec<&str> = active_drugs.iter().map(|d| d.drug_name.as_str()).collect();
     let mut new_alerts: Vec<InteractionAlertRow> = Vec::new();
+    for inter in interactions::interacting_pairs(&mut tx, &names).await? {
+        // Check if alert already exists (avoid duplicates)
+        let exists = sqlx::query_as::<_, CountRow>(
+            "SELECT COUNT(*) AS count FROM polypharmacy_interaction_alerts \
+             WHERE patient_id = $1 AND interaction_id = $2 \
+             AND status IN ('active', 'acknowledged')",
+        )
+        .bind(patient_id)
+        .bind(inter.id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-    for (i, drug_a) in active_drugs.iter().enumerate() {
-        for drug_b in active_drugs.iter().skip(i + 1) {
-            #[derive(Debug, sqlx::FromRow)]
-            struct InteractionRow {
-                id: Uuid,
-                severity: String,
-                description: Option<String>,
-                management: Option<String>,
-            }
-
-            let interaction = sqlx::query_as::<_, InteractionRow>(
-                "SELECT id, severity, description, management FROM drug_interactions \
-                 WHERE deleted_at IS NULL \
-                 AND ((drug_a_name ILIKE $1 AND drug_b_name ILIKE $2) \
-                 OR (drug_a_name ILIKE $2 AND drug_b_name ILIKE $1)) \
-                 LIMIT 1",
+        if exists.count.unwrap_or(0) == 0 {
+            let alert = sqlx::query_as::<_, InteractionAlertRow>(
+                "INSERT INTO polypharmacy_interaction_alerts \
+                 (tenant_id, patient_id, drug_a_name, drug_b_name, \
+                  interaction_id, severity, description, management) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+                 RETURNING id, drug_a_name, drug_b_name, severity, description, \
+                 management, status, acknowledged_by, acknowledged_at, \
+                 override_reason, detected_at",
             )
-            .bind(&drug_a.drug_name)
-            .bind(&drug_b.drug_name)
-            .fetch_optional(&mut *tx)
+            .bind(claims.tenant_id)
+            .bind(patient_id)
+            .bind(&inter.drug_a)
+            .bind(&inter.drug_b)
+            .bind(inter.id)
+            .bind(&inter.severity)
+            .bind(&inter.description)
+            .bind(&inter.management)
+            .fetch_one(&mut *tx)
             .await?;
 
-            if let Some(inter) = interaction {
-                // Check if alert already exists (avoid duplicates)
-                let exists = sqlx::query_as::<_, CountRow>(
-                    "SELECT COUNT(*) AS count FROM polypharmacy_interaction_alerts \
-                     WHERE patient_id = $1 AND interaction_id = $2 \
-                     AND status IN ('active', 'acknowledged')",
-                )
-                .bind(patient_id)
-                .bind(inter.id)
-                .fetch_one(&mut *tx)
-                .await?;
-
-                if exists.count.unwrap_or(0) == 0 {
-                    let alert = sqlx::query_as::<_, InteractionAlertRow>(
-                        "INSERT INTO polypharmacy_interaction_alerts \
-                         (tenant_id, patient_id, drug_a_name, drug_b_name, \
-                          interaction_id, severity, description, management) \
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-                         RETURNING id, drug_a_name, drug_b_name, severity, description, \
-                         management, status, acknowledged_by, acknowledged_at, \
-                         override_reason, detected_at",
-                    )
-                    .bind(claims.tenant_id)
-                    .bind(patient_id)
-                    .bind(&drug_a.drug_name)
-                    .bind(&drug_b.drug_name)
-                    .bind(inter.id)
-                    .bind(&inter.severity)
-                    .bind(&inter.description)
-                    .bind(&inter.management)
-                    .fetch_one(&mut *tx)
-                    .await?;
-
-                    new_alerts.push(alert);
-                }
-            }
+            new_alerts.push(alert);
         }
     }
 

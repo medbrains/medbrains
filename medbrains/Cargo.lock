@@ -3277,9 +3277,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "form_urlencoded"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+checksum = "afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e"
 dependencies = [
  "percent-encoding",
 ]
@@ -5612,7 +5612,6 @@ dependencies = [
  "medbrains-db",
  "medbrains-health-services",
  "medbrains-kernel",
- "medbrains-patients",
  "medbrains-pharmacy",
  "medbrains-research",
  "medbrains-server-core",
@@ -7101,12 +7100,14 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-kernel",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -7508,11 +7509,9 @@ dependencies = [
  "medbrains-forms",
  "medbrains-health-services",
  "medbrains-kernel",
- "medbrains-lab",
  "medbrains-notifications",
  "medbrains-pharmacy",
  "medbrains-platform",
- "medbrains-radiology",
  "medbrains-server-core",
  "medbrains-server-services",
  "medbrains-telehealth",
@@ -7883,7 +7882,6 @@ dependencies = [
  "medbrains-kernel",
  "medbrains-pharmacy",
  "medbrains-server-core",
- "medbrains-tokens",
  "serde",
  "serde_json",
  "sqlx",
@@ -8749,10 +8747,12 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -14510,9 +14510,9 @@ dependencies = [
 
 [[package]]
 name = "url"
-version = "2.5.8"
+version = "2.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+checksum = "f00cd2407bb42c0ef17be88d4cf020f5cceffd121665bac9b8b9493a369b3b1a"
 dependencies = [
  "form_urlencoded",
  "idna",
