@@ -1,0 +1,19 @@
+-- no-transaction
+-- ====================================================================
+-- Migration: 1497_patients_phone_last10_index.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- The duplicate-patient check blocks candidates on the mobile's last ten
+-- digits (patient_match_candidates, 1493). Compared through regexp_replace,
+-- no index served it; this indexes the exact expression the function uses.
+--
+-- An expression index rather than a stored phone_last10 column: a generated
+-- STORED column rewrites patients under an exclusive lock, and a trigger plus
+-- backfill UPDATE fires the audit and updated_at triggers once per patient.
+-- Built CONCURRENTLY so registration is not blocked, hence its own
+-- migration outside a transaction. If a build fails, drop the INVALID index
+-- by hand and rerun; IF NOT EXISTS would otherwise skip it.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_phone_last10 ON public.patients (tenant_id, right(regexp_replace(phone, '[^0-9]', '', 'g'), 10));

@@ -117,6 +117,9 @@ fn sex_of(g: Gender) -> Option<&'static str> {
 /// Likely and for-review matches on name, date of birth, sex and phone,
 /// best first; candidates below the review threshold are dropped.
 ///
+/// The candidates come from index scans, one per blocking key, so a check reads
+/// the patients that share a key, not every patient of the hospital.
+///
 /// # Errors
 /// Database faults.
 pub async fn fuzzy_matches(
@@ -132,18 +135,15 @@ pub async fn fuzzy_matches(
         let d: String = q.phone.chars().filter(char::is_ascii_digit).collect();
         d[d.len().saturating_sub(10)..].to_owned()
     };
+    // patient_match_candidates (migration 1493) does the blocking as the
+    // table owner, one indexed arm per key: under row level security no index
+    // serves a trigram or regexp key. Rows are read here, as the caller, so
+    // every patients policy still applies.
     let candidates = sqlx::query_as::<_, MatchResult>(&format!(
         "SELECT {COLUMNS} FROM patients p \
           WHERE p.tenant_id = $1 AND p.is_merged = false AND p.is_active = true \
             AND p.deleted_at IS NULL \
-            AND ( \
-              ($2 <> '' AND similarity(p.first_name, $2) > 0.3) \
-              OR ($3 <> '' AND similarity(p.last_name, $3) > 0.3) \
-              OR ($2 <> '' AND similarity(p.last_name, $2) > 0.3) \
-              OR ($3 <> '' AND similarity(p.first_name, $3) > 0.3) \
-              OR p.date_of_birth = $4 \
-              OR (length($5) = 10 AND right(regexp_replace(p.phone, '[^0-9]', '', 'g'), 10) = $5) \
-            ) \
+            AND p.id = ANY (ARRAY(SELECT patient_match_candidates($1, $2, $3, $4, $5, $6::int))) \
           ORDER BY (COALESCE(similarity(p.first_name || ' ' || p.last_name, $2 || ' ' || $3), 0) \
                     + CASE WHEN p.date_of_birth = $4 THEN 1 ELSE 0 END) DESC \
           LIMIT $6"
