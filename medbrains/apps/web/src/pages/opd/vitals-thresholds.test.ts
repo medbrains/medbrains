@@ -47,6 +47,14 @@ describe("bloodPressureGrade", () => {
     expect(bloodPressureGrade(220, 80)).toBe("critical_high");
   });
 
+  /** Equal urgency, opposite directions: the hypertension rule wins, never "Low". */
+  it("shows a high diastolic as high when the systolic is in NEWS2's amber or red band", () => {
+    expect(bloodPressureGrade(110, 90)).toBe("high");
+    expect(bloodPressureGrade(105, 95)).toBe("high");
+    expect(bloodPressureGrade(85, 125)).toBe("critical_high");
+    expect(bloodPressureGrade(85, 90)).toBe("critical_low");
+  });
+
   it("grades a hypertensive crisis as critical high, on either number", () => {
     expect(bloodPressureGrade(180, 100)).toBe("critical_high");
     expect(bloodPressureGrade(150, 120)).toBe("critical_high");

@@ -80,7 +80,8 @@ function urgency(grade: VitalGrade): number {
 
 /**
  * Blood pressure grade from both numbers: the worse of NEWS2's systolic grade
- * and the ACC/AHA hypertension rule (`SYSTOLIC_HIGH`), NEWS2 winning a tie.
+ * and the ACC/AHA hypertension rule (`SYSTOLIC_HIGH`). The hypertension rule wins
+ * a tie, so a high diastolic (110/90, 85/125) is never shown as "Low".
  */
 export function bloodPressureGrade(
   systolic: number | null | undefined,
@@ -90,7 +91,7 @@ export function bloodPressureGrade(
   const dia = numeric(diastolic);
   const news2 = gradeVital(sys, ADULT_VITAL_BANDS.systolic_bp);
   const hypertension = hypertensionGrade(sys, dia);
-  return urgency(hypertension) > urgency(news2) ? hypertension : news2;
+  return urgency(hypertension) >= urgency(news2) ? hypertension : news2;
 }
 
 /** The ACC/AHA 2017 rule alone: crisis red, stage 2 amber, else normal. */

@@ -11,7 +11,7 @@ pressure, pulse and temperature by the adult NEWS2 bands (Royal College of Physi
 score 0 normal, 1-2 amber with a word, 3 red with a word. The bands come from
 `packages/schemas/src/news2-bands.generated.ts`, generated from `news2_table.rs`. High blood pressure
 is a separate, labelled rule, the 2017 ACC/AHA guideline: stage 2 (140/90) amber, crisis (180/120)
-red; the worse of the two grades is shown. Temperature in °F is graded by its °C value charted to one
+red; the worse of the two grades is shown, the hypertension rule winning a tie (110/90 reads "High", not "Low"). Temperature in °F is graded by its °C value charted to one
 decimal.
 
 ## Why
