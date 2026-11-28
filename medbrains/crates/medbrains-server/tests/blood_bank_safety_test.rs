@@ -489,7 +489,7 @@ async fn issue_needs_a_crossmatch_or_an_audited_emergency_o_negative_release() {
         .await
         .expect("department");
     let t = tag();
-    let (username, password) = (format!("bbt_{t}"), format!("Bbt#{t}Aa9"));
+    let (username, password) = (format!("bbt_{t}"), format!("Bbt#Key{t}Aa9"));
     ok(
         &app,
         &csrf,

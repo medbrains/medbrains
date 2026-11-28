@@ -1,11 +1,11 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const hypoglycemiaService = {
-  createHypoglycemiaEvent: (data: Parameters<typeof api.createHypoglycemiaEvent>[0]) =>
-    api.createHypoglycemiaEvent(data),
+  createHypoglycemiaEvent: (data: Parameters<typeof clinicalApi.createHypoglycemiaEvent>[0]) =>
+    clinicalApi.createHypoglycemiaEvent(data),
   recheckHypoglycemiaEvent: (
     id: string,
-    data: Parameters<typeof api.recheckHypoglycemiaEvent>[1],
-  ) => api.recheckHypoglycemiaEvent(id, data),
-  listHypoglycemiaEvents: (patientId: string) => api.listHypoglycemiaEvents(patientId),
+    data: Parameters<typeof clinicalApi.recheckHypoglycemiaEvent>[1],
+  ) => clinicalApi.recheckHypoglycemiaEvent(id, data),
+  listHypoglycemiaEvents: (patientId: string) => clinicalApi.listHypoglycemiaEvents(patientId),
 };

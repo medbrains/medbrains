@@ -154,7 +154,7 @@ test("a patient is registered, has vitals taken, is seen, prescribed and tested,
   // "has the doctor seen him?". It sees the visit; it asks for nothing it may not see.
   await deskStaff.page.goto("/patients");
   await deskStaff.page
-    .getByRole("textbox", { name: "Search patients by UHID, name or phone" })
+    .getByRole("textbox", { name: "Search patients by name, phone, UHID or Aadhaar" })
     .fill(uhid ?? "");
   await deskStaff.page
     .getByRole("row")

@@ -11,15 +11,16 @@
 #   --identity      age identity (private key) file; may be passphrase-protected
 #   --target-url    a scratch Postgres to restore into, as a superuser
 #                   (row counts must not be filtered by RLS). Default: a
-#                   throwaway docker container (PG_IMAGE, postgres:17-alpine).
+#                   throwaway local cluster (initdb from PG_BIN, else
+#                   pg_config --bindir), socket-only in a 0700 directory.
 #   --secrets-from  same forms as --from, for the sealed /etc/medbrains
 #                   archive: decrypted and LISTED (key names only, never values)
 #   --counts-out    write "table<TAB>rows" for every public table to this file
-#   --keep          leave the scratch database (and container) for inspection
+#   --keep          leave the scratch database (and cluster) for inspection
 #
 # Needs: age, pg_restore/psql >= the server's major version (17), aws CLI for
-# s3:// sources (operator credentials: s3:GetObject + kms:Decrypt), docker
-# when --target-url is not given. Exits non-zero if any check fails.
+# s3:// sources (operator credentials: s3:GetObject + kms:Decrypt), initdb
+# and pg_ctl 17 when --target-url is not given. Exits non-zero if any check fails.
 #
 # The plaintext dump exists only in a 0700 temp directory for the length of
 # the run and is removed on exit — it is a full copy of patient records.
@@ -43,13 +44,20 @@ done
 [[ -r "$IDENTITY" ]] || { echo "cannot read identity $IDENTITY" >&2; exit 2; }
 
 WORK="$(mktemp -d)"; chmod 700 "$WORK"
-CONTAINER="" DB="medbrains_drill_$(date -u +%Y%m%d%H%M%S)"
+SCRATCH_PG="" DB="medbrains_drill_$(date -u +%Y%m%d%H%M%S)"
+PG_BIN="${PG_BIN:-$(pg_config --bindir 2>/dev/null || true)}"
 # shellcheck disable=SC2329 # the EXIT trap calls it
 cleanup() {
     rm -rf "$WORK"
-    [[ "$KEEP" == "1" ]] && { echo "kept: $DB${CONTAINER:+ in container $CONTAINER}"; return; }
-    [[ -n "$CONTAINER" ]] && docker rm -f "$CONTAINER" >/dev/null 2>&1
-    [[ -z "$CONTAINER" && -n "$TARGET_URL" ]] && psql -XAq "$TARGET_URL" -c "DROP DATABASE IF EXISTS $DB" >/dev/null 2>&1
+    if [[ "$KEEP" == "1" ]]; then
+        echo "kept: $DB${SCRATCH_PG:+ in $SCRATCH_PG — stop with: $PG_BIN/pg_ctl -D $SCRATCH_PG/data stop; rm -rf $SCRATCH_PG}"
+        return
+    fi
+    if [[ -n "$SCRATCH_PG" ]]; then
+        "$PG_BIN/pg_ctl" -D "$SCRATCH_PG/data" -m immediate stop >/dev/null 2>&1
+        rm -rf "$SCRATCH_PG"
+    fi
+    [[ -z "$SCRATCH_PG" && -n "$TARGET_URL" ]] && psql -XAq "$TARGET_URL" -c "DROP DATABASE IF EXISTS $DB" >/dev/null 2>&1
     return 0
 }
 trap cleanup EXIT
@@ -90,16 +98,15 @@ TOC_TABLES="$(pg_restore --list "$WORK/backup.dump" | grep -c 'TABLE DATA' || tr
 check "decrypts with the offline key and parses as a pg_dump archive" 1 "$TOC_TABLES tables with data"
 
 # ── 2. scratch server ─────────────────────────────────────────────────
+# No TCP listener and a 0700 socket directory: only this user can reach the
+# copy of the records, so trust auth inside it is safe.
 if [[ -z "$TARGET_URL" ]]; then
-    CONTAINER="medbrains-restore-drill-$$"
-    docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD=drill \
-        -p 127.0.0.1::5432 "${PG_IMAGE:-postgres:17-alpine}" >/dev/null
-    PORT="$(docker port "$CONTAINER" 5432/tcp | head -1 | sed 's/.*://')"
-    TARGET_URL="postgres://postgres:drill@127.0.0.1:${PORT}/postgres"
-    for _ in $(seq 1 60); do
-        psql -XAq "$TARGET_URL" -c 'SELECT 1' >/dev/null 2>&1 && break
-        sleep 1
-    done
+    [[ -x "$PG_BIN/initdb" ]] || { echo "no initdb: set PG_BIN to PostgreSQL 17's bin directory, or pass --target-url" >&2; exit 2; }
+    SCRATCH_PG="$(mktemp -d)"; chmod 700 "$SCRATCH_PG"
+    "$PG_BIN/initdb" -D "$SCRATCH_PG/data" -U postgres --auth=trust -E UTF8 --no-instructions >/dev/null
+    "$PG_BIN/pg_ctl" -D "$SCRATCH_PG/data" -l "$SCRATCH_PG/postgres.log" -w \
+        -o "-c listen_addresses= -k $SCRATCH_PG -p 5432" start >/dev/null
+    TARGET_URL="postgresql://postgres@/postgres?host=$SCRATCH_PG&port=5432"
 fi
 psql -XAq -v ON_ERROR_STOP=1 "$TARGET_URL" -c "CREATE DATABASE $DB" >/dev/null
 base="${TARGET_URL%%\?*}"
@@ -166,4 +173,7 @@ T_END="$(now)"
 echo
 echo "timings: fetch $((T_FETCH - T0))s · decrypt $((T_DECRYPT - T_FETCH))s · restore $((T_RESTORE - T_DECRYPT))s · total $((T_END - T0))s"
 [[ $fail -eq 0 ]] && echo "RESTORE DRILL PASSED — $NAME" || echo "RESTORE DRILL FAILED — $NAME"
+# The server cannot see this drill (it cannot read its own backups), so the
+# backup summary email shows whatever the operator records from this line.
+echo "record on the server, in /etc/medbrains/env: RESTORE_DRILL_LAST=\"$(date +%F) $([[ $fail -eq 0 ]] && echo passed || echo FAILED) ($NAME)\""
 exit "$fail"

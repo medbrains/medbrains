@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH tz AS (SELECT timezone AS tz FROM tenants WHERE id = $1),\n        opd AS (\n            SELECT e.patient_id, e.doctor_id, e.encounter_date FROM encounters e\n             WHERE e.tenant_id = $1 AND e.encounter_type = 'opd' AND e.deleted_at IS NULL\n               AND NOT e.is_dummy AND e.status::text <> 'cancelled'\n               AND e.encounter_date BETWEEN $2 AND $3\n        ), seen AS (\n            SELECT DISTINCT o.patient_id, o.encounter_date AS d,\n                   EXISTS (SELECT 1 FROM encounters l\n                            WHERE l.tenant_id = $1 AND l.patient_id = o.patient_id\n                              AND l.deleted_at IS NULL AND NOT l.is_dummy\n                              AND l.status::text <> 'cancelled'\n                              AND l.encounter_date < o.encounter_date) AS is_repeat\n              FROM opd o\n        ), regs AS (\n            SELECT timezone(tz.tz, p.created_at)::date AS d, count(*) AS n FROM patients p, tz\n             WHERE p.tenant_id = $1 AND p.deleted_at IS NULL AND NOT p.is_merged\n               AND p.created_at >= timezone(tz.tz, $2::date::timestamp)\n               AND p.created_at < timezone(tz.tz, ($3::date + 1)::timestamp)\n             GROUP BY 1\n        )\n        SELECT 0 AS \"ord!\", g.d::date AS day, NULL::uuid AS doctor_id, NULL::text AS doctor_name,\n               (SELECT count(*) FROM opd WHERE opd.encounter_date = g.d) AS \"visits!\",\n               coalesce((SELECT n FROM regs WHERE regs.d = g.d), 0) AS \"registrations!\",\n               (SELECT count(*) FROM seen WHERE seen.d = g.d AND NOT is_repeat) AS \"new!\",\n               (SELECT count(*) FROM seen WHERE seen.d = g.d AND is_repeat) AS \"repeat!\"\n          FROM generate_series($2::date, $3::date, interval '1 day') AS g(d)\n        UNION ALL\n        SELECT 1, NULL, o.doctor_id, u.full_name, count(*), 0, 0, 0\n          FROM opd o LEFT JOIN users u ON u.id = o.doctor_id\n         GROUP BY o.doctor_id, u.full_name\n        ORDER BY 1, 2, 5 DESC, 4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ord!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "day",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "doctor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "doctor_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "visits!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "registrations!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "new!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "repeat!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "3b3c91ef01a4e2dbf8be5187aa08298ed362ade9d9b801043c382f460457f95a"
+}

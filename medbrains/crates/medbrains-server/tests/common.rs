@@ -2,8 +2,13 @@
 
 //! Integration test harness — spawns Axum server on a random port.
 //!
-//! Requires PostgreSQL running (same as dev: `docker compose up -d postgres`).
-//! Uses a separate test database to avoid polluting dev data.
+//! Under `cargo test` every test shares the database `DATABASE_URL` names (the
+//! dev database by default), one test at a time (`RUST_TEST_THREADS=1`).
+//!
+//! Under cargo-nextest each test is a process, and each parallel slot of the
+//! run gets a database of its own on the test cluster (`make test-db`), with
+//! its own hospital in it: see [`slot_database`]. Tests in one slot follow one
+//! another on its database as they do under `cargo test`; slots never meet.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -189,7 +194,12 @@ pub async fn spawn_app() -> TestApp {
 
 /// `spawn_app`, with `secrets` answering the server's secret lookups first.
 pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
-    spawn(secrets, std::env::var("TEST_APP_DATABASE_URL").ok()).await
+    // The variable names the shared database; a slot has its own, so there it
+    // only says "as the request role".
+    let request_url = std::env::var("TEST_APP_DATABASE_URL")
+        .ok()
+        .map(|url| slot_database().map_or(url, |_| role_url("medbrains_app")));
+    spawn(secrets, request_url).await
 }
 
 /// A server whose request pool is `medbrains_app`, the role production
@@ -210,25 +220,75 @@ pub fn role_url(role: &str) -> String {
     format!("{}{sep}options=-c%20role%3D{role}", database_url())
 }
 
-/// The test database: `DATABASE_URL`, or the dev database.
+/// The most connections one pool opens on a slot's database. The suite's
+/// requests are one at a time; the few tests that fire a burst wait their turn.
+/// Worst case per slot: two pools (owner and request role) and the connection
+/// that holds the database, 2 x 10 + 1 = 21; four slots, 84 of PostgreSQL's
+/// default 100.
+const SLOT_POOL_MAX: u32 = 10;
+
+/// This process's slot database under cargo-nextest, as the owner; `None`
+/// under `cargo test`.
+///
+/// nextest gives every running test a slot number no other running test has
+/// (`NEXTEST_TEST_GLOBAL_SLOT`, from 0) and every run an id (`NEXTEST_RUN_ID`).
+/// The first test to land in a slot copies the migrated template; the tests
+/// that follow it there find that copy by name.
+fn slot_database() -> Option<&'static str> {
+    static SLOT: std::sync::OnceLock<Option<(String, medbrains_db_migrations::testing::TestDb)>> =
+        std::sync::OnceLock::new();
+    SLOT.get_or_init(|| {
+        let slot = std::env::var("NEXTEST_TEST_GLOBAL_SLOT").ok()?;
+        let slot: u32 = slot.parse().expect("NEXTEST_TEST_GLOBAL_SLOT is a number");
+        let run = std::env::var("NEXTEST_RUN_ID").unwrap_or_else(|_| "0".to_owned());
+        // On a thread with a runtime of its own: callers are sync, and most
+        // are already inside the test's runtime, which cannot block on this.
+        let db = std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("runtime")
+                .block_on(medbrains_db_migrations::testing::slot_db(&run, slot))
+        })
+        .join()
+        .expect("slot database thread")
+        .expect("slot database");
+        Some((db.owner_url(), db))
+    })
+    .as_ref()
+    .map(|(url, _)| url.as_str())
+}
+
+/// The test database: this slot's under cargo-nextest; else `DATABASE_URL`,
+/// or the dev database.
 pub fn database_url() -> String {
+    // First, and in a slot too: tests read other settings `.env` carries.
     let _ = dotenvy::dotenv();
+    if let Some(url) = slot_database() {
+        return url.to_owned();
+    }
     std::env::var("DATABASE_URL").unwrap_or_else(|_| {
         "postgres://medbrains:medbrains_dev@localhost:5435/medbrains".to_owned()
     })
 }
 
-/// A pool like production's, except that it waits for a connection.
+/// A pool like production's, except that it waits for a connection, and on a
+/// slot's database is capped at [`SLOT_POOL_MAX`].
 ///
 /// Production fails after 2 seconds so a saturated server sheds load, and no test
 /// asserts that. On a busy machine it turned a slow connection into a 500, which
 /// read as a failure of whatever the test was checking (1 run in 100 of the camp
 /// numbering test, on an unchanged `main`).
 async fn test_pool(url: &str) -> Result<sqlx::PgPool, medbrains_db::pool::DbError> {
-    let config = medbrains_db::pool::PoolConfig {
+    let mut config = medbrains_db::pool::PoolConfig {
         acquire_timeout: std::time::Duration::from_secs(30),
         ..medbrains_db::pool::PoolConfig::default()
     };
+    if slot_database().is_some() {
+        // Several slots share one small PostgreSQL: no idle spares, a low cap.
+        config.max_connections = SLOT_POOL_MAX;
+        config.min_connections = 1;
+    }
     medbrains_db::pool::create_pool_with_config(url, &config).await
 }
 

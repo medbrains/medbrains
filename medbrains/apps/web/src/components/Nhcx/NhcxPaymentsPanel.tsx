@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxPayment } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -21,7 +21,7 @@ export function NhcxPaymentsPanel() {
   const [posting, setPosting] = useState<NhcxPayment | null>(null);
   const payments = useQuery({
     queryKey: ["nhcx-payments", filter],
-    queryFn: () => api.listNhcxPayments(filter),
+    queryFn: () => insuranceApi.listNhcxPayments(filter),
     enabled: canSee,
   });
   if (!canSee) return null;

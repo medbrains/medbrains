@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE encounters SET encounter_number = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c8eeed2bb10c1bf4d38e24d749b9461906ed2f3f8f1277d025893381e645cf26"
+}

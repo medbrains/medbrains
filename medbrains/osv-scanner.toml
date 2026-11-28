@@ -1,0 +1,13 @@
+# Accepted advisories for the workspace lockfile (Cargo.lock) as osv-scanner reads it. cargo-deny
+# and cargo-audit read deny.toml instead; this file covers what only osv-scanner reports.
+# `ignoreUntil` makes each entry lapse on its own, so an expired accept is an open alert again.
+
+# glib 0.18.5: VariantStrIter is unsound (fixed in glib 0.20). It reaches only the desktop app's
+# Linux build, through Tauri's GTK3 stack (gtk 0.18 via tao, wry, muda, tray-icon, libappindicator).
+# Tauri 2.12.7, tao 0.37.3 and wry 0.57.3 (latest) all still require gtk ^0.18, so no fix exists
+# without leaving Tauri. The desktop app never iterates a Variant string array itself.
+# medbrains-shell is on glib 0.21 already. Re-decide when Tauri moves to gtk4 or at expiry.
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+ignoreUntil = 2026-12-19
+reason = "glib 0.18 via Tauri GTK3 (desktop Linux build only); no Tauri release on glib >= 0.20"

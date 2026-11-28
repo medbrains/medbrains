@@ -1,4 +1,5 @@
 use argon2::{Argon2, PasswordHasher};
+mod branding;
 mod grants;
 pub mod workbook;
 use axum::routing::{delete, get, post, put};
@@ -29,7 +30,7 @@ use medbrains_server_core::settings_guard::{
     refuse_admin_only_category, refuse_own_endpoint_category,
 };
 use medbrains_server_core::state::AppState;
-use medbrains_server_core::validation::{self, ValidationErrors};
+use medbrains_server_core::validation::{self, ValidationErrors, validate_password};
 
 // ── PUT /api/setup/tenant ───────────────────────────────────
 
@@ -1322,7 +1323,7 @@ pub async fn create_user(
     let mut errors = ValidationErrors::new();
     validation::validate_username(&mut errors, "username", &body.username);
     validation::validate_email(&mut errors, "email", &body.email);
-    validation::validate_password(&mut errors, "password", &body.password);
+    validate_password(&mut errors, "password", (&body.password, &body.username));
     validation::validate_name(&mut errors, "full_name", &body.full_name);
     if body.role.is_empty() {
         errors.add("role", "Role is required");
@@ -1667,7 +1668,7 @@ pub async fn reset_user_password(
     let (password, generated) = match body.new_password {
         Some(provided) => {
             let mut errors = ValidationErrors::new();
-            validation::validate_password(&mut errors, "new_password", &provided);
+            validate_password(&mut errors, "new_password", &provided);
             if errors.has_errors() {
                 return Err(AppError::ValidationFailed(errors));
             }
@@ -2211,8 +2212,10 @@ pub async fn update_role_widget_access(
 
 // ── Modules CRUD ────────────────────────────────────────────
 
-/// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
-/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it.
+/// `GET /api/setup/modules` — every app brick the server knows, set up or not.
+///
+/// `on` is what the module check answers (`brick_jobs::every_brick`), so a brick that answers
+/// its API with no row has a card and a switch; `background_jobs` says which of its jobs run.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2222,7 +2225,7 @@ pub async fn list_modules(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut rows = sqlx::query_as::<_, ModuleConfig>(
+    let rows = sqlx::query_as::<_, ModuleConfig>(
         "SELECT * FROM module_config WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2230,24 +2233,27 @@ pub async fn list_modules(
     .await?;
 
     tx.commit().await?;
-
-    for row in &mut rows {
-        if let Some(brick) = medbrains_core::bricks::find(&row.code) {
-            row.depends_on = brick.depends_on.iter().map(|d| (*d).to_owned()).collect();
-        }
-    }
-    Ok(Json(rows))
+    let every = medbrains_server_core::brick_jobs::every_brick(claims.tenant_id, rows);
+    Ok(Json(every))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateModuleRequest {
     pub status: String,
+    /// Also switch what stands in the way: every brick that is on and needs this one when
+    /// switching off (set up or not), the off bricks it needs when switching on. The screen sends
+    /// it after one confirm.
+    #[serde(default)]
+    pub together: bool,
 }
 
 /// `PUT /api/setup/modules/{code}` — switch one app brick on or off.
 ///
-/// Refuses (409, naming them) to switch a brick off while bricks that need it are on, or on
-/// while a brick it needs is off. Forgets the tenant's cached module statuses on success.
+/// Refuses (409, naming them and why each is on) to switch a brick off while bricks that are on
+/// need it, or on while a brick it needs is off; with `together` it switches those too, in the
+/// same transaction. Every brick switched gets a row, the brick itself included: a missing row
+/// counts as on, so only an explicit `disabled` switches it off. A code that is neither a brick
+/// nor a stored row is 404. Forgets the tenant's cached module statuses on success.
 pub async fn update_module(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2257,39 +2263,40 @@ pub async fn update_module(
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let by_code = entitlement::read_statuses(&state.db, claims.tenant_id).await?;
     let turning_on = body.status == "enabled";
-    let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
-    if !blockers.is_empty() {
-        let why = if turning_on {
-            "it needs"
-        } else {
-            "they need it"
-        };
-        return Err(AppError::Conflict(format!(
-            "{} cannot be switched {}: {why} — {}",
-            medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
-            if turning_on { "on" } else { "off" },
-            blockers.join(", ")
-        )));
-    }
+    let codes = entitlement::switch_plan(&code, turning_on, body.together, &by_code)
+        .map_err(AppError::Conflict)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row = sqlx::query_as::<_, ModuleConfig>(
-        "UPDATE module_config SET status = $1::module_status \
-         WHERE tenant_id = $2 AND code = $3 \
+    if medbrains_core::bricks::find(&code).is_none() && !by_code.contains_key(&code) {
+        return Err(AppError::NotFound);
+    }
+    // Upserted, the brick and those switched with it: one never set up has no row to update.
+    let names = entitlement::brick_names(&codes);
+    let rows = sqlx::query_as::<_, ModuleConfig>(
+        "INSERT INTO module_config (tenant_id, code, name, status) \
+         SELECT $2, sw.code, sw.name, $1::module_status \
+         FROM UNNEST($3::text[], $4::text[]) AS sw(code, name) \
+         ON CONFLICT (tenant_id, code) \
+         DO UPDATE SET status = EXCLUDED.status, \
+             deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(&body.status)
     .bind(claims.tenant_id)
-    .bind(&code)
-    .fetch_optional(&mut *tx)
+    .bind(&codes)
+    .bind(&names)
+    .fetch_all(&mut *tx)
     .await?;
+    let row = rows
+        .into_iter()
+        .find(|r| r.code == code)
+        .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     entitlement::invalidate_modules(claims.tenant_id);
-
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    Ok(Json(row))
 }
 
 // ── Sequences ───────────────────────────────────────────────
@@ -2370,80 +2377,6 @@ pub async fn update_sequence(
     tx.commit().await?;
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
-}
-
-// ── Branding ────────────────────────────────────────────────
-
-pub async fn get_branding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<TenantSettings>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let rows = sqlx::query_as::<_, TenantSettings>(
-        "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' \
-         ORDER BY key LIMIT 5000",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(rows))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateBrandingRequest {
-    pub key: String,
-    pub value: Value,
-}
-
-pub async fn update_branding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateBrandingRequest>,
-) -> Result<Json<TenantSettings>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut errors = ValidationErrors::new();
-    if (body.key == "primary_color" || body.key == "secondary_color")
-        && let Some(color_str) = body.value.as_str()
-    {
-        validation::validate_hex_color(&mut errors, &body.key, color_str);
-    }
-    if body.key == "logo_url"
-        && let Some(url_str) = body.value.as_str()
-    {
-        validation::validate_optional_url(&mut errors, "logo_url", url_str);
-    }
-    if errors.has_errors() {
-        return Err(AppError::ValidationFailed(errors));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, TenantSettings>(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, 'branding', $2, $3) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, \
-                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(&body.key)
-    .bind(&body.value)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(row))
 }
 
 // ── Sequence create/delete ───────────────────────────────────
@@ -4898,7 +4831,7 @@ pub async fn import_users(
         let (password, generated) = match row.password {
             Some(given) => {
                 let mut check = ValidationErrors::new();
-                validation::validate_password(&mut check, "password", given);
+                validate_password(&mut check, "password", (given, row.username));
                 if check.has_errors() {
                     errors.push(format!("Row {row_num}: password does not meet the rules"));
                     skipped += 1;
@@ -5301,15 +5234,15 @@ pub async fn bulk_create_users(
     let mut errors: Vec<String> = Vec::new();
 
     for (idx, user) in body.users.iter().enumerate() {
-        let mut user_errors = ValidationErrors::new();
-        validation::validate_username(&mut user_errors, "username", &user.username);
-        validation::validate_email(&mut user_errors, "email", &user.email);
-        validation::validate_password(&mut user_errors, "password", &user.password);
-        validation::validate_name(&mut user_errors, "full_name", &user.full_name);
+        let mut problems = ValidationErrors::new();
+        validation::validate_username(&mut problems, "username", &user.username);
+        validation::validate_email(&mut problems, "email", &user.email);
+        validate_password(&mut problems, "password", (&user.password, &user.username));
+        validation::validate_name(&mut problems, "full_name", &user.full_name);
         if user.role.is_empty() {
-            user_errors.add("role", "Role is required");
+            problems.add("role", "Role is required");
         }
-        if user_errors.has_errors() {
+        if problems.has_errors() {
             errors.push(format!("User {idx}: validation failed"));
             continue;
         }
@@ -6312,6 +6245,7 @@ pub async fn remove_access_group_member(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(workbook::router())
+        .merge(branding::router())
         .route(
             "/api/access-groups",
             get(list_access_groups).post(create_access_group),
@@ -6457,10 +6391,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/setup/payment-methods/{id}",
             put(update_payment_method).delete(delete_payment_method),
-        )
-        .route(
-            "/api/setup/branding",
-            get(get_branding).put(update_branding),
         )
         .route("/api/setup/module-masters", post(seed_module_masters))
         .route("/api/setup/locations/import", post(import_locations))

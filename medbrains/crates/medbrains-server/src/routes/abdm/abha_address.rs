@@ -25,11 +25,15 @@ pub(crate) fn full_address(typed: &str, environment: AbdmEnvironment) -> Option<
     if address.contains('@') {
         return Some(address);
     }
-    let domain = match environment {
+    Some(format!("{address}@{}", address_domain(environment)))
+}
+
+/// What follows the `@` of an ABHA address in `environment`.
+pub(crate) const fn address_domain(environment: AbdmEnvironment) -> &'static str {
+    match environment {
         AbdmEnvironment::Sandbox => "sbx",
         AbdmEnvironment::Production => "abdm",
-    };
-    Some(format!("{address}@{domain}"))
+    }
 }
 
 pub(crate) fn scope(method: VerifyMethod, via: OtpSystem) -> Vec<String> {

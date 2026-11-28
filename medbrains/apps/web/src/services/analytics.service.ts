@@ -1,14 +1,14 @@
-import { api } from "@medbrains/api";
+import { analyticsApi } from "@medbrains/api/modules/analytics";
 
 export const analyticsService = {
-  getDeptRevenue: api.getDeptRevenue,
-  getDoctorRevenue: api.getDoctorRevenue,
-  exportAnalytics: api.exportAnalytics,
-  getOpdFootfall: api.getOpdFootfall,
-  getBedOccupancy: api.getBedOccupancy,
-  getIpdCensus: api.getIpdCensus,
-  getLabTat: api.getLabTat,
-  getOtUtilization: api.getOtUtilization,
-  getErVolume: api.getErVolume,
-  getClinicalIndicators: api.getClinicalIndicators,
+  getDeptRevenue: analyticsApi.getDeptRevenue,
+  getDoctorRevenue: analyticsApi.getDoctorRevenue,
+  exportAnalytics: analyticsApi.exportAnalytics,
+  getOpdFootfall: analyticsApi.getOpdFootfall,
+  getBedOccupancy: analyticsApi.getBedOccupancy,
+  getIpdCensus: analyticsApi.getIpdCensus,
+  getLabTat: analyticsApi.getLabTat,
+  getOtUtilization: analyticsApi.getOtUtilization,
+  getErVolume: analyticsApi.getErVolume,
+  getClinicalIndicators: analyticsApi.getClinicalIndicators,
 };

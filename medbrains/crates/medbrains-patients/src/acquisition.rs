@@ -9,10 +9,9 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -115,10 +114,9 @@ pub async fn get_acquisition(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Option<Acquisition>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, Acquisition>(
         "SELECT pa.campaign_id, c.name AS campaign_name, c.channel, pa.captured_via, \
                 u.full_name AS captured_by_name, pa.captured_at \
@@ -149,10 +147,9 @@ pub async fn correct_acquisition(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CorrectAcquisition>,
 ) -> Result<Json<Option<Acquisition>>, AppError> {
-    require_permission(&claims, permissions::patients::acquisition::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::acquisition::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let before: Option<Uuid> = sqlx::query_scalar(
         "SELECT campaign_id FROM patient_acquisition \
           WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
@@ -173,9 +170,9 @@ pub async fn correct_acquisition(
     .await?;
     let old = serde_json::json!({ "campaign_id": before });
     let new = serde_json::json!({ "campaign_id": body.campaign_id });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         &mut tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action: "patient.acquisition.corrected",

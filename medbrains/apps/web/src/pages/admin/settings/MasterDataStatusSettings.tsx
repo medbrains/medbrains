@@ -77,6 +77,8 @@ import { reportsService } from "@/services/reports.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { specialtyService } from "@/services/specialty.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
+import { type GapRow, gapPriority, useInstalledGaps } from "./master-data-gaps";
+import { useMasterDataReadGates } from "./master-data-read-gates";
 
 interface MasterDataItem {
   key: string;
@@ -107,7 +109,7 @@ interface MasterDataCsvImport {
   permission: string;
 }
 
-interface MasterDataGapItem {
+interface MasterDataGapItem extends GapRow {
   key: string;
   label: string;
   module: string;
@@ -116,8 +118,6 @@ interface MasterDataGapItem {
   actionHref: string;
   actionLabel: string;
   icon: ReactNode;
-  priority?: "P0" | "P1" | "P2";
-  targetType?: "settings" | "module" | "governance";
 }
 
 type SettingsCleanupStatus = "keep" | "advanced" | "move" | "retired";
@@ -323,7 +323,7 @@ const SETTINGS_CLEANUP_DECISIONS: SettingsCleanupItem[] = [
   },
 ];
 
-const MASTER_DATA_GAPS: MasterDataGapItem[] = [
+export const MASTER_DATA_GAPS: MasterDataGapItem[] = [
   {
     key: "patient-categories",
     label: "Patient categories, identity and document types",
@@ -374,6 +374,7 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
     icon: <IconStethoscope size={24} />,
     priority: "P0",
     targetType: "governance",
+    brick: "opd",
   },
   {
     key: "holiday-calendar-demand-rules",
@@ -387,6 +388,7 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
     icon: <IconChecklist size={24} />,
     priority: "P1",
     targetType: "governance",
+    brick: "opd",
   },
   {
     key: "lab-specimens",
@@ -697,10 +699,6 @@ function masterCountText(item: MasterDataItem) {
   return String(item.count ?? 0);
 }
 
-function gapPriority(item: MasterDataGapItem) {
-  return item.priority ?? "P1";
-}
-
 function gapPriorityColor(priority: NonNullable<MasterDataGapItem["priority"]>) {
   if (priority === "P0") return "red";
   if (priority === "P1") return "orange";
@@ -753,11 +751,27 @@ export function MasterDataStatusSettings() {
   const [importItem, setImportItem] = useState<MasterDataItem | null>(null);
   // A selector, not the hook: the import permission is read per row inside a map.
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
+  const { gapItems, missingP0Count, missingSettingsTargetCount, p0GapItems } =
+    useInstalledGaps(MASTER_DATA_GAPS);
+  const {
+    canViewPharmacyCatalog,
+    canViewLabCatalog,
+    canViewLabReportTemplates,
+    canViewBillingCatalog,
+    canViewCorporateMasters,
+    canViewGlAccounts,
+    canViewStoreCatalog,
+    canViewConsentTemplates,
+    canViewDietTemplates,
+    canViewIpdTariffs,
+    canViewIpdWards,
+    canViewDischargeTemplates,
+    canViewOtRooms,
+    otRoomsActionHref,
+    otRoomsActionLabel,
+  } = useMasterDataReadGates();
   const canManageGeneralSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const canViewFacilities = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.LIST);
-  const canViewPharmacyCatalog = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
-  const canViewLabCatalog = useHasPermission(P.LAB.ORDERS_LIST);
-  const canListLabDispatch = useHasPermission(P.LAB.DISPATCH_LIST);
   const canViewProcedureCatalog = useHasPermission(P.OPD.PROCEDURES.LIST);
   const canViewOpdQueue = useHasPermission(P.OPD.QUEUE_VIEW);
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
@@ -775,65 +789,27 @@ export function MasterDataStatusSettings() {
   // getPrintTemplates is served under admin.settings.read, not under the
   // branding code that lets you edit them.
   const canViewPrintTemplates = useHasPermission(P.ADMIN.SETTINGS.READ);
-  const canViewBillingCatalog = useHasPermission(P.BILLING.INVOICES_LIST);
-  const canViewCorporateMasters = useHasPermission(P.BILLING.CORPORATE_LIST);
-  const canViewGlAccounts = useHasPermission(P.BILLING.JOURNAL_LIST);
   const canViewProcurementVendors = useHasPermission(P.PROCUREMENT.VENDORS_LIST);
   const canViewProcurementStores = useHasPermission(P.PROCUREMENT.STORES_LIST);
   const canManageProcurementStores = useHasPermission(P.PROCUREMENT.STORES_MANAGE);
   const canViewRateContracts = useHasPermission(P.PROCUREMENT.RC_LIST);
-  const canViewIndentCatalog = useHasPermission(P.INDENT.LIST);
   const canViewPharmacyStores = useHasPermission(P.PHARMACY.STORES_LIST);
   const canManagePharmacyStores = useHasPermission(P.PHARMACY.STORES_MANAGE);
   const canViewAssets = useHasPermission(P.ASSETS.LIST);
-  const canViewConsentTemplates = useHasPermission(P.CONSENT.TEMPLATES_LIST);
   const canViewDocumentTemplates = useHasPermission(P.DOCUMENTS.TEMPLATES_LIST);
-  const canViewDietTemplates = useHasPermission(P.DIET.TEMPLATES_LIST);
   const canViewOrderSetTemplates = useHasPermission(P.ORDER_SETS.TEMPLATES_LIST);
   const canViewClinicalMasters = useHasPermission(P.ADMIN.SETTINGS.CLINICAL_MASTERS.LIST);
-  const canViewLabReports = useHasPermission(P.LAB.REPORTS_VIEW);
   const canViewCommConfig = useHasPermission(P.COMMUNICATIONS.CONFIG_MANAGE);
   const canViewSpecialtyTemplates = useHasPermission(P.SPECIALTY.OTHER.TEMPLATES_LIST);
-  const canViewIpdAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
-  const canManageIpdWards = useHasPermission(P.IPD.WARDS_MANAGE);
-  const canViewIpdBedDashboard = useHasPermission(P.IPD.BED_DASHBOARD_VIEW);
-  const canCreateDischargeSummary = useHasPermission(P.IPD.DISCHARGE_SUMMARY_CREATE);
-  const canFinalizeDischargeSummary = useHasPermission(P.IPD.DISCHARGE_SUMMARY_FINALIZE);
-  const canViewIpdTariffList = useHasPermission(P.IPD.TARIFFS_LIST);
-  const canManageIpdTariffs = useHasPermission(P.IPD.TARIFFS_MANAGE);
-  const canViewIpdTariffs = canViewIpdTariffList || canManageIpdTariffs;
-  const canViewIpdWards = canViewIpdAdmissions || canManageIpdWards || canViewIpdBedDashboard;
-  const canListOtRooms = useHasPermission(P.OT.ROOMS_LIST);
-  const canManageOtRooms = useHasPermission(P.OT.ROOMS_MANAGE);
-  const canListOtBookings = useHasPermission(P.OT.BOOKINGS_LIST);
-  const canCreateOtBookings = useHasPermission(P.OT.BOOKINGS_CREATE);
-  const canUpdateOtBookings = useHasPermission(P.OT.BOOKINGS_UPDATE);
-  const canViewOtRooms =
-    canListOtRooms ||
-    canManageOtRooms ||
-    canListOtBookings ||
-    canCreateOtBookings ||
-    canUpdateOtBookings;
-  const otRoomsActionHref =
-    canListOtRooms || canManageOtRooms ? "/ot?tab=rooms" : "/ot?tab=bookings";
-  const otRoomsActionLabel = canListOtRooms || canManageOtRooms ? "Open rooms" : "Open bookings";
   const canViewMrdStorage = useHasPermission(P.MRD.RECORDS_LIST);
   const canViewClinicalRules = canManageGeneralSettings || canViewOpdQueue;
   const canViewConsultationTemplates = canViewOpdQueue || canCreateOpdVisit || canUpdateOpdVisit;
   const canViewPrescriptionTemplates = canViewConsultationTemplates;
-  // The endpoint asks for `lab.dispatch.list` — a report template is the layout a
-  // dispatched report is printed in, so that is the right owner. The flag listed
-  // neither, and a lab manager holding exactly that code saw an empty panel.
-  const canViewLabReportTemplates = canViewLabCatalog || canViewLabReports || canListLabDispatch;
-  const canViewDischargeTemplates =
-    canViewIpdAdmissions || canCreateDischargeSummary || canFinalizeDischargeSummary;
   const canViewStoreLocations =
     canViewProcurementStores ||
     canManageProcurementStores ||
     canViewPharmacyStores ||
     canManagePharmacyStores;
-  const canViewStoreCatalog =
-    canViewIndentCatalog || canViewPharmacyStores || canManagePharmacyStores;
 
   const queries = useQueries({
     queries: [
@@ -2024,11 +2000,7 @@ export function MasterDataStatusSettings() {
       ).length,
     [masterItems],
   );
-  const missingMasterCount = MASTER_DATA_GAPS.length;
-  const missingP0Count = MASTER_DATA_GAPS.filter((item) => gapPriority(item) === "P0").length;
-  const missingSettingsTargetCount = MASTER_DATA_GAPS.filter(
-    (item) => item.targetType === "settings" || item.targetType === "governance",
-  ).length;
+  const missingMasterCount = gapItems.length;
   const settingsOwnedAttentionItems = useMemo(
     () =>
       masterItems
@@ -2050,10 +2022,6 @@ export function MasterDataStatusSettings() {
         )
         .slice(0, 5),
     [masterItems],
-  );
-  const p0GapItems = useMemo(
-    () => MASTER_DATA_GAPS.filter((item) => gapPriority(item) === "P0").slice(0, 8),
-    [],
   );
   const visibleMasterItems = useMemo(
     () => masterItems.filter((item) => item.status !== "restricted"),
@@ -2086,7 +2054,7 @@ export function MasterDataStatusSettings() {
     if (filter !== "all" && filter !== "missing" && filter !== "module" && filter !== "settings") {
       return [];
     }
-    return MASTER_DATA_GAPS.filter((item) => {
+    return gapItems.filter((item) => {
       const matchesFilter =
         filter === "all" ||
         filter === "missing" ||
@@ -2100,7 +2068,7 @@ export function MasterDataStatusSettings() {
         .toLowerCase()
         .includes(searchText);
     });
-  }, [filter, search]);
+  }, [filter, gapItems, search]);
 
   if (isLoading) {
     return (

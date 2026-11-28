@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patient_abha_links SET token_request_id = $3, token_requested_at = now() WHERE tenant_id = $1 AND id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0b0c066c3c3a61342571fbc22ca5ad69b1e3d60a0870a673a4edacffb7865ec4"
+}

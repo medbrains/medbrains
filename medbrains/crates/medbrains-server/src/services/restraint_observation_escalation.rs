@@ -18,7 +18,8 @@ use crate::error::AppError;
 const PASS_INTERVAL_SECS: u64 = 60;
 const OBSERVATION_INTERVAL_MINS: i32 = 30;
 
-pub fn spawn(pool: PgPool) {
+/// Start the pass; the handle lets the brick-job supervisor stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match escalate_missed_checks(&pool).await {
@@ -30,7 +31,7 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }
 
 #[derive(sqlx::FromRow)]

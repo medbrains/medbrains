@@ -46,7 +46,14 @@ test("a supervisor sees billing go red, accepts opening a counter, and reads eve
   const t = tag();
   const admin = hospital.admin;
   await api(admin, "PUT", "/api/setup/modules/flow", { status: "enabled" });
+  // Only a campus stands alone; the floor hangs off one of its own.
+  const campus = await api<{ id: string }>(admin, "POST", "/api/setup/locations", {
+    level: "campus",
+    code: `CA${t}`,
+    name: `Campus ${t}`,
+  });
   const floor = await api<{ id: string }>(admin, "POST", "/api/setup/locations", {
+    parent_id: campus.id,
     level: "floor",
     code: `FL${t}`,
     name: `Ground floor ${t}`,

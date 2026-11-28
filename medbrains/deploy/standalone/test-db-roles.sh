@@ -8,13 +8,10 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
 OWNER="${TEST_OWNER_URL:-postgres://medbrains:medbrains_dev@localhost:5435/medbrains}"
 
 # shellcheck source=./db-roles.sh
 . "$HERE/db-roles.sh"
-# The dedicated-host container is not what we test against: force the URL path.
-DB_ROLES_CONTAINER=no-such-container
 
 command -v psql >/dev/null || { echo "SKIP: psql not installed"; exit 0; }
 db_login_psql "$OWNER" <<<'SELECT 1' >/dev/null 2>&1 \
@@ -102,18 +99,5 @@ check "env.example shape: requests still connect as medbrains_app" medbrains_app
 check "env.example shape: an app password is generated" 32 \
     "$(db_url_password "$(db_env_get DATABASE_URL "$ENV")" | tr -d '\n' | wc -c | tr -d ' ')"
 check "env.example shape: the generated password logs in" 1 "$(as_role DATABASE_URL 'SELECT 1')"
-
-# ── dedicated host: admin SQL and the login check run inside the container ─
-DEV_CONTAINER="${TEST_PG_CONTAINER:-medbrains-postgres-1}"
-if docker container inspect "$DEV_CONTAINER" >/dev/null 2>&1; then
-    DB_ROLES_CONTAINER="$DEV_CONTAINER"
-    printf 'DATABASE_URL=%s\n' "$OWNER" > "$ENV"
-    db_roles_configure "$ENV" >/dev/null
-    check "container path: medbrains_app logs in, sees 0 patients" 0 \
-        "$(as_role DATABASE_URL 'SELECT count(*) FROM patients')"
-    DB_ROLES_CONTAINER=no-such-container
-else
-    echo "skip container path ($DEV_CONTAINER not running)"
-fi
 
 exit "$fail"

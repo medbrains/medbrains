@@ -1,11 +1,12 @@
-import { api } from "@medbrains/api";
+import { abdmApi } from "@medbrains/api/modules/abdm";
 import type { LinkHfrRequest, RegisterHfrRequest, SetHprRequest } from "@medbrains/types";
 
 export const abdmRegistryService = {
-  listFacilityHfr: () => api.listFacilityHfr(),
-  linkFacilityHfr: (id: string, data: LinkHfrRequest) => api.linkFacilityHfr(id, data),
-  registerFacilityHfr: (id: string, data: RegisterHfrRequest) => api.registerFacilityHfr(id, data),
-  getHprCoverage: () => api.getHprCoverage(),
-  setDoctorHprId: (id: string, data: SetHprRequest) => api.setDoctorHprId(id, data),
-  verifyDoctorHprId: (id: string) => api.verifyDoctorHprId(id),
+  listFacilityHfr: () => abdmApi.listFacilityHfr(),
+  linkFacilityHfr: (id: string, data: LinkHfrRequest) => abdmApi.linkFacilityHfr(id, data),
+  registerFacilityHfr: (id: string, data: RegisterHfrRequest) =>
+    abdmApi.registerFacilityHfr(id, data),
+  getHprCoverage: () => abdmApi.getHprCoverage(),
+  setDoctorHprId: (id: string, data: SetHprRequest) => abdmApi.setDoctorHprId(id, data),
+  verifyDoctorHprId: (id: string) => abdmApi.verifyDoctorHprId(id),
 };

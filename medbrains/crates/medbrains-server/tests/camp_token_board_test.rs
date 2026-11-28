@@ -90,7 +90,7 @@ async fn a_camp_participant_routed_to_a_consultation_reaches_the_board() {
     let queued: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM opd_queues q \
            JOIN encounters e ON e.id = q.encounter_id \
-          WHERE e.patient_id = $1 AND q.queue_date = CURRENT_DATE",
+          WHERE e.patient_id = $1 AND q.queue_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = q.tenant_id), 'UTC'), now()))::date",
     )
     .bind(patient_id)
     .fetch_one(&app.db)
@@ -102,7 +102,7 @@ async fn a_camp_participant_routed_to_a_consultation_reaches_the_board() {
     let tokens: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM tokens \
           WHERE tenant_id = $1 AND patient_id = $2 AND module = 'opd' \
-            AND token_date = CURRENT_DATE",
+            AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date",
     )
     .bind(tenant_id)
     .bind(patient_id)

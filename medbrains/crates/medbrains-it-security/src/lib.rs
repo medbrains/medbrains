@@ -21,6 +21,7 @@
 //! The sensitive-patient list then becomes a way to learn which patients carry
 //! a restricted diagnosis, which is the thing it exists to hide.
 
+mod backups;
 mod break_glass_notify;
 pub mod vendor_access;
 
@@ -355,7 +356,9 @@ pub async fn end_break_glass(
 
     sqlx::query!(
         "UPDATE relation_tuples
-         SET status = 'revoked', revoked_at = now(), revoked_by = $3
+         SET status = 'revoked', revoked_at = now(), revoked_by = $3,
+             spicedb_sync_status = 'pending', spicedb_next_attempt_at = now(),
+             spicedb_last_error = NULL
          WHERE tenant_id = $1
            AND granted_reason = $2
            AND granted_by = $3
@@ -1852,15 +1855,7 @@ pub async fn list_backups(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, BackupHistory>(
-        "SELECT * FROM backup_history
-         WHERE (tenant_id IS NULL OR tenant_id = $1) AND deleted_at IS NULL
-         ORDER BY created_at DESC
-         LIMIT 100",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = backups::recent(&mut tx, claims.tenant_id).await?;
 
     tx.commit().await?;
     Ok(Json(rows))

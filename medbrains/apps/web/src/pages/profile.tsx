@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Group, Progress, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { hrApi } from "@medbrains/api/modules/hr";
 import type { Employee, UpdateMyProfileRequest } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
@@ -86,7 +86,7 @@ export function ProfilePage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["my-profile"],
-    queryFn: () => api.getMyProfile(),
+    queryFn: () => hrApi.getMyProfile(),
   });
   const employee = data?.employee ?? null;
   const completeness = data?.completeness;
@@ -97,7 +97,7 @@ export function ProfilePage() {
   });
 
   const save = useMutation({
-    mutationFn: (v: FormValues) => api.updateMyProfile(formToPayload(v)),
+    mutationFn: (v: FormValues) => hrApi.updateMyProfile(formToPayload(v)),
     onSuccess: () => {
       notifications.show({
         title: "Profile updated",

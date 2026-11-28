@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1256 permissions, one per constant in the Rust source. */
+/** 1260 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -27,6 +27,13 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "View Dashboard",
     description: "Access the main dashboard",
     module: "dashboard",
+  },
+  // branding
+  {
+    code: "branding.view",
+    label: "See the hospital's emblem and name",
+    description: "See the hospital's emblem, name banner and display name in the app header.",
+    module: "branding",
   },
   // notes
   {
@@ -105,8 +112,14 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   {
     code: "patients.card.reprint",
-    label: "Reprint any patient's card at the desk",
-    description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows. Never the address, the email or the chart.",
+    label: "Reprint any patient's cards at the desk",
+    description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card and the OPD card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows, and on a visit's OPD card its date, department, doctor and token. Never the address, the email or the chart.",
+    module: "patients",
+  },
+  {
+    code: "patients.opd_number.backdate",
+    label: "Give an OPD date before today",
+    description: "For entering old paper records: the day the OPD number was issued in the register, before today, never in the future. Only where the hospital allows backdating. Audited with the old and new date; the record's own entry time is never changed, and no visit, bill or token is created for the earlier date.",
     module: "patients",
   },
   {
@@ -234,6 +247,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "clinical_notes.export",
     label: "Export a visit's notes as FHIR",
     description: "The signed notes as FHIR R4 Compositions, for another hospital, ABDM or an integration; drafts are never exported.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.display_settings.read",
+    label: "Read the hospital's vitals and ROS lists",
+    description: "Which vitals the recorder offers and which systems the review of systems lists, as the hospital set them; nothing else from settings.",
     module: "clinical_notes",
   },
   // home_health
@@ -458,6 +477,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "opd.token.manage",
     label: "Manage Tokens",
     description: "Manage OPD token generation and calling",
+    module: "opd",
+  },
+  {
+    code: "opd.reports.view",
+    label: "View OPD reports",
+    description: "Counts of visits, registrations and new and repeat patients by day and by doctor, inside the OPD app. Counts only, no patient details.",
     module: "opd",
   },
   {
@@ -7572,6 +7597,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Tell the patient's app whether the hospital can send the ambulance, has the blood or will do the lab tests. Accepting an ambulance request also needs ambulance trip creation, a blood request blood inventory management, a lab request walk-in lab ordering (and sample management for a home collection).",
     module: "uhi",
   },
+  {
+    code: "uhi.requests.check_pin",
+    label: "Check a UHI booking's PIN at the desk",
+    description: "Confirm a UHI booking by the PIN the patient's app shows; the PIN is never shown or stored, and five wrong tries lock the check.",
+    module: "uhi",
+  },
   // knowledge
   {
     code: "knowledge.change_sets.list",
@@ -7668,6 +7699,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BEDSIDE.FEEDBACK.LIST,
       P.BEDSIDE.SESSIONS.LIST,
       P.BEDSIDE.VIEW,
+      P.BRANDING.VIEW,
       P.CAMP.QUEUE.MANAGE,
       P.CARE_VIEW.DISCHARGE_TRACKER,
       P.CARE_VIEW.SCORES.LIST,
@@ -7684,6 +7716,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CLINICAL.ORDER_BASKET_DRAFT,
       P.CLINICAL.ORDER_BASKET_SIGN,
       P.CLINICAL_NOTES.COSIGN,
+      P.CLINICAL_NOTES.DISPLAY_SETTINGS.READ,
       P.CLINICAL_NOTES.EXPORT,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
       P.CLINICAL_NOTES.PRINT,
@@ -8016,6 +8049,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BEDSIDE.VIDEOS.LIST,
       P.BEDSIDE.VIDEOS.MANAGE,
       P.BEDSIDE.VIEW,
+      P.BRANDING.VIEW,
       P.CAMP.QUEUE.MANAGE,
       P.CARE_VIEW.DISCHARGE_TRACKER,
       P.CARE_VIEW.HANDOVER,
@@ -8029,6 +8063,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CHRONIC.ENROLLMENTS.LIST,
       P.CHRONIC.OUTCOMES.VIEW,
       P.CHRONIC.TIMELINE.VIEW,
+      P.CLINICAL_NOTES.DISPLAY_SETTINGS.READ,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
       P.CLINICAL_NOTES.SIGN,
       P.CLINICAL_NOTES.VIEW,
@@ -8268,6 +8303,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.INVOICES.VIEW,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.RECEIPTS.PRINT,
+      P.BRANDING.VIEW,
       P.CAMP.LIST,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
@@ -8325,6 +8361,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.FIND,
       P.PATIENTS.GROUP_IDENTITY.VIEW,
       P.PATIENTS.LIST,
+      P.PATIENTS.OPD_NUMBER.BACKDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
       P.PATIENTS.PRIVACY_REQUESTS.LIST,
       P.PATIENTS.UPDATE,
@@ -8332,6 +8369,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.CATALOG.LOOKUP,
       P.SPECIALTY.HEALTH_PACKAGES.LIST,
       P.TERMINOLOGY.SEARCH,
+      P.UHI.REQUESTS.CHECK_PIN,
       P.UHI.REQUESTS.VIEW,
     ],
   },
@@ -8341,6 +8379,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.LAB,
       P.BILLING.COUNTER_DISPLAY.PUBLISH,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -8393,6 +8432,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.PHARMACY,
       P.BILLING.COUNTER_DISPLAY.PUBLISH,
+      P.BRANDING.VIEW,
       P.CAMP.QUEUE.MANAGE,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
@@ -8553,6 +8593,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.TDS.MANAGE,
       P.BILLING.TERMINALS.MANAGE,
       P.BILLING.WRITE_OFF.CREATE,
+      P.BRANDING.VIEW,
       P.CAMP.BILLING.CREATE,
       P.CAMP.BILLING.LIST,
       P.DASHBOARD.VIEW,
@@ -8613,6 +8654,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Housekeeping Staff",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.HOUSEKEEPING.CLEANING.CREATE,
       P.HOUSEKEEPING.CLEANING.LIST,
@@ -8651,6 +8693,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BME.EVALUATIONS.MANAGE,
       P.BME.PM.LIST,
       P.BME.PM.MANAGE,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.AUDIT.LIST,
       P.DOCUMENTS.GENERATE,
@@ -8767,6 +8810,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.INVOICES.LIST,
       P.BILLING.INVOICES.VIEW,
       P.BILLING.LEAKAGE.VIEW,
+      P.BRANDING.VIEW,
       P.CAMP.LIST,
       P.CONSENT.AUDIT.LIST,
       P.CONSENT.TEMPLATES.LIST,
@@ -8839,6 +8883,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.ANALYTICS.PAPERLESS.REFRESH,
       P.ANALYTICS.PAPERLESS.VIEW,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.FLOWS.BUILD,
@@ -8862,6 +8907,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.OUTREACH.APPROVE,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.MANAGE_TEAM,
+      P.OPD.REPORTS.VIEW,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
@@ -8906,6 +8952,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Occupational Health Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.OCC_HEALTH.DRUG_SCREENS.LIST,
@@ -8924,6 +8971,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Utilization Reviewer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.UR.COMMUNICATIONS.CREATE,
@@ -8939,6 +8987,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Case Manager",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.CASE_MGMT.ANALYTICS.VIEW,
       P.CASE_MGMT.ASSIGNMENTS.CREATE,
       P.CASE_MGMT.ASSIGNMENTS.LIST,
@@ -8955,6 +9004,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Scheduling Admin",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.OPD.SCHEDULE.LIST,
@@ -8980,6 +9030,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ADMIN.SETTINGS.READ,
       P.ANALYTICS.PAPERLESS.REFRESH,
       P.ANALYTICS.PAPERLESS.VIEW,
+      P.BRANDING.VIEW,
       P.CKB.REPORTS.EXPORT,
       P.CKB.REPORTS.LIST,
       P.CKB.REPORTS.MANAGE,
@@ -9031,6 +9082,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Canteen Staff",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.DIET.INVENTORY.LIST,
       P.DIET.KITCHEN.LIST,
@@ -9044,6 +9096,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Dietitian",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
       P.CLINICAL_NOTES.SIGN,
       P.CLINICAL_NOTES.VIEW,
@@ -9066,6 +9119,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Security Guard",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.VERIFY,
@@ -9103,6 +9157,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BME.EQUIPMENT.UPDATE,
       P.BME.PM.LIST,
       P.BME.PM.MANAGE,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.DEVICES.AGENTS.LIST,
       P.DEVICES.BINDING.ISSUE,
@@ -9143,6 +9198,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AMBULANCE.TRIPS.CREATE,
       P.AMBULANCE.TRIPS.LIST,
       P.AMBULANCE.TRIPS.UPDATE,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.UHI.REQUESTS.RESPOND,
@@ -9155,6 +9211,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.RADIOLOGY,
       P.BILLING.COUNTER_DISPLAY.PUBLISH,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.PATIENTS.FIND,
@@ -9179,6 +9236,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "CSSD Technician",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.CSSD.EQUIPMENT.LIST,
       P.CSSD.EQUIPMENT.MANAGE,
       P.CSSD.INSTRUMENTS.LIST,
@@ -9210,6 +9268,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BLOOD_BANK.TRANSFUSION.LIST,
       P.BLOOD_BANK.TTI.RECORD,
       P.BLOOD_BANK.TTI.VIEW,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.TERMINOLOGY.SNOMED.VIEW,
@@ -9220,6 +9279,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   marketing_executive: {
     label: "Marketing Executive",
     permissions: [
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.MARKETING.CAMPAIGNS.LOOKUP,
       P.MARKETING.CAMPAIGNS.MANAGE,
@@ -9250,6 +9310,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.COLLECT.OPD,
       P.BILLING.COLLECT.REGISTRATION,
       P.BILLING.COUNTER_DISPLAY.PUBLISH,
+      P.BRANDING.VIEW,
       P.COMMUNICATIONS.ALERTS.CREATE,
       P.COMMUNICATIONS.ALERTS.LIST,
       P.COMMUNICATIONS.ALERTS.MANAGE,
@@ -9298,6 +9359,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
       P.PATIENTS.PRIVACY_REQUESTS.LIST,
+      P.UHI.REQUESTS.CHECK_PIN,
       P.UHI.REQUESTS.VIEW,
     ],
   },
@@ -9305,6 +9367,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Infection Control Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.CKB.NOTIFIABLE_RULES.MANAGE,
       P.CKB.REPORTS.EXPORT,
       P.CKB.REPORTS.LIST,
@@ -9334,6 +9397,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Procurement Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
@@ -9358,6 +9422,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Store Keeper",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.INDENT.ANALYTICS_VIEW,
       P.INDENT.CONDEMNATION_LIST,
@@ -9392,6 +9457,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.HPR.MANAGE,
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.HR.ATTENDANCE.GEOFENCE.MANAGE,
       P.HR.ATTENDANCE.LIST,
@@ -9417,6 +9483,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Camp Coordinator",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.CAMP.BILLING.CREATE,
       P.CAMP.BILLING.LIST,
       P.CAMP.CREATE,
@@ -9451,6 +9518,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ANALYTICS.PAPERLESS.REFRESH,
       P.ANALYTICS.PAPERLESS.VIEW,
       P.BILLING.PAYMENT_SETTINGS.NOTIFIED,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.FLOWS.BUILD,
       P.FLOWS.PUBLISH,
@@ -9461,6 +9529,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.KNOWLEDGE.CHANGE_SETS.APPROVE,
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.NOTES.USE,
+      P.OPD.REPORTS.VIEW,
       P.QUALITY.INDICATORS.LIST,
       P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
       P.SECURITY.VENDOR_ACCESS.VIEW,
@@ -9470,6 +9539,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "IT Security Officer",
     permissions: [
       P.ADMIN.BACKUP_MANAGE,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.DEVICES.MACHINES.REMOVE,
       P.DEVICES.MACHINES.VIEW,
@@ -9489,6 +9559,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.BILLING.INVOICES.VIEW,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.FLOWS.VIEW,
       P.INSURANCE.APPEALS.CREATE,
@@ -9521,6 +9592,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   display_device: {
     label: "Wall Display",
     permissions: [
+      P.BRANDING.VIEW,
       P.DISPLAY.BOARD.READ,
     ],
   },
@@ -9528,6 +9600,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "OT Staff",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.OT.ANESTHESIA.CREATE,
@@ -9554,6 +9627,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Delivery runner",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.PHARMACY.DELIVERIES.COMPLETE,
@@ -9567,6 +9641,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.SETTINGS.MANAGE,
       P.ADMIN.BACKUP_MANAGE,
       P.ADMIN.SETTINGS.READ,
+      P.BRANDING.VIEW,
       P.DASHBOARD.VIEW,
     ],
   },

@@ -4,7 +4,7 @@ import { render, screen, userEvent } from "@/test/test-utils";
 import { VitalsRecorder } from "./VitalsRecorder";
 
 vi.mock("@/services/clinicalSupport.service", () => ({
-  clinicalSupportService: { getTenantSettings: vi.fn().mockResolvedValue([]) },
+  clinicalSupportService: { listClinicalDisplaySettings: vi.fn().mockResolvedValue([]) },
 }));
 
 describe("the vitals recorder is usable without sight of the screen", () => {

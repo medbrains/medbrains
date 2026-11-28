@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT concat_ws(' ', first_name, last_name) AS \"patient_name!\", uhid, date_of_birth, EXTRACT(YEAR FROM age(date_of_birth))::float8 AS age, gender::text AS \"gender!\", blood_group::text AS blood_group, phone, email, NULLIF(concat_ws(', ', NULLIF(btrim(address->>'line1'), ''), NULLIF(btrim(address->>'city'), '')), '') AS address, emergency_contact_name, emergency_contact_phone, photo_url, created_at FROM patients WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "uhid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "date_of_birth",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "age",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "gender!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "blood_group",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "emergency_contact_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "emergency_contact_phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "photo_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      true,
+      null,
+      null,
+      null,
+      false,
+      true,
+      null,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "67204f7a76c43cae2515ca1db3ae296f4771ebfabafdb8b069119c8b8c5cc26f"
+}

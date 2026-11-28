@@ -17,7 +17,8 @@ This is phase E1 of RFC-HOSPITAL-OS §8g. SDKs: TypeScript [`@medbrains/sdk`](..
    manifest has events) the webhook signing secret **once**. Only Argon2/SHA-256 hashes are kept.
 3. **The hospital approves it** after reading its privacy label (permissions, data classes, where
    data goes). Until then the extension cannot sign in. Nobody can approve an app with
-   permissions they do not hold themselves.
+   permissions they do not hold themselves, and no one, an administrator included, can approve a
+   code that does not exist or changes access.
 4. **The extension signs in and calls the API** — §4.
 5. **The hospital can revoke it** at any time. Its live tokens are revoked in the same transaction
    and its event deliveries stop. A revoked app is registered again, never re-approved.
@@ -43,7 +44,7 @@ Examples: [`fixtures/valid/`](fixtures/valid).
 | `name`, `purpose` | yes | `purpose` is one sentence, what it does for the hospital |
 | `publisher` | yes | `{ name, url?, contact? }` |
 | `version` | yes | semantic version |
-| `permissions` | yes | MedBrains permission codes, 1–50. No wildcards, no bypass roles. The extension gets these and nothing else — no role |
+| `permissions` | yes | MedBrains permission codes, 1–50, each one that exists. No wildcards, no bypass roles, and nothing that changes access: `admin.*`, `security.*`, `vpn.*`, break-glass and device or machine credential issue are refused at register, at approval and at sign-in. The extension gets these and nothing else — no role |
 | `reads` | no | FHIR R4 resources it reads: `Patient`, `Encounter`, `Observation` |
 | `events` | no | event names it wants as webhooks |
 | `dataClasses` | yes | `routine`, `sensitive`, `identifying`, `restricted`, `confidential`, `sealed` |

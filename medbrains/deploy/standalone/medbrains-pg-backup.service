@@ -1,23 +1,23 @@
 [Unit]
 Description=MedBrains daily postgres dump → S3, or to disk on the attach tier
-After=docker.service medbrains-postgres.service
-# Wants, not Requires. This unit dumps a containerised Postgres on the starter
-# tier and the host's own on the attach tier — where docker is deliberately
-# never installed, because reusing the host's Postgres is the whole point of
-# attaching. A hard Requires makes systemd refuse to start the timer at all
-# there: "Failed to start medbrains-pg-backup.timer: Unit docker.service not
-# found", and a hospital runs without a nightly dump. Wants still orders it
-# after docker where docker exists.
-Wants=docker.service
+# Ordering only (after every local cluster), never Requires: on the attach tier the database is the
+# host's own, and a hard dependency on a unit that is not there makes systemd
+# refuse the timer — a hospital without a nightly dump.
+After=network-online.target postgresql.service
 # Silence from the nightly PHI dump reads as success and is discovered at restore
 # time. Publish the failure to the tier's alarm topic instead.
-OnFailure=medbrains-alert@%n.service
+OnFailure=medbrains-alert@%n.service medbrains-backup-report@failure.service
+# The hospital's own inbox hears too: the daily summary on success, the
+# failure at once (beside the SNS page, never instead). Both no-op when
+# BACKUP_REPORT_TO is unset. OnSuccess= needs systemd 249+ (Ubuntu 22.04+).
+OnSuccess=medbrains-backup-report@success.service
 
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
-# Optional: written only where docker compose runs the database.
-EnvironmentFile=-/etc/medbrains/.compose-env
+# PATH with the kit's PostgreSQL major first (native-postgres.sh), whatever
+# other client versions the host carries.
+EnvironmentFile=-/etc/medbrains/postgres.env
 ExecStart=/usr/local/bin/medbrains-pg-backup
 StandardOutput=journal
 StandardError=journal

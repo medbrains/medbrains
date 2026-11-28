@@ -84,7 +84,7 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
         "INSERT INTO nurse_shift_assignments \
            (tenant_id, nurse_user_id, ward_id, shift_date, shift_type, patient_ids, \
             primary_assigned, charge_nurse_user_id) \
-         VALUES ($1, $2, $3, CURRENT_DATE, 'day', ARRAY[]::uuid[], true, $2) \
+         VALUES ($1, $2, $3, (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = $1), 'UTC'), now()))::date, 'day', ARRAY[]::uuid[], true, $2) \
          ON CONFLICT (tenant_id, nurse_user_id, ward_id, shift_date, shift_type) \
            WHERE deleted_at IS NULL DO NOTHING",
     )
@@ -160,7 +160,7 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
     sqlx::query(
         "UPDATE nurse_shift_assignments SET deleted_at = now() \
           WHERE tenant_id = $1 AND nurse_user_id = $2 AND ward_id = $3 \
-            AND shift_date = CURRENT_DATE AND shift_type = 'day' AND deleted_at IS NULL",
+            AND shift_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = $1), 'UTC'), now()))::date AND shift_type = 'day' AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .bind(nurse_user_id)

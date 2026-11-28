@@ -4,6 +4,7 @@
 //! handler at a local mock server via `SmsSendHandler::with_api_base`
 //! so tests run in parallel without env-var races and the workspace's
 //! `unsafe_code = forbid` lint stays clean.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use async_trait::async_trait;
 use medbrains_core::secrets::{SecretError, SecretResolver};

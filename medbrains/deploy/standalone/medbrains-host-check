@@ -4,7 +4,7 @@
 # Two failure modes that AWS cannot see and that kill a single-host
 # deployment silently:
 #
-#   Disk. The host has one root volume carrying Postgres, docker images,
+#   Disk. The host has one root volume carrying Postgres,
 #   the journal AND all three object tiers (MEDBRAINS_OBJECTS_HOT/COLD/
 #   ARCHIVE all live under /var/lib/medbrains). AWS/EC2 publishes no disk
 #   metric and there is no CloudWatch agent here. A full disk puts
@@ -151,11 +151,14 @@ fi
 # a full disk, and the RPO silently becomes "since it broke". Failing NOW is
 # a failure newer than the last success. Not "no archive in N minutes": an
 # idle hospital at 3 a.m. writes no WAL, and that is not an outage.
+# archive_command only reaches the spool; medbrains-wal-push takes it off the
+# host, so a spooled file older than 15 minutes is WAL that is not off-site.
 if [[ "${WAL_ARCHIVING:-0}" == "1" ]]; then
-    if ! row="$(runuser -u postgres -- psql -XAtc \
-        "SELECT coalesce(last_failed_time > coalesce(last_archived_time, 'epoch'), false),
+    archiver_sql="SELECT coalesce(last_failed_time > coalesce(last_archived_time, 'epoch'), false),
                 failed_count, coalesce(last_archived_wal, '-'), coalesce(last_archived_time::text, 'never')
-           FROM pg_stat_archiver" 2>/dev/null)"; then
+           FROM pg_stat_archiver"
+    row="$(runuser -u postgres -- psql -XAt -p "${WAL_PGPORT:-5432}" -c "$archiver_sql" 2>/dev/null)" || row=""
+    if [[ -z "$row" ]]; then
         echo "wal: could not query pg_stat_archiver — unknown, not treated as failed" >&2
     else
         IFS='|' read -r failing failed_count last_wal last_time <<<"$row"
@@ -165,6 +168,14 @@ if [[ "${WAL_ARCHIVING:-0}" == "1" ]]; then
         else
             echo "wal: archiving ok (last $last_wal at $last_time)"
         fi
+    fi
+    if ! spool="$(/usr/local/bin/medbrains-wal-g spool 2>/dev/null)" || [[ ! -d "$spool" ]]; then
+        echo "wal: spool not found — unknown, not treated as failed" >&2
+    elif stuck="$(find "$spool" -maxdepth 1 -type f ! -name '*.part' -mmin +15 | wc -l)" && [[ "$stuck" -gt 0 ]]; then
+        echo "WAL: $stuck spooled file(s) older than 15 min — not off-site (journalctl -u medbrains-wal-push)" >&2
+        failed=1
+    else
+        echo "wal: spool drained"
     fi
 fi
 

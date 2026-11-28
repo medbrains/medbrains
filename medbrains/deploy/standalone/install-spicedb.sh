@@ -138,7 +138,8 @@ if [ -f "$SCHEMA_FILE" ]; then
         else
             # zed is a separate download; the HTTP API takes the same schema.
             payload="$(python3 -c 'import json,sys; print(json.dumps({"schema": open(sys.argv[1]).read()}))' "$SCHEMA_FILE")"
-            code="$(curl -s -o /tmp/spicedb-schema-write.out -w '%{http_code}' \
+            out="$(mktemp)"
+            code="$(curl -s -o "$out" -w '%{http_code}' \
                 -X POST http://127.0.0.1:8443/v1/schema/write \
                 -H "Authorization: Bearer $SPICEDB_GRPC_PRESHARED_KEY" \
                 -H 'Content-Type: application/json' \
@@ -146,7 +147,7 @@ if [ -f "$SCHEMA_FILE" ]; then
             if [ "$code" = "200" ]; then
                 say "schema applied"
             else
-                say "WARNING: schema write returned $code — see /tmp/spicedb-schema-write.out"
+                say "WARNING: schema write returned $code — see $out"
             fi
         fi
     fi

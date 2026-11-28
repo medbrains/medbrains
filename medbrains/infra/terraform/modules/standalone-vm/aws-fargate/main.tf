@@ -35,6 +35,24 @@ variable "kms_key_arns" {
   default     = {}
 }
 
+variable "acm_certificate_arn" {
+  description = "ACM certificate for the ALB. With it, port 443 serves the app and port 80 only redirects to HTTPS."
+  type        = string
+  default     = ""
+}
+
+variable "allow_plain_http" {
+  description = "Serve the app over plain HTTP on port 80 when there is no certificate. Off by default: a plan without a certificate fails rather than putting patient data on the wire unencrypted."
+  type        = bool
+  default     = false
+}
+
+variable "public_ingress_cidrs" {
+  description = "CIDRs that may reach the public ALB on 80 and 443. Narrow it to the hospital's WAN when no one outside needs the app."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "container_port" {
   type    = number
   default = 3000
@@ -67,14 +85,14 @@ resource "aws_security_group" "alb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.public_ingress_cidrs
   }
   ingress {
     description = "HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.public_ingress_cidrs
   }
   # The ALB only ever opens connections to its targets.
   egress {
@@ -135,7 +153,6 @@ resource "aws_security_group" "db" {
 resource "aws_lb" "this" { # NOSONAR(S6258): request logging is the app's own access log in CloudWatch; ALB logs need a regional ELB-account bucket policy for a duplicate copy
   #checkov:skip=CKV_AWS_91: request logging is the app's own access log in CloudWatch; ALB logs would be a second copy behind a regional ELB-account bucket policy
   #checkov:skip=CKV2_AWS_28: WAF is a paid per-hospital add-on (web ACL + rules, ~$10/mo before traffic), not a default of the cheapest tier
-  #checkov:skip=CKV2_AWS_20: this scaffold tier has no ACM certificate yet, so there is no HTTPS listener to redirect to
   name                       = "${var.hostname}-alb"
   internal                   = false
   load_balancer_type         = "application"
@@ -166,16 +183,48 @@ resource "aws_lb_target_group" "this" {
   tags = local.tags
 }
 
-resource "aws_lb_listener" "http" {
-  #checkov:skip=CKV_AWS_2: this scaffold tier has no ACM certificate yet; the HTTPS listener lands with it
-  #checkov:skip=CKV_AWS_103: no HTTPS listener until the tier has an ACM certificate
+resource "aws_lb_listener" "https" {
+  count             = local.has_certificate ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
-  port              = 80
-  protocol          = "HTTP" # NOSONAR(S5332): scaffold tier has no ACM certificate yet; the HTTPS listener lands with it
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.this.arn
+  }
+}
+
+# Port 80 only redirects to HTTPS. It forwards to the app only when the
+# operator has set allow_plain_http for a tier with no certificate.
+resource "aws_lb_listener" "http" {
+  #checkov:skip=CKV_AWS_2: port 80 redirects to HTTPS; it forwards only under the explicit allow_plain_http opt-out
+  #checkov:skip=CKV_AWS_103: TLS policy applies to the HTTPS listener above
+  load_balancer_arn = aws_lb.this.arn
+  port              = 80
+  protocol          = "HTTP" # NOSONAR(S5332): redirect-only unless allow_plain_http is set
+
+  default_action {
+    type             = local.has_certificate ? "redirect" : "forward"
+    target_group_arn = local.has_certificate ? null : aws_lb_target_group.this.arn
+
+    dynamic "redirect" {
+      for_each = local.has_certificate ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = local.has_certificate || var.allow_plain_http
+      error_message = "Set acm_certificate_arn so the ALB serves HTTPS, or set allow_plain_http = true to keep the old plain-HTTP listener knowingly."
+    }
   }
 }
 
@@ -324,7 +373,7 @@ resource "aws_ecs_service" "this" {
     rollback = true
   }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
   tags       = local.tags
 }
 
@@ -630,6 +679,7 @@ locals {
   db_kms_key_arn      = lookup(var.kms_key_arns, "db", null)
   audit_kms_key_arn   = lookup(var.kms_key_arns, "audit", null)
   secrets_kms_key_arn = lookup(var.kms_key_arns, "secrets", null)
+  has_certificate     = var.acm_certificate_arn != ""
 
   tags = {
     Name      = var.hostname

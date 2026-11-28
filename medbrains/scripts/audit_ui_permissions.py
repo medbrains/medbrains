@@ -215,7 +215,7 @@ def extract_tab_labels(text: str) -> list[str]:
 
 
 def extract_refs(text: str) -> tuple[list[str], list[str]]:
-    api_refs = re.findall(r"\bapi\.([A-Za-z][A-Za-z0-9_]*)\b", text)
+    api_refs = re.findall(r"\b(?:api|[a-z]\w*Api)\.([A-Za-z][A-Za-z0-9_]*)\b", text)
     service_refs = re.findall(r"\b([A-Za-z][A-Za-z0-9]*Service)\.([A-Za-z][A-Za-z0-9_]*)\b", text)
     return unique(api_refs), unique([f"{service}.{method}" for service, method in service_refs])
 

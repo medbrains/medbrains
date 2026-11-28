@@ -48,9 +48,7 @@ pub struct BatchTrace {
 #[derive(Debug)]
 pub struct AutoChargeResult {
     pub invoice_id: Uuid,
-    #[allow(dead_code)]
     pub item_id: Uuid,
-    #[allow(dead_code)]
     pub was_new_invoice: bool,
     pub skipped_duplicate: bool,
 }
@@ -144,16 +142,16 @@ pub async fn verified_admission_id_for_invoice_in_tx(
     admission_id_for_encounter_in_tx(tx, tenant_id, encounter_id).await
 }
 
-/// Check if auto-billing is enabled for a specific module.
+/// Whether auto-billing is on for `module`: never while the Billing brick is off.
 ///
-/// A read error is returned, never read as "off". Callers posting a charge go
-/// through `charge_or_queue`, which reads this in a savepoint and queues the
-/// charge when the answer is unknown.
+/// A read error is returned, never read as "off". Callers posting a charge go through
+/// `charge_or_queue`, which reads this in a savepoint and queues the charge when unknown.
 pub async fn is_auto_billing_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     module: &str,
 ) -> Result<bool, AppError> {
+    let brick_on = crate::billing_lanes::billing_brick_on(tx, tenant_id).await?;
     let key = format!("auto_charge_{module}");
     let val = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
@@ -165,7 +163,7 @@ pub async fn is_auto_billing_enabled(
     .await?;
 
     match val {
-        Some(v) => Ok(v.as_bool().unwrap_or_else(|| v.as_str() == Some("true"))),
+        Some(v) => Ok(brick_on && v.as_bool().unwrap_or_else(|| v.as_str() == Some("true"))),
         // Default-on: auto-billing should be the standard behaviour
         // when a clinical action (lab order completed, Rx dispensed,
         // imaging reported) emits its event. Operators can disable
@@ -173,7 +171,7 @@ pub async fn is_auto_billing_enabled(
         // tenant_settings. This is opposite to the prior default
         // (false) which silently dropped charges and triggered the
         // "consumption report not affected after dispense" feedback.
-        None => Ok(true),
+        None => Ok(brick_on),
     }
 }
 
@@ -696,17 +694,22 @@ pub async fn reverse_invoice_item_by_id_in_tx(
         return Ok(Some(existing.id));
     }
 
-    let already_reversed = sqlx::query_scalar!(
-        "SELECT COALESCE(SUM(ABS(quantity)), 0)::BIGINT
-         FROM invoice_items
-         WHERE tenant_id = $1 AND reversal_of_id = $2",
+    // What earlier partial returns of this line already reversed, so the
+    // return that completes the quantity takes exactly what is left.
+    let prior = sqlx::query!(
+        r#"SELECT COALESCE(SUM(ABS(quantity)), 0)::BIGINT AS "quantity!",
+                  COALESCE(SUM(-total_price), 0) AS "total!",
+                  COALESCE(SUM(-cgst_amount), 0) AS "cgst!",
+                  COALESCE(SUM(-sgst_amount), 0) AS "sgst!",
+                  COALESCE(SUM(-igst_amount), 0) AS "igst!"
+           FROM invoice_items
+           WHERE tenant_id = $1 AND reversal_of_id = $2"#,
         tenant_id,
         original.id,
     )
     .fetch_one(&mut **tx)
-    .await?
-    .unwrap_or(0);
-    let already_reversed = i32::try_from(already_reversed).unwrap_or(i32::MAX);
+    .await?;
+    let already_reversed = i32::try_from(prior.quantity).unwrap_or(i32::MAX);
     let remaining_quantity = original.quantity.saturating_sub(already_reversed);
     let requested_quantity = reversal_quantity.unwrap_or(remaining_quantity);
     let quantity_to_reverse = requested_quantity.min(remaining_quantity).max(0);
@@ -715,14 +718,15 @@ pub async fn reverse_invoice_item_by_id_in_tx(
         return Ok(None);
     }
 
-    let original_quantity = Decimal::from(original.quantity);
-    let reversal_quantity_decimal = Decimal::from(quantity_to_reverse);
-    let gross_multiplier = Decimal::ONE + original.tax_percent / Decimal::from(100);
-    let reversal_total = original.unit_price * reversal_quantity_decimal * gross_multiplier;
-    let reversal_ratio = reversal_quantity_decimal / original_quantity;
-    let reversal_cgst = original.cgst_amount.unwrap_or(Decimal::ZERO) * reversal_ratio;
-    let reversal_sgst = original.sgst_amount.unwrap_or(Decimal::ZERO) * reversal_ratio;
-    let reversal_igst = original.igst_amount.unwrap_or(Decimal::ZERO) * reversal_ratio;
+    let share = crate::reversal_share::ReversalShare {
+        quantity: quantity_to_reverse,
+        of: original.quantity,
+        completes: quantity_to_reverse == remaining_quantity,
+    };
+    let reversal_total = share.of_amount(original.total_price, prior.total);
+    let reversal_cgst = share.of_amount(original.cgst_amount.unwrap_or_default(), prior.cgst);
+    let reversal_sgst = share.of_amount(original.sgst_amount.unwrap_or_default(), prior.sgst);
+    let reversal_igst = share.of_amount(original.igst_amount.unwrap_or_default(), prior.igst);
     let negative_quantity = -quantity_to_reverse;
     let negative_total = -reversal_total;
     let negative_cgst = -reversal_cgst;

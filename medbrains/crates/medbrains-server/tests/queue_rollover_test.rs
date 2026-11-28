@@ -20,7 +20,7 @@ async fn token(
     sqlx::query_scalar(
         "INSERT INTO tokens \
          (tenant_id, module, scope, number, seq, status, priority, patient_id, token_date) \
-         VALUES ($1, $2, 'global', $3, 1, $4, 'normal', $5, CURRENT_DATE - $6) \
+         VALUES ($1, $2, 'global', $3, 1, $4, 'normal', $5, (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = $1), 'UTC'), now()))::date - $6) \
          RETURNING id",
     )
     .bind(tenant_id)

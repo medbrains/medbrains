@@ -1,7 +1,7 @@
 # MedBrains standalone deploy kit
 
-Single-server deploy: postgres-17 in docker, medbrains-server as a
-systemd unit, MedBrains Pingora edge proxy with Certbot-issued TLS,
+Single-server deploy: native PostgreSQL 17 (PGDG apt, systemd), medbrains-server as a
+systemd unit, no Docker, MedBrains Pingora edge proxy with Certbot-issued TLS,
 daily storage-tier sweeper.
 
 This is the **pilot path** — one box, three tier roots
@@ -43,7 +43,7 @@ secrets. Picks up where it left off if interrupted.
 
 ## What the installer does
 
-1. Installs system packages: Docker, `certbot`, `openssl`, and turns on
+1. Installs system packages: `certbot`, `openssl`, `age`, and turns on
    automatic OS security updates (`os-auto-updates.sh`: Debian/Ubuntu
    security archive only, nightly at 03:30 after the backups, no automatic
    reboot unless `OS_UPDATE_REBOOT=1`; logs in `/var/log/unattended-upgrades/`).
@@ -54,9 +54,14 @@ secrets. Picks up where it left off if interrupted.
    `/var/lib/medbrains/`.
 3. Writes `/etc/medbrains/env` (postgres password, Ed25519 JWT
    keypair both auto-generated; permissions `640 root:medbrains`).
-4. Brings up postgres-17 via docker compose, bound to localhost
-   only. If `MEDBRAINS_ICD_LOCAL_SERVICE=true`, also starts the
-   WHO ICD-API sidecar on `127.0.0.1:8382`.
+4. Installs PostgreSQL 17 from the PGDG apt repository (key fingerprint
+   checked) as `postgresql@17-main`: 127.0.0.1 and ::1 only, `scram-sha-256`
+   over loopback, `peer` for `postgres`, en_US.UTF-8, data checksums
+   (`native-postgres.sh`). A host still running the old kit's
+   `medbrains-postgres` container is refused until it is moved
+   (see "Moving an existing host off Docker"). If
+   `MEDBRAINS_ICD_LOCAL_SERVICE=true` and you installed docker yourself, also
+   starts the WHO ICD-API sidecar on `127.0.0.1:8382`.
 5. Installs `medbrains-server`, `medbrains-archive`, and `medbrains-proxy` binaries to
    `/usr/local/bin`.
 6. Copies SPA static files to `/var/www/medbrains`.
@@ -85,11 +90,15 @@ curl -I https://hims.example-hospital.org                        # 200 once ACME
 | Tail archive sweeper | `journalctl -u medbrains-archive -f` |
 | Run sweeper now | `sudo systemctl start medbrains-archive.service` |
 | Restart server | `sudo systemctl restart medbrains-server.service` |
-| Tail local ICD-API | `sudo docker logs -f medbrains-icd-api` |
+| Tail Postgres | `journalctl -u postgresql@17-main -f` (and `/var/log/postgresql/postgresql-17-main.log`) |
+| psql as superuser | `sudo -u postgres psql -d medbrains` |
+| Tail local ICD-API (opt-in, docker) | `sudo docker logs -f medbrains-icd-api` |
 | Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
 | Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
+| Did a service hit its memory limit? | `systemctl show medbrains-server -p MemoryMax -p MemoryCurrent -p MemoryPeak -p NRestarts`; a limit kill shows as `oom-kill` in `journalctl -u medbrains-server`. The server, proxy and edge are limited to a share of RAM (server 40%, proxy 25%, edge 8%; a hard limit only, so a leaking service is restarted, not slowed) so one of them cannot starve PostgreSQL, which has no hard limit. Only the service that hit its limit restarts. A host gets these limits the next time `install.sh` runs |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
+| Prove an update first (staging, before any hospital) | `scripts/staging_update_e2e.sh <from-tag> <to-tag>` on an arm64 Mac with Docker: installs FROM with this kit on a throwaway box, records a day's work, updates with a tab open, rolls back and forward; prints PASS/FAIL per step. The last row leaves the box alone for five minutes (`STAGING_IDLE_SECONDS`) and fails if server memory, PostgreSQL memory, open connections or the total are over `scripts/staging_idle_memory.budget`, or could not be read |
 
 ## Encrypted off-site backups
 
@@ -120,8 +129,8 @@ Settings → System health** shows the age of the last good one and turns red
 after 26 h. `medbrains-host-check` (hourly) pages through `ALERT_TOPIC_ARN`
 on the same threshold, and a failed run pages via `OnFailure=`.
 
-RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
-`docs/ops/BACKUP-RESTORE.md`.
+RPO 24 h (≤ 6 min with point-in-time recovery, `PITR_ENABLED=1`); RTO ≈ 2 h for a lost host — see
+`docs/ops/BACKUP-RESTORE.md` ("Backup quality matrix").
 
 ### Steps to switch it on (in order)
 
@@ -159,7 +168,8 @@ RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
    alert e-mail subscription, then run the normal deploy. `install.sh`
    installs `age`, the key, both values, and takes the first sealed backup
    before restarting the server.
-5. **Prove it** from your machine (needs `age`, Postgres 17 client, docker,
+5. **Prove it** from your machine (needs `age`, PostgreSQL 17 client and
+   server binaries — `initdb`/`pg_ctl` in `PG_BIN` or on `pg_config --bindir` —
    and AWS credentials that can read the bucket and decrypt with its KMS key):
    ```sh
    make restore-drill FROM=s3://<bucket>/pg-backups/<host>/ IDENTITY=medbrains-backup.key.age
@@ -254,7 +264,9 @@ Certbot once the domain is proven and add its route to the proxy config.
 | `medbrains-server.service` | systemd unit for the API + SPA server |
 | `medbrains-archive.service` | systemd one-shot for the storage sweeper |
 | `medbrains-archive.timer` | daily 02:00 timer |
-| `docker-compose.prod.yml` | postgres-17 plus optional profile-gated sidecars |
+| `native-postgres.sh` | sourced: PGDG repo, the cluster, its hba and loopback config |
+| `migrate-docker-postgres-to-native.sh` | one-time move of an old-kit host off the Postgres container |
+| `docker-compose.prod.yml` | opt-in container extras only (ICD-API, Rustrak); never started by default |
 | `env.example` | starter `/etc/medbrains/env` |
 | `medbrains-pg-backup` (+ `.service`, `.timer`) | sealed nightly + pre-deploy backup → S3 or `BACKUP_DIR` |
 | `medbrains-restore-drill` | operator-side: latest backup → scratch DB → integrity report |
@@ -280,15 +292,19 @@ The standalone Pingora proxy exposes the ICD service under the same
 hospital domain at `/icd/*`; the backend uses the same base URL as the
 UI domain and appends the official ICD API path. Do not use wildcard
 CORS. WHO also documents a native Linux systemd install for ICD-API,
-but this kit keeps the default on Docker Compose because Docker is
-already required for Postgres and makes sidecar lifecycle/rollback
-simpler.
+and moving the sidecar to it is the follow-up; until then it is the one
+reason to install docker, and only if you want offline ICD search.
 
 ## Optional error tracking (Rustrak)
 
 The server and the browser report crashes with the Sentry SDKs to a
-self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host —
-never to sentry.io. Every report is scrubbed of patient data before it
+self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host,
+the default for every hospital install. A `SENTRY_DSN` that points off
+this host, such as sentry.io, turns error tracking off unless
+`SENTRY_ALLOW_EXTERNAL=1` is also set; the preflight warns either way.
+That opt-in is for the project's own servers only: use an EU-region
+Sentry project, sign Sentry's data processing agreement, and never turn
+on `send_default_pii`. Every report is scrubbed of patient data before it
 leaves the HMS process (`crates/medbrains-error-tracking`); the browser's
 reports go through the server's tunnel to get the same scrubbing.
 It is off until `SENTRY_DSN` is set: without it the server and the
@@ -312,8 +328,25 @@ Source maps: build with `SENTRY_URL=https://errors.<domain>` and
 `SENTRY_AUTH_TOKEN=<RUSTRAK_API_TOKEN>` in the environment and the web
 build uploads them for its release; they are never served.
 
+## Moving an existing host off Docker
+
+A host installed before 2026-11-20 runs Postgres in the `medbrains-postgres`
+container, and `install.sh` refuses to run there until it is moved:
+
+```sh
+sudo bash migrate-docker-postgres-to-native.sh --dry-run   # every check, no change
+sudo bash migrate-docker-postgres-to-native.sh             # the move (minutes of downtime)
+```
+
+It copies by dump and restore (never the data directory), verifies the copy
+table by table, keeps the container stopped with its volume untouched for
+rollback, and prints the rollback commands. Runbook, downtime and the
+rehearsal record: `docs/ops/BACKUP-RESTORE.md`, "Moving a host off Docker".
+
 ## What this kit does NOT install
 
+- Docker. Postgres is native; ICD-API and Rustrak, the two extras that exist
+  only as images, are opt-in and need docker installed by the operator.
 - YottaDB (Phase 2 hierarchical store — defer until needed).
 - SpiceDB (the Rust authz fallback covers the pilot).
 - ABDM signing keys (real NHCX integration is a separate phase).

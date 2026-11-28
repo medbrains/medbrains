@@ -65,16 +65,13 @@ test("the desk registers a patient, prints the card, and the next shift finds an
   const patientId = new URL(morning.page.url()).pathname.split("/").pop() ?? "";
   await expect(morning.page.getByText(uhid).first()).toBeVisible();
   await expectScreenAccessible(morning.page, "patient-record");
+  // One Print menu: the ID card (thermal by default) and the A4 slip beside it.
+  await morning.page.getByRole("button", { name: "Print", exact: true }).click();
+  await expect(morning.page.getByRole("menuitem", { name: "Registration slip (A4)" })).toBeVisible();
   const printed = await printCard(morning.page, () =>
-    morning.page.getByRole("button", { name: "Print patient card", exact: true }).click(),
+    morning.page.getByRole("menuitem", { name: "ID card", exact: true }).click(),
   );
   await expectCard(printed, uhid, fullName);
-  // The A4 slip is the other print, named for what it is.
-  await morning.page.getByRole("button", { name: "Actions", exact: true }).click();
-  await expect(
-    morning.page.getByRole("menuitem", { name: "Print registration slip (A4)" }),
-  ).toBeVisible();
-  await morning.page.keyboard.press("Escape");
 
   // Evening shift: a receptionist who has never seen this patient. The
   // directory lists only their own patients; the hospital register below it
@@ -85,7 +82,7 @@ test("the desk registers a patient, prints the card, and the next shift finds an
   await page.goto("/patients");
   const register = page.getByRole("region", { name: "In the hospital register" });
   for (const told of [person.phone, uhid]) {
-    await page.getByRole("textbox", { name: "Search patients by UHID, name or phone" }).fill(told);
+    await page.getByRole("textbox", { name: "Search patients by name, phone, UHID or Aadhaar" }).fill(told);
     await expect(register.getByRole("row").filter({ hasText: uhid }), `found by ${told}`).toHaveCount(
       1,
       { timeout: 15_000 },
@@ -111,7 +108,7 @@ test("the desk registers a patient, prints the card, and the next shift finds an
     (r) => r.url().includes("/api/patients?") && r.url().includes(`search=${uhid}`),
   );
   await nurse.page
-    .getByRole("textbox", { name: "Search patients by UHID, name or phone" })
+    .getByRole("textbox", { name: "Search patients by name, phone, UHID or Aadhaar" })
     .fill(uhid);
   await scoped;
   await expect(nurse.page.getByRole("region", { name: "In the hospital register" })).toHaveCount(

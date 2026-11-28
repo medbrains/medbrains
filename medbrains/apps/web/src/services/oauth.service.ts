@@ -1,10 +1,10 @@
-import { api } from "@medbrains/api";
+import { oauthApi } from "@medbrains/api/modules/oauth";
 
 export const oauthService = {
-  listOAuthProviders: () => api.listOAuthProviders(),
+  listOAuthProviders: () => oauthApi.listOAuthProviders(),
   getOAuthAuthorizeUrl: (provider: string, redirectUri: string) =>
-    api.getOAuthAuthorizeUrl(provider, redirectUri),
-  exchangeOAuthCode: (provider: string, data: Parameters<typeof api.exchangeOAuthCode>[1]) =>
-    api.exchangeOAuthCode(provider, data),
-  disconnectOAuth: (provider: string) => api.disconnectOAuth(provider),
+    oauthApi.getOAuthAuthorizeUrl(provider, redirectUri),
+  exchangeOAuthCode: (provider: string, data: Parameters<typeof oauthApi.exchangeOAuthCode>[1]) =>
+    oauthApi.exchangeOAuthCode(provider, data),
+  disconnectOAuth: (provider: string) => oauthApi.disconnectOAuth(provider),
 };

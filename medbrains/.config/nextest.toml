@@ -2,9 +2,24 @@
 # failure reported (no fail-fast) and a JUnit file for the PR's per-test summary.
 [profile.ci]
 fail-fast = false
-# One test at a time, as `cargo test` runs them under .cargo/config.toml's
-# RUST_TEST_THREADS=1: the server's integration tests share one hospital in one database.
-test-threads = 1
+# Four slots, one per core of the runner (ubuntu-latest: 4 vCPU). A test is one process
+# plus the PostgreSQL backends it talks to, and one waits while the other works, so a slot
+# costs about a core. The server's integration tests get a database and a hospital per
+# slot (crates/medbrains-server/tests/common.rs), so four of them run at once; each slot
+# opens at most 21 connections, 84 of PostgreSQL's default 100. Raise this only with
+# max_connections (scripts/ci_postgres.sh).
+test-threads = 4
+
+# Everything else runs alone, as it always has: a test that needs every thread starts only
+# when no other test is running, and nothing starts beside it.
+[[profile.ci.overrides]]
+filter = 'not binary_id(medbrains-server::integration)'
+threads-required = "num-test-threads"
 
 [profile.ci.junit]
 path = "junit.xml"
+
+# Quarantine (#5978): CI's Rust tests block merges, so a test that flakes is fixed or
+# listed here by exact name with its issue, never skipped quietly. Empty today: the two
+# failures seen on 2026-11-14..16 were fixed (#5989, #5990). To quarantine, add under
+# [profile.ci]:  default-filter = "not test(=module::test_name)"  # #issue

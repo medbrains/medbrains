@@ -28,7 +28,7 @@ pub async fn send(csrf: &str, req: reqwest::RequestBuilder) -> (StatusCode, Valu
 
 pub async fn doctor(app: &common::TestApp, admin_csrf: &str) -> Doctor {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("psydoc_{tag}"), format!("PsyDoc#{tag}Aa9"));
+    let (username, password) = (format!("psydoc_{tag}"), format!("PsyDoc#Key{tag}Aa9"));
     let (status, body) = send(
         admin_csrf,
         app.client.post(app.url("/api/setup/users")).json(&json!({

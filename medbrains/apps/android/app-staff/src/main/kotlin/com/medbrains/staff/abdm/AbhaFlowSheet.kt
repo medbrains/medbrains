@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -29,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -38,6 +43,7 @@ import com.medbrains.kit.AbhaApi
 import com.medbrains.kit.AbhaCardQr
 import com.medbrains.kit.AbhaField
 import com.medbrains.kit.AbhaOtpVia
+import com.medbrains.kit.AbhaRules
 import com.medbrains.kit.AbhaStage
 import com.medbrains.kit.AbhaVerificationStep
 import com.medbrains.kit.AbhaVerifiedProfile
@@ -53,6 +59,7 @@ import com.medbrains.ui.CarbonPrimaryButton
 import com.medbrains.ui.CarbonSectionTitle
 import com.medbrains.ui.CarbonSegmented
 import com.medbrains.ui.CarbonTertiaryButton
+import com.medbrains.ui.CarbonTone
 import com.medbrains.ui.CarbonTextField
 import com.medbrains.ui.NotificationKind
 import kotlinx.coroutines.delay
@@ -123,9 +130,33 @@ private fun ResendControl(flow: AbhaFlowState, resend: () -> Unit) {
     Abha.resendNote(left)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }
 
+/** ABDM refused or could not be reached: ABDM's own words first (CRT_ABHA_105, 107), our hint beneath when the server added one. */
 @Composable
 private fun FailureNote(message: String?) {
-    message?.let { CarbonNotification(NotificationKind.Error, "ABDM said no", it, Modifier.testTag("abha-failure")) }
+    message?.let {
+        val (said, hint) = AbhaRules.splitAbdmMessage(it)
+        CarbonNotification(NotificationKind.Error, "ABDM said no", said, Modifier.testTag("abha-failure"))
+        hint?.let { h -> Text(h, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+/** The masked mobile the OTP went to (CRT_ABHA_105), when the server knows it. */
+@Composable
+private fun SentTo(step: AbhaVerificationStep) {
+    step.sent_to?.let { Text("OTP sent to $it", style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace, modifier = Modifier.testTag("abha-sent-to")) }
+}
+
+/** NHA's ABHA address rules beside the field (CRT_ABHA_112): green when met, red when not, with an icon and the words "met" / "not met" so colour is never the only signal. */
+@Composable
+private fun AddressRules(name: String, domain: String) {
+    Column(Modifier.testTag("abha-address-rules"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        AbhaRules.addressChecklist(name, domain).forEach { rule ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (rule.met) Icons.Filled.CheckCircle else Icons.Filled.Cancel, contentDescription = null, tint = if (rule.met) CarbonTone.Success.bar else CarbonTone.Danger.bar)
+                Text("${rule.label} — ${if (rule.met) "met" else "not met"}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
 }
 
 /** The OTP ABDM sent, as the person reads it out: digits only, six at most. */
@@ -193,6 +224,7 @@ private fun AbhaVerifyFlow(ours: OurDetails, confirmLabel: String, onConfirm: su
     when (step.stage) {
         AbhaStage.OTP_SENT -> {
             Text(step.message ?: "ABDM has sent the patient an OTP.", style = MaterialTheme.typography.bodyLarge)
+            SentTo(step)
             OtpField(flow)
             CarbonPrimaryButton("Verify", enabled = !flow.busy && flow.otp.length == Abha.OTP_LENGTH, modifier = Modifier.testTag("abha-verify-otp"), onClick = { scope.launch { flow.run { api.submitOtp(step.id, flow.otp) } } })
             // An Aadhaar login sends the number again: the server never keeps it.
@@ -230,12 +262,15 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
     var mobile by remember { mutableStateOf(Abha.mobile(formMobile).orEmpty()) }
     LaunchedEffect(flow.sent) { while (flow.wait > 0) { delay(SECOND_MS); flow.wait -= 1 } }
     var address by remember { mutableStateOf("") }
+    var tried by remember { mutableStateOf(false) }
     fun run(op: suspend () -> AbhaVerificationStep) = scope.launch {
         flow.run(op)
         // Not needed past the first OTP: dropped as soon as it is used.
         if (flow.step?.stage != AbhaStage.OTP_SENT) aadhaar = ""
     }
-    FailureNote(flow.failure)
+    // CRT_ABHA_112: ABDM found the address taken — a choice, not a failure.
+    val taken = flow.failure == AbhaRules.ADDRESS_TAKEN
+    FailureNote(flow.failure.takeUnless { taken })
     val step = flow.step
     if (step == null) {
         CarbonNotification(NotificationKind.Info, "Terms and Conditions — read these to the patient", Abha.ENROL_CONSENT)
@@ -244,19 +279,24 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
             Text("I agree — the patient consents to creating their ABHA with Aadhaar (ABDM consent v${Abha.ENROL_CONSENT_VERSION})", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
         }
         CarbonTextField(aadhaar, { aadhaar = Abha.aadhaarInput(it) }, "Aadhaar number — 12 digits, sent to ABDM encrypted, not saved here", Modifier.testTag("abha-aadhaar"),
+            error = if ((tried || aadhaar.length == Abha.AADHAAR_LENGTH) && !AbhaRules.isValidAadhaar(aadhaar)) AbhaRules.AADHAAR_INVALID else null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, autoCorrectEnabled = false), visualTransformation = PasswordVisualTransformation())
-        CarbonPrimaryButton("Send OTP to the Aadhaar mobile", enabled = consent && aadhaar.length == Abha.AADHAAR_LENGTH && !flow.busy, modifier = Modifier.testTag("abha-aadhaar-send"), onClick = {
+        CarbonPrimaryButton("Send OTP to the Aadhaar mobile", enabled = consent && !flow.busy, modifier = Modifier.testTag("abha-aadhaar-send"), onClick = {
+            // CRT_ABHA_104: an invalid number is refused here; no OTP is asked for.
+            tried = true
             val a = aadhaar; val c = consent
-            run { api.startEnrolment(a, c) }
+            if (AbhaRules.isValidAadhaar(a)) run { api.startEnrolment(a, c) }
         })
         return
     }
     when (step.stage) {
         AbhaStage.OTP_SENT -> {
             Text(step.message ?: "ABDM has sent an OTP to the Aadhaar mobile.", style = MaterialTheme.typography.bodyLarge)
+            SentTo(step)
             OtpField(flow)
-            CarbonTextField(mobile, { mobile = Abha.mobileInput(it) }, "Mobile for the ABHA — a different one gets its own OTP next", Modifier.testTag("abha-mobile"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
-            CarbonPrimaryButton("Create ABHA", enabled = !flow.busy && flow.otp.length == Abha.OTP_LENGTH && mobile.length == Abha.MOBILE_LENGTH, modifier = Modifier.testTag("abha-create"), onClick = {
+            CarbonTextField(mobile, { mobile = Abha.mobileInput(it) }, "Mobile for the ABHA — a different one gets its own OTP next", Modifier.testTag("abha-mobile"),
+                error = if (mobile.isNotEmpty() && !AbhaRules.isValidMobile(mobile)) AbhaRules.MOBILE_INVALID else null, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+            CarbonPrimaryButton("Create ABHA", enabled = !flow.busy && flow.otp.length == Abha.OTP_LENGTH && AbhaRules.isValidMobile(mobile), modifier = Modifier.testTag("abha-create"), onClick = {
                 val otp = flow.otp; val m = mobile
                 run { api.enrolmentOtp(step.id, otp, m) }
             })
@@ -267,6 +307,7 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
         }
         AbhaStage.MOBILE_OTP_SENT -> {
             Text(step.message ?: "ABDM has sent an OTP to the new mobile.", style = MaterialTheme.typography.bodyLarge)
+            SentTo(step)
             OtpField(flow)
             CarbonPrimaryButton("Verify mobile", enabled = !flow.busy && flow.otp.length == Abha.OTP_LENGTH, modifier = Modifier.testTag("abha-verify-mobile"), onClick = {
                 val otp = flow.otp
@@ -276,13 +317,22 @@ private fun AbhaCreateFlow(ours: OurDetails, formMobile: String, confirmLabel: S
         }
         AbhaStage.CHOOSE_ADDRESS -> {
             CarbonSectionTitle("Choose an ABHA address — the patient's easy-to-remember health ID")
-            step.suggestions.forEach { s -> CarbonChoiceRow(s, null, address == s, { address = s }) }
-            CarbonTextField(address, { address = it.trim() }, "Or type one — letters, numbers, dot or underscore; ABDM adds the @ part", Modifier.testTag("abha-address"),
-                error = if (address.isEmpty()) null else Abha.addressProblem(address), keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
-            CarbonPrimaryButton("Create ABHA address", enabled = !flow.busy && Abha.addressProblem(address) == null, modifier = Modifier.testTag("abha-address-create"), onClick = {
-                val a = address
-                run { api.chooseAddress(step.id, a) }
-            })
+            val domain = step.address_domain ?: "abdm"
+            step.suggestions.forEach { s -> CarbonChoiceRow(s, null, address == s, { address = s; flow.failure = null }) }
+            CarbonTextField(address, { address = it.trim(); flow.failure = null }, "Or type one — ABDM adds @$domain", Modifier.testTag("abha-address"),
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
+            val name = AbhaRules.addressName(address, domain)
+            AddressRules(name, domain)
+            if (taken) {
+                CarbonNotification(NotificationKind.Warning, AbhaRules.ADDRESS_TAKEN, "Keep the address the ABHA already has, or choose another.", Modifier.testTag("abha-address-taken"))
+                CarbonPrimaryButton("Proceed with the existing ABHA address", enabled = !flow.busy, modifier = Modifier.testTag("abha-address-keep"), onClick = { run { api.keepExistingAddress(step.id) } })
+                CarbonTertiaryButton("Create a new ABHA address", onClick = { address = ""; flow.failure = null }, modifier = Modifier.fillMaxWidth().testTag("abha-address-new"))
+            } else {
+                CarbonPrimaryButton("Create ABHA address", enabled = !flow.busy && AbhaRules.isValidAddress(name, domain), modifier = Modifier.testTag("abha-address-create"), onClick = {
+                    val a = address
+                    run { api.chooseAddress(step.id, a) }
+                })
+            }
         }
         else -> step.profile?.let { AbhaVerifiedSection(step, it, ours, confirmLabel, onConfirm) }
     }

@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-daily-report — the hospital's OPD day in one email,
+# sent by medbrains-daily-report.timer (21:00 hospital time by default) to
+# DAILY_REPORT_TO. Management asked for the day's numbers without logging in;
+# this gives them that from the deploy kit alone, so it runs on whatever
+# version a hospital is on, with no server change.
+#
+#   medbrains-daily-report              # build and send
+#   medbrains-daily-report --print      # print the email, send nothing
+#   (--dry-run is the same as --print)
+#
+# PRIVACY: counts only. Never a patient name, phone, UHID or any identifier.
+# This is enforced twice: the SQL selects only counts, and the role it
+# connects as (medbrains_report, db-roles.sh --report) is granted SELECT on
+# count columns only, so no identifier column is readable at all. Doctor and
+# department names are staff and org names, not patient data.
+#
+# Counts the way the app's management KPIs do (crates/medbrains-dashboard
+# management_kpis/catalog.rs): OPD encounters by encounter_date, not deleted,
+# not cancelled, not simulator rows (is_dummy); registrations by created_at in
+# the hospital's time zone (tenants.timezone), not deleted, not merged
+# duplicates. Decoy (honeytoken) patients are hidden by their RLS policy.
+#
+# On any query failure the email says "The daily report couldn't be
+# generated" with the error class, never a row of zeros (a zero reads as a
+# fact about the hospital), and this exits non-zero so OnFailure= pages.
+
+set -euo pipefail
+
+PRINT=0
+case "${1:-}" in
+    --print|--dry-run) PRINT=1 ;;
+    "") ;;
+    *) echo "usage: medbrains-daily-report [--print|--dry-run]" >&2; exit 2 ;;
+esac
+if [[ "$PRINT" == "0" ]]; then
+    : "${DAILY_REPORT_TO:?DAILY_REPORT_TO must be in /etc/medbrains/env}"
+fi
+: "${REPORT_DATABASE_URL:?REPORT_DATABASE_URL must be in /etc/medbrains/env — run: sudo bash db-roles.sh --report}"
+TO="${DAILY_REPORT_TO:-print-only}"
+SEND="${MEDBRAINS_SEND_MAIL:-/usr/local/bin/medbrains-send-mail}"
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+# psql as medbrains_report. The password goes in PGPASSWORD, never argv.
+report_psql() {
+    local pw no_pw
+    pw="$(sed -nE 's|^[a-z]+://[^:@/]*:([^@]*)@.*$|\1|p' <<<"$REPORT_DATABASE_URL")"
+    no_pw="$(sed -E 's|^([a-z]+://[^:@/]*):[^@]*@|\1@|' <<<"$REPORT_DATABASE_URL")"
+    PGPASSWORD="$pw" psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 "$no_pw" "$@"
+}
+
+# The class of a failure, for the email. The full message stays in the
+# journal: the email names what kind of thing broke, not its details.
+error_class() { # stderr-file
+    local e
+    e="$(cat "$1")"
+    case "$e" in
+        *"password authentication failed"*|*"no pg_hba.conf entry"*) echo "database login refused" ;;
+        *"could not connect"*|*"Connection refused"*|*"server closed"*) echo "database unreachable" ;;
+        *"permission denied"*) echo "permission denied (grants for medbrains_report)" ;;
+        *"does not exist"*) echo "schema mismatch (a table or column is missing)" ;;
+        *"statement timeout"*|*"canceling statement"*) echo "query timed out" ;;
+        *) echo "query failed" ;;
+    esac
+}
+
+# Sends (or prints) <subject> with <text> and optional <html>.
+deliver() { # subject text-file [html-file]
+    MAIL_PRINT="$PRINT" "$SEND" "$TO" "$@"
+}
+
+# The failure email: the class only, and never a number.
+send_failure() { # hospital date class
+    local f="$WORK/fail.txt"
+    {
+        echo "The daily report couldn't be generated."
+        echo
+        echo "Hospital: $1"
+        echo "Date:     $2"
+        echo "Reason:   $3"
+        echo
+        echo "No figures are shown, because a partial or empty report would read as a quiet day."
+        echo "On the server: journalctl -u medbrains-daily-report -n 50"
+    } > "$f"
+    deliver "[$1] OPD daily report $2: couldn't be generated" "$f" || true
+}
+
+# One row per figure: tag, label, today, yesterday, same weekday last week.
+# Everything is a count; no identifier column is selected (or grantable).
+REPORT_SQL=$(cat <<'SQL'
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '60s';
+SELECT set_config('app.tenant_id', :'tenant', true) \g /dev/null
+WITH d AS (
+    SELECT timezone AS tz, timezone(timezone, now())::date AS d0
+      FROM tenants WHERE id = :'tenant'::uuid
+), live AS (
+    -- Every real visit: not deleted, not cancelled, not a simulator row.
+    SELECT e.patient_id, e.encounter_date
+      FROM encounters e
+     WHERE e.deleted_at IS NULL AND NOT e.is_dummy AND e.status::text <> 'cancelled'
+), opd AS (
+    SELECT e.patient_id, e.department_id, e.doctor_id, e.created_at, e.encounter_date,
+           e.encounter_date = d.d0 AS t0, e.encounter_date = d.d0 - 1 AS t1,
+           e.encounter_date = d.d0 - 7 AS t7
+      FROM encounters e, d
+     WHERE e.encounter_type = 'opd' AND e.deleted_at IS NULL AND NOT e.is_dummy
+       AND e.status::text <> 'cancelled'
+       AND e.encounter_date IN (d.d0, d.d0 - 1, d.d0 - 7)
+), repeat AS (
+    -- A patient seen on that day who had any earlier real visit.
+    SELECT DISTINCT o.patient_id, o.t0, o.t1, o.t7
+      FROM opd o
+     WHERE EXISTS (SELECT 1 FROM live l
+                    WHERE l.patient_id = o.patient_id AND l.encounter_date < o.encounter_date)
+), rows AS (
+    SELECT 0 AS ord, 'date' AS tag, d.d0::text AS label, to_char(d.d0, 'Dy DD Mon YYYY') AS c0,
+           to_char(d.d0 - 7, 'Day') AS c1, d.tz AS c7, 0 AS n
+      FROM d
+    UNION ALL
+    SELECT 1, 'visits', 'OPD visits', count(*) FILTER (WHERE t0)::text,
+           count(*) FILTER (WHERE t1)::text, count(*) FILTER (WHERE t7)::text, 0 FROM opd
+    UNION ALL
+    SELECT 2, 'new', 'New registrations',
+           count(*) FILTER (WHERE timezone(d.tz, p.created_at)::date = d.d0)::text,
+           count(*) FILTER (WHERE timezone(d.tz, p.created_at)::date = d.d0 - 1)::text,
+           count(*) FILTER (WHERE timezone(d.tz, p.created_at)::date = d.d0 - 7)::text, 0
+      FROM patients p, d
+     WHERE p.deleted_at IS NULL AND NOT p.is_merged
+       AND p.created_at >= timezone(d.tz, (d.d0 - 7)::timestamp)
+    UNION ALL
+    SELECT 3, 'repeat', 'Repeat patients', count(*) FILTER (WHERE t0)::text,
+           count(*) FILTER (WHERE t1)::text, count(*) FILTER (WHERE t7)::text, 0 FROM repeat
+    UNION ALL
+    SELECT 4, 'hour', to_char(h, 'FM00') || ':00-' || to_char(h + 1, 'FM00') || ':00', n::text, '', '', 0
+      FROM (SELECT extract(hour FROM timezone(d.tz, o.created_at))::int AS h, count(*) AS n
+              FROM opd o, d WHERE o.t0 GROUP BY 1 ORDER BY n DESC, h LIMIT 1) b
+    UNION ALL
+    SELECT 5, 'dept', coalesce(dp.name, '(no department)'), count(*) FILTER (WHERE t0)::text,
+           count(*) FILTER (WHERE t1)::text, count(*) FILTER (WHERE t7)::text,
+           count(*) FILTER (WHERE t0)
+      FROM opd o LEFT JOIN departments dp ON dp.id = o.department_id
+     GROUP BY dp.id, dp.name
+    UNION ALL
+    SELECT 6, 'doctor', coalesce(u.full_name, '(no doctor)'), count(*) FILTER (WHERE t0)::text,
+           count(*) FILTER (WHERE t1)::text, count(*) FILTER (WHERE t7)::text,
+           count(*) FILTER (WHERE t0)
+      FROM opd o LEFT JOIN users u ON u.id = o.doctor_id
+     GROUP BY u.id, u.full_name
+)
+SELECT tag, label, c0, c1, c7 FROM rows ORDER BY ord, n DESC, label;
+COMMIT;
+SQL
+)
+
+# Renders the TSV from REPORT_SQL into the plain-text and HTML bodies.
+render() { # hospital tsv text-out html-out
+    awk -F'\t' -v hosp="$1" -v txt="$3" -v html="$4" '
+    function esc(s) { gsub(/&/, "\\&amp;", s); gsub(/</, "\\&lt;", s); gsub(/>/, "\\&gt;", s); return s }
+    function delta(a, b,   d) { d = a - b; return (d > 0 ? "+" d : d "") }
+    function trow(label, a, b, c) {
+        printf "  %-32s %7s %10s %6s %10s %6s\n", substr(label, 1, 32), a, b, "(" delta(a, b) ")", c, "(" delta(a, c) ")" > txt
+        H = H sprintf("<tr><td>%s</td><td align=\"right\"><b>%s</b></td><td align=\"right\">%s (%s)</td><td align=\"right\">%s (%s)</td></tr>\n", esc(label), a, b, delta(a, b), c, delta(a, c))
+    }
+    function header(title) {
+        printf "\n%s\n  %-32s %7s %17s %17s\n", title, "", "Today", "Yesterday", "Last " wk > txt
+        H = H sprintf("<h3>%s</h3><table cellpadding=\"4\" cellspacing=\"0\" border=\"1\" style=\"border-collapse:collapse\"><tr><th align=\"left\"></th><th>Today</th><th>Yesterday</th><th>Last %s</th></tr>\n", title, wk)
+    }
+    NF < 2 { next }
+    $1 == "date" { day = $3; wk = $4; gsub(/ +$/, "", wk); tz = $5; next }
+    { n++; section[n] = $1; lab[n] = $2; a[n] = $3; b[n] = $4; c[n] = $5 }
+    END {
+        printf "%s: OPD daily report for %s (%s)\n", hosp, day, tz > txt
+        H = sprintf("<html><body style=\"font-family:sans-serif\"><h2>%s: OPD daily report</h2><p>%s (%s)</p>\n", esc(hosp), day, tz)
+        last = ""; busiest = "no OPD visits today"
+        for (i = 1; i <= n; i++) {
+            s = section[i]
+            if (s == "hour") { busiest = lab[i] " (" a[i] (a[i] == 1 ? " visit)" : " visits)"); continue }
+            g = (s == "dept") ? "By department" : (s == "doctor") ? "By doctor" : "Today at a glance"
+            if (g != last) {
+                if (last != "") H = H "</table>\n"
+                if (g == "By department") {
+                    printf "  Busiest hour today: %s\n", busiest > txt
+                    H = H sprintf("<p>Busiest hour today: <b>%s</b></p>\n", busiest)
+                }
+                header(g); last = g
+            }
+            trow(lab[i], a[i], b[i], c[i])
+        }
+        if (last == "Today at a glance") {
+            printf "  Busiest hour today: %s\n", busiest > txt
+            H = H "</table>\n" sprintf("<p>Busiest hour today: <b>%s</b></p>\n", busiest)
+        } else if (last != "") H = H "</table>\n"
+        note = "Counts only. By design this email carries no patient names, phone numbers, UHIDs or other identifiers."
+        printf "\nRepeat patients = patients seen that day who had an earlier visit.\n%s\n", note > txt
+        H = H "<p style=\"color:#555\">Repeat patients = patients seen that day who had an earlier visit.<br>" note "</p></body></html>\n"
+        printf "%s", H > html
+    }' "$2"
+}
+
+rc=0
+if ! report_psql -c "SELECT id, name FROM tenants WHERE is_active AND deleted_at IS NULL ORDER BY name" \
+    > "$WORK/tenants.tsv" 2> "$WORK/err"; then
+    cat "$WORK/err" >&2
+    send_failure "MedBrains" "$(date +%F)" "$(error_class "$WORK/err")"
+    exit 1
+fi
+[[ -s "$WORK/tenants.tsv" ]] || { echo "ERROR: no active tenant in this database" >&2; send_failure "MedBrains" "$(date +%F)" "no active hospital in this database"; exit 1; }
+
+while IFS=$'\t' read -r tid name; do
+    if ! report_psql -v tenant="$tid" > "$WORK/r.tsv" 2> "$WORK/err" <<<"$REPORT_SQL" \
+        || ! grep -q $'^visits\t' "$WORK/r.tsv"; then
+        cat "$WORK/err" >&2
+        send_failure "$name" "$(date +%F)" "$(error_class "$WORK/err")"
+        rc=1
+        continue
+    fi
+    day="$(awk -F'\t' '$1 == "date" { print $2 }' "$WORK/r.tsv")"
+    render "$name" "$WORK/r.tsv" "$WORK/body.txt" "$WORK/body.html"
+    deliver "[$name] OPD daily report $day" "$WORK/body.txt" "$WORK/body.html" || rc=1
+done < "$WORK/tenants.tsv"
+exit "$rc"

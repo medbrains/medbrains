@@ -1,5 +1,4 @@
 import { Group, Stack } from "@mantine/core";
-import type { useDisclosure } from "@mantine/hooks";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -16,13 +15,18 @@ const ARRIVAL_MODES = [
 
 interface EmergencyVisitModalProps {
   patientId: string;
-  control: ReturnType<typeof useDisclosure>;
+  opened: boolean;
+  onClose: () => void;
 }
 
 /** Register an emergency (ER) visit for the patient — opened from the Patient
- *  Flow "Emergency" chip instead of navigating to the ER page. */
-export function EmergencyVisitModal({ patientId, control }: EmergencyVisitModalProps) {
-  const [opened, { close }] = control;
+ *  Flow "Emergency" chip instead of navigating to the ER page. Emergency's
+ *  `opd.encounter` panel: loaded only for those who may register ER visits. */
+export function EmergencyVisitModal({
+  patientId,
+  opened,
+  onClose: close,
+}: EmergencyVisitModalProps) {
   const navigate = useNavigate();
   const [arrivalMode, setArrivalMode] = useState<string | null>("walk_in");
   const [chiefComplaint, setChiefComplaint] = useState("");

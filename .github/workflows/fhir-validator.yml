@@ -66,7 +66,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
-          key: ${{ runner.os }}-cargo-fhir-${{ hashFiles('medbrains/**/Cargo.lock') }}
+          # Toolchain first, then the dependency graph. A Cargo.lock change misses the key but
+          # restores the newest cache on the same toolchain, and saves a fresh one under the new key.
+          key: ${{ runner.os }}-cargo-fhir-${{ hashFiles('medbrains/rust-toolchain.toml') }}-${{ hashFiles('medbrains/Cargo.lock', 'medbrains/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-fhir-${{ hashFiles('medbrains/rust-toolchain.toml') }}-
       # The validator jar, the IG package and the FHIR core packages the
       # validator pulls in; the script re-checks the pinned hashes.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

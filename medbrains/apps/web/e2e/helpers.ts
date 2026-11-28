@@ -11,6 +11,7 @@ import {
   cookieHeaderFromResponse,
   getE2EIdentity,
 } from "./helpers/e2e-identities";
+import { ownClientHeaders } from "./helpers/worker-tenant";
 
 export const BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
@@ -48,6 +49,7 @@ export async function ensureAuthenticated(page: Page) {
 
   const admin = getE2EIdentity("super_admin");
   const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username: admin.username, password: admin.password },
   });
   if (!resp.ok()) return;
@@ -131,11 +133,13 @@ export async function loginAsRole(
   // The server allows five sign-ins a minute from one address; a journey with
   // several staff on one machine meets that limit. Wait it out, a few times.
   let resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username, password },
   });
   for (let attempt = 0; resp.status() === 429 && attempt < 4; attempt += 1) {
     await page.waitForTimeout(LOGIN_LIMIT_WAIT_MS);
     resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+      headers: ownClientHeaders(),
       data: { username, password },
     });
   }
@@ -182,11 +186,25 @@ export async function loginAsRole(
   );
 }
 
+/** How long the app may take to answer "who is signed in" after a page load. */
+const AUTH_DECISION_WAIT_MS = 10_000;
+
 /**
  * Navigate to a page path, re-authenticating if redirected to login.
+ *
+ * The app decides whether the session is alive only once `/api/auth/me` (and
+ * a refresh) has answered, and only then moves to /login. `isVisible` does not
+ * wait, so checking straight after `goto` read the still-deciding page as signed
+ * in, and a lapsed session was left on the sign-in screen.
  */
 export async function navigateTo(page: Page, path: string) {
+  const me = page
+    .waitForResponse((r) => r.url().includes("/api/auth/me"), { timeout: AUTH_DECISION_WAIT_MS })
+    .catch(() => null);
   await page.goto(path);
+  if ((await me)?.status() === 401) {
+    await page.waitForURL(/\/login/, { timeout: AUTH_DECISION_WAIT_MS }).catch(() => undefined);
+  }
   await ensureAuthenticated(page);
   const stillOnLogin = await page
     .getByRole("button", { name: /^sign in$/i })
@@ -208,6 +226,7 @@ export async function getAuthToken(
   cookies: string;
 }> {
   const resp = await request.post(`${BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: {
       username: getE2EIdentity("super_admin").username,
       password: getE2EIdentity("super_admin").password,

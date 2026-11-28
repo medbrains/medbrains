@@ -1,15 +1,31 @@
 #!/bin/bash
-# Where this machine's clock comes from, chosen before chrony starts. A node asks its main machine,
-# through the agent's relay on loopback (crates/medbrains-agent/src/time.rs), and nothing else; any
-# other machine uses authenticated internet time.
+# What this machine's role changes in two services that start early, written before they start
+# (medbrains-time-role.service) so each starts once, with the right settings: where the clock comes
+# from, and on a main machine, serving the LAN its time and announcing medbrains.local. A node asks
+# its main machine, through the agent's relay on loopback (crates/medbrains-agent/src/time.rs), and
+# nothing else; any other machine uses authenticated internet time.
+#
+#   time-role [main]
+#
+# Setup makes a machine a main machine after chrony and resolved have started. role-network then runs
+# this with "main" (its sandbox cannot see the marker) and restarts only a service whose file changed.
+# Prints the path of each file it changed, one per line; an unchanged file is left alone.
 set -euo pipefail
 
-CONF=/run/medbrains-role/time.conf
-install -d -m 0755 /run/medbrains-role
+# Writes standard input to the file $1 unless it already holds exactly that, and prints $1 if it wrote.
+put() {
+    local new
+    new="$(cat)"
+    if [[ -f "$1" && "$(cat "$1")" == "$new" ]]; then return 0; fi
+    install -d -m 0755 "$(dirname "$1")"
+    printf '%s\n' "$new" > "$1"
+    printf '%s\n' "$1"
+}
+
 if [[ -e /var/lib/medbrains/config/role-node ]]; then
-    printf 'server 127.0.0.1 port 1023 iburst minpoll 4 maxpoll 6\n' > "$CONF"
+    put /run/medbrains-role/time.conf <<<'server 127.0.0.1 port 1023 iburst minpoll 4 maxpoll 6'
 else
-    cat > "$CONF" <<'SOURCES'
+    put /run/medbrains-role/time.conf <<'SOURCES'
 server time.cloudflare.com iburst nts
 server ptbtime2.ptb.de iburst nts
 server ptbtime1.ptb.de iburst nts
@@ -19,4 +35,19 @@ server samay1.nic.in iburst
 server samay2.nic.in iburst
 server time.nplindia.org iburst
 SOURCES
+fi
+
+if [[ "${1:-}" == main || -e /var/lib/medbrains/config/role-main ]]; then
+    # Loopback too: the agent relays its nodes' clocks to this chrony from there.
+    put /run/medbrains-role/lan-time.conf <<'CHRONY'
+allow 127.0.0.1
+allow 10.0.0.0/8
+allow 172.16.0.0/12
+allow 192.168.0.0/16
+allow fc00::/7
+CHRONY
+    put /run/systemd/resolved.conf.d/20-main-machine.conf <<'RESOLVED'
+[Resolve]
+MulticastDNS=yes
+RESOLVED
 fi
