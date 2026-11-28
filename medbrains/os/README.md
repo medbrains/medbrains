@@ -1068,6 +1068,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `update-keys/`: public keys that may sign updates. None yet.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
+- `mkosi.finalize.chroot`: runs after mkosi's preset pass and fails the build if a unit the postinst masked is not masked.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
@@ -1114,6 +1115,27 @@ number, and the RFC's Pi targets stay unproven.
 | System partition used | 1,158 MB (the ≤ 1 GB target for what is installed: not met) |
 | Largest parts | server binary 88 MB, libLLVM 116 MB (for software GL), kernel modules 128 MB, WPE WebKit 111 MB, PostgreSQL 45 MB, web app 26 MB |
 | Data partition after first boot | 216 MB, of which PostgreSQL 188 MB |
+
+**Where the size goes** (2026-11-22). Disk figures are from the published v3.35.6 arm64 release image,
+mounted read-only. Boot and memory are from a debug image built here from that release's binaries, in QEMU
+(HVF, 4 vCPUs, 4 GB), one run each, so small differences mean nothing. The image table above is older.
+
+| What | Value |
+|---|---|
+| Download (`.raw.zst`) | 526 MB |
+| Raw image | 4.83 GB: boot partition 512 MB (183 MB used) and two 2 GB system slots |
+| System partition used | 1,297 MB of the 1,300 MB budget, in 434 packages and 20,585 files |
+| Boot file | 153 MB: kernel 38 MB, initrd 115 MB (its base system 33 MB, all 4,351 kernel modules 77 MB) |
+| Largest parts of the system partition | server binary 193 MB (stripped), kernel modules 128 MB, WebKitGTK and JavaScriptCore 128 MB, libLLVM 116 MB with libz3 26 MB (Mesa and PostgreSQL's JIT both depend on it), device trees 56 MB, Perl 55 MB (PostgreSQL's cluster tools), kanidmd 49 MB, PostgreSQL 50 MB, Mesa 34 MB, ICU data 31 MB, web app 30 MB, libflite 27 MB (a WebKitGTK dependency), udev hardware database 23 MB, icons 18 MB, dpkg database 17 MB |
+| Already absent | documentation, man pages, translations, apt lists and apt itself; no package is installed as a recommendation (apt's own simulation of the package list gives the same set) |
+| Normal boot, set-up main machine | kernel 0.4 s, initrd 1.7 s, user space 8.3 to 9.7 s. Slowest on the path to `graphical.target`: `medbrains-role-network` 5.2 s (it restarts resolved and chrony), then opening the data disk 2.2 to 3.5 s (no-TPM path) and PostgreSQL 2.3 s |
+| Memory, idle five minutes after that boot | 595 to 613 MB used. By unit (cgroup `memory.current`): PostgreSQL 219 MB (136 MB of it file pages), server 197 MB, screen (cage and shell) 247 MB, kanidmd 39 to 68 MB, front 13 MB, agent 13 MB, udevd 12 MB. zram swap 1.9 GB, none used |
+
+`RemoveFiles` in `mkosi.conf` then took out what nothing here reads: locale sources (16 MB), shell completions,
+reportbug scripts and the `-old` copies of the dpkg and debconf databases. Debug image, same inputs: **1,302 MB
+before, 1,283 MB after**; first boot, setup, restart and `/api/health` unchanged. The rest of the size is in parts
+that need a decision (the server binary, all modules in the initrd, the unused device trees): `docs/DECISIONS.md`,
+2026-11-22.
 
 **Boot, release image, first boot** (one run, sampled every 0.1 s or so)
 
@@ -1288,6 +1310,7 @@ How D1 was built, kept so nobody has to rediscover it.
 | `postgresql@17-main: Could not change user id` | Debian's unit starts as root and setuid()s down; the empty `CapabilityBoundingSet=` removes that | `User=postgres` in the drop-in |
 | PostgreSQL: `could not open .../conf.d/10-medbrains.conf: Permission denied` | the first-boot script runs under `UMask=0077` as root | `chown` the file to `postgres` |
 | `pg_receivewal@17-main` failed on every boot | mkosi applies presets to the image and Debian's enable anything not listed, so unwanted templates were on | `10-medbrains.preset` disables them |
+| Ctrl+Alt+Del restarted the machine although the postinst masks `ctrl-alt-del.target` (shipped in v3.35.6) | mkosi's preset pass runs after the postinst; Debian's preset enables `reboot.target`, whose `Alias=ctrl-alt-del.target` replaced the mask | `10-medbrains.preset` disables `reboot.target`; `mkosi.finalize.chroot` fails the build if any masked unit is not masked in the finished tree |
 | Black screen; `cage: Unable to open Wayland socket: Invalid argument`; `strace` showed `EACCES` on `/run/user/987/wayland-*.lock` | `ProtectHome=yes` hides `/run/user` too. Changing `ProtectSystem` made no difference, which pointed away from it | removed `ProtectHome` from the screen unit, added `ReadWritePaths=/run/user` |
 | `cage -D` exited 1 and sent the diagnosis the wrong way | cage 0.2.0 has no `-D`; `strace` showed the usage error | no flag |
 | `systemctl restart cage-console` hung for 90 seconds | the stop waited out the default timeout on a stuck cage | `TimeoutStopSec=5s` |

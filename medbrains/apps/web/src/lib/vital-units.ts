@@ -67,18 +67,20 @@ export function getWeightConfig(weightUnit: WeightUnit): VitalUnitConfig {
       unit: "lbs",
       min: 1,
       max: 1100,
-      step: 0.1,
-      precision: 1,
+      step: 0.01,
+      precision: 2,
       normalRange: [0, 9999],
       borderlineRange: [0, 9999],
     };
   }
+  // To the gram: a preterm baby is dosed per kg, and 0.1 kg is 8% of 1.2 kg.
+  // From 0.3 kg, the lowest weight history import accepts as plausible.
   return {
     unit: "kg",
-    min: 0.5,
+    min: 0.3,
     max: 500,
-    step: 0.1,
-    precision: 1,
+    step: 0.001,
+    precision: 3,
     normalRange: [0, 9999],
     borderlineRange: [0, 9999],
   };
