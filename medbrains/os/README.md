@@ -63,6 +63,7 @@ From another computer the same box answers at `https://<address>` with a certifi
 |---|---|---|
 | `tests/check-units.sh` | `ci.yml`, job "OS image unit rules", on every pull request that touches `os/` or `deploy/`; again in `release.yml`'s OS image job | the source tree only |
 | `tests/check-image.sh <image.raw>` | `release.yml`'s OS image job, on the image it has just built, for both architectures. A FAIL stops the job before any file is uploaded | the built image; reads it with `debugfs`, no boot and no mount |
+| `tests/check-image-modes.py <image.raw>` | `release.yml`'s OS image job, both architectures, before upload. Fails if a file the OS adds is less readable than git says, a directory on the way is not searchable, or anything is not root's (v3.35.6 shipped every added file root-only) | the built image, read offline in Python; `--self-test` needs `mkfs.ext4` |
 | `medbrains-os-test` (the VM suite) | nowhere in CI; on a Mac before a release (`make os-test`) | a debug image, QEMU with hardware acceleration, swtpm |
 
 Why the VM suite is not in CI, so nobody assumes it is: it drives the machine through a root shell on the
@@ -76,11 +77,6 @@ that failed to catch the v3.35.6 Ctrl+Alt+Del defect; the rest still depends on 
 shell to check from: SSH does not answer, and its serial port shows no login and runs no command. Set
 `MB_OS_TEST_BROWSER=1` to also sign in through a real browser and open Patients (`tests/patients-journey.mjs`;
 needs the web app's Playwright on the test computer).
-
-`python3 os/tests/check-image-modes.py <image.raw>` reads the system partition offline (no mount, works on a
-Mac) and fails if a file the OS adds is less readable than git says, a directory on the way is not searchable,
-or anything is not owned by root. The release job runs it on every image before upload (v3.35.6 shipped every
-added file root-only and could not set itself up).
 
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
