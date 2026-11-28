@@ -3,7 +3,8 @@ SQLX_OFFLINE = "true"
 # The server's integration tests share one hospital in one database, and most
 # of what they set is hospital-wide. Run in parallel they overwrite each other's
 # settings and fail as if the product were broken (17 did, first run on CI). See
-# crates/medbrains-server/tests/main.rs.
+# crates/medbrains-server/tests/main.rs. cargo-nextest does not read this: there each
+# parallel slot gets a database of its own (docs/TESTING-DB.md).
 RUST_TEST_THREADS = "1"
 
 # `[resolver] feature-unification = "workspace"` used to sit here. Stable cargo

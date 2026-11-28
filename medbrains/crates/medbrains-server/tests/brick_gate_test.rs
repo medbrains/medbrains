@@ -412,3 +412,47 @@ async fn ipd_off_marks_switched_on_and_never_set_up_bricks_apart() {
     }
     assert_eq!(codes_in(&app, tenant, "enabled").await, ["registration"]);
 }
+
+/// The Modules screen lists every brick the server serves, the ones a hospital never set up
+/// included, by what the module check answers; and one with no row can be switched off from it,
+/// which writes the explicit row. A Registration + OPD hospital reaches that from the screen.
+#[tokio::test]
+async fn modules_list_shows_bricks_with_no_row_and_switches_one_off() {
+    let app = common::spawn_app().await;
+    let rows = [("registration", "enabled"), ("opd", "enabled")];
+    let (client, csrf, tenant) = hospital_with(&app, &rows).await;
+    let listed = |code: &'static str| {
+        let client = client.clone();
+        let app = &app;
+        async move {
+            let list: Vec<serde_json::Value> = app
+                .get(&client, "/api/setup/modules")
+                .await
+                .json()
+                .await
+                .expect("modules");
+            list.into_iter().find(|m| m["code"] == code).expect(code)
+        }
+    };
+
+    let dental = listed("dental").await;
+    assert_eq!(
+        (dental["status"].as_str(), dental["on"].as_bool()),
+        (Some("available"), Some(true))
+    );
+    assert_eq!(
+        listed("companion").await["on"],
+        false,
+        "an add-on with no row is off"
+    );
+
+    let off = json!({ "status": "disabled" });
+    let (status, body) = switch_as(&app, &client, &csrf, "dental", off).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(codes_in(&app, tenant, "disabled").await, ["dental"]);
+    let dental = listed("dental").await;
+    assert_eq!(
+        (dental["status"].as_str(), dental["on"].as_bool()),
+        (Some("disabled"), Some(false))
+    );
+}

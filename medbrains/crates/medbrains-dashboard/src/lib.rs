@@ -2273,19 +2273,28 @@ async fn resolve_module_query(
         }
         ("pharmacy", "stock_alerts") => {
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                // Each half has its own bound, expiring first: one LIMIT over
+                // the union let twenty low-stock drugs hide every expiry.
                 "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
-                 SELECT generic_name AS label, 'Low Stock' AS subtitle,
-                        'alert-circle' AS icon, 'orange' AS color
-                 FROM pharmacy_catalog
-                 WHERE current_stock <= reorder_level AND is_active = true
+                 (-- A batch has no name or `quantity` of its own: the drug's
+                  -- name is on the catalogue row, the count is quantity_on_hand.
+                  SELECT pc.generic_name AS label,
+                         'Expiring ' || TO_CHAR(b.expiry_date, 'DD Mon YYYY') AS subtitle,
+                         'clock' AS icon, 'red' AS color
+                  FROM pharmacy_batches b
+                  JOIN pharmacy_catalog pc ON pc.id = b.catalog_item_id
+                  WHERE b.expiry_date <= CURRENT_DATE + INTERVAL '90 days'
+                    AND b.expiry_date > CURRENT_DATE AND b.quantity_on_hand > 0
+                    AND b.deleted_at IS NULL
+                  ORDER BY b.expiry_date
+                  LIMIT 10)
                  UNION ALL
-                 SELECT generic_name AS label,
-                        'Expiring ' || TO_CHAR(expiry_date, 'DD Mon YYYY') AS subtitle,
-                        'clock' AS icon, 'red' AS color
-                 FROM pharmacy_batches
-                 WHERE expiry_date <= CURRENT_DATE + INTERVAL '90 days'
-                   AND expiry_date > CURRENT_DATE AND quantity > 0
-                 LIMIT 20
+                 (SELECT generic_name AS label, 'Low Stock' AS subtitle,
+                         'alert-circle' AS icon, 'orange' AS color
+                  FROM pharmacy_catalog
+                  WHERE current_stock <= reorder_level AND is_active = true
+                  ORDER BY current_stock
+                  LIMIT 10)
                  ) r",
             )
             .fetch_one(&mut **tx)

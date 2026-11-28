@@ -17,9 +17,15 @@ export const CORE_BRICKS: ReadonlySet<string> = new Set([
   "reports",
 ]);
 
-/** Whether a brick is switched on. */
+/** Whether the server serves a brick now: a brick never set up is on, an add-on not bought is off. */
 export function isOn(mod: ModuleConfig): boolean {
-  return mod.status === "enabled";
+  return mod.on;
+}
+
+/** A brick's state in words: "On", "On (never set up)" or "Off". */
+export function stateWords(mod: ModuleConfig): string {
+  if (!mod.on) return "Off";
+  return mod.status === "enabled" ? "On" : "On (never set up)";
 }
 
 /** The bricks that list `code` among what they need, directly. */

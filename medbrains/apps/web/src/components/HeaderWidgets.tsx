@@ -65,7 +65,7 @@ function ClockFace() {
       <Text size="xs" fw={700} ff="var(--mb-font-mono)" className={styles.clockTime}>
         {time}
       </Text>
-      <Text size="xs" c="var(--mb-text-muted)" visibleFrom="xl">
+      <Text size="xs" c="var(--mb-text-muted)" visibleFrom="xl" style={{ whiteSpace: "nowrap" }}>
         {date}
       </Text>
     </>

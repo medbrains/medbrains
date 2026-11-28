@@ -2212,9 +2212,10 @@ pub async fn update_role_widget_access(
 
 // ── Modules CRUD ────────────────────────────────────────────
 
-/// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
-/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it;
-/// `background_jobs` says which of the brick's jobs this server runs.
+/// `GET /api/setup/modules` — every app brick the server knows, set up or not.
+///
+/// `on` is what the module check answers (`brick_jobs::every_brick`), so a brick that answers
+/// its API with no row has a card and a switch; `background_jobs` says which of its jobs run.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2224,7 +2225,7 @@ pub async fn list_modules(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut rows = sqlx::query_as::<_, ModuleConfig>(
+    let rows = sqlx::query_as::<_, ModuleConfig>(
         "SELECT * FROM module_config WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2232,10 +2233,8 @@ pub async fn list_modules(
     .await?;
 
     tx.commit().await?;
-
-    rows.iter_mut()
-        .for_each(medbrains_server_core::brick_jobs::fill_from_bricks);
-    Ok(Json(rows))
+    let every = medbrains_server_core::brick_jobs::every_brick(claims.tenant_id, rows);
+    Ok(Json(every))
 }
 
 #[derive(Debug, Deserialize)]
@@ -2252,9 +2251,9 @@ pub struct UpdateModuleRequest {
 ///
 /// Refuses (409, naming them and why each is on) to switch a brick off while bricks that are on
 /// need it, or on while a brick it needs is off; with `together` it switches those too, in the
-/// same transaction, writing a row for a brick that had none (a missing row counts as on, so
-/// only an explicit `disabled` switches it off). Forgets the tenant's cached module statuses on
-/// success.
+/// same transaction. Every brick switched gets a row, the brick itself included: a missing row
+/// counts as on, so only an explicit `disabled` switches it off. A code that is neither a brick
+/// nor a stored row is 404. Forgets the tenant's cached module statuses on success.
 pub async fn update_module(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2270,31 +2269,30 @@ pub async fn update_module(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // The bricks switched with it are upserted: one that was never set up has no row to update.
-    let others = codes.split_last().map_or(&[][..], |(_, rest)| rest);
-    let names = entitlement::brick_names(others);
-    let row = sqlx::query_as::<_, ModuleConfig>(
-        "WITH others AS ( \
-             INSERT INTO module_config (tenant_id, code, name, status) \
-             SELECT $2, other.code, other.name, $1::module_status \
-             FROM UNNEST($4::text[], $5::text[]) AS other(code, name) \
-             ON CONFLICT (tenant_id, code) \
-             DO UPDATE SET status = EXCLUDED.status, \
-                 deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
-         ) \
-         UPDATE module_config SET status = $1::module_status \
-         WHERE tenant_id = $2 AND code = $3 \
+    if medbrains_core::bricks::find(&code).is_none() && !by_code.contains_key(&code) {
+        return Err(AppError::NotFound);
+    }
+    // Upserted, the brick and those switched with it: one never set up has no row to update.
+    let names = entitlement::brick_names(&codes);
+    let rows = sqlx::query_as::<_, ModuleConfig>(
+        "INSERT INTO module_config (tenant_id, code, name, status) \
+         SELECT $2, sw.code, sw.name, $1::module_status \
+         FROM UNNEST($3::text[], $4::text[]) AS sw(code, name) \
+         ON CONFLICT (tenant_id, code) \
+         DO UPDATE SET status = EXCLUDED.status, \
+             deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(&body.status)
     .bind(claims.tenant_id)
-    .bind(&code)
-    .bind(others)
+    .bind(&codes)
     .bind(&names)
-    .fetch_optional(&mut *tx)
-    .await?
-    // Nothing is committed when the brick itself has no row: the bricks switched with it stay.
-    .ok_or(AppError::NotFound)?;
+    .fetch_all(&mut *tx)
+    .await?;
+    let row = rows
+        .into_iter()
+        .find(|r| r.code == code)
+        .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     entitlement::invalidate_modules(claims.tenant_id);
