@@ -2212,9 +2212,10 @@ pub async fn update_role_widget_access(
 
 // ── Modules CRUD ────────────────────────────────────────────
 
-/// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
-/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it;
-/// `background_jobs` says which of the brick's jobs this server runs.
+/// `GET /api/setup/modules` — every app brick the server knows, set up or not.
+///
+/// `on` is what the module check answers (`brick_jobs::every_brick`), so a brick that answers
+/// its API with no row has a card and a switch; `background_jobs` says which of its jobs run.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2224,7 +2225,7 @@ pub async fn list_modules(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut rows = sqlx::query_as::<_, ModuleConfig>(
+    let rows = sqlx::query_as::<_, ModuleConfig>(
         "SELECT * FROM module_config WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2232,21 +2233,27 @@ pub async fn list_modules(
     .await?;
 
     tx.commit().await?;
-
-    rows.iter_mut()
-        .for_each(medbrains_server_core::brick_jobs::fill_from_bricks);
-    Ok(Json(rows))
+    let every = medbrains_server_core::brick_jobs::every_brick(claims.tenant_id, rows);
+    Ok(Json(every))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateModuleRequest {
     pub status: String,
+    /// Also switch what stands in the way: every brick that is on and needs this one when
+    /// switching off (set up or not), the off bricks it needs when switching on. The screen sends
+    /// it after one confirm.
+    #[serde(default)]
+    pub together: bool,
 }
 
 /// `PUT /api/setup/modules/{code}` — switch one app brick on or off.
 ///
-/// Refuses (409, naming them) to switch a brick off while bricks that need it are on, or on
-/// while a brick it needs is off. Forgets the tenant's cached module statuses on success.
+/// Refuses (409, naming them and why each is on) to switch a brick off while bricks that are on
+/// need it, or on while a brick it needs is off; with `together` it switches those too, in the
+/// same transaction. Every brick switched gets a row, the brick itself included: a missing row
+/// counts as on, so only an explicit `disabled` switches it off. A code that is neither a brick
+/// nor a stored row is 404. Forgets the tenant's cached module statuses on success.
 pub async fn update_module(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2256,39 +2263,40 @@ pub async fn update_module(
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let by_code = entitlement::read_statuses(&state.db, claims.tenant_id).await?;
     let turning_on = body.status == "enabled";
-    let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
-    if !blockers.is_empty() {
-        let why = if turning_on {
-            "it needs"
-        } else {
-            "they need it"
-        };
-        return Err(AppError::Conflict(format!(
-            "{} cannot be switched {}: {why} — {}",
-            medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
-            if turning_on { "on" } else { "off" },
-            blockers.join(", ")
-        )));
-    }
+    let codes = entitlement::switch_plan(&code, turning_on, body.together, &by_code)
+        .map_err(AppError::Conflict)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row = sqlx::query_as::<_, ModuleConfig>(
-        "UPDATE module_config SET status = $1::module_status \
-         WHERE tenant_id = $2 AND code = $3 \
+    if medbrains_core::bricks::find(&code).is_none() && !by_code.contains_key(&code) {
+        return Err(AppError::NotFound);
+    }
+    // Upserted, the brick and those switched with it: one never set up has no row to update.
+    let names = entitlement::brick_names(&codes);
+    let rows = sqlx::query_as::<_, ModuleConfig>(
+        "INSERT INTO module_config (tenant_id, code, name, status) \
+         SELECT $2, sw.code, sw.name, $1::module_status \
+         FROM UNNEST($3::text[], $4::text[]) AS sw(code, name) \
+         ON CONFLICT (tenant_id, code) \
+         DO UPDATE SET status = EXCLUDED.status, \
+             deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(&body.status)
     .bind(claims.tenant_id)
-    .bind(&code)
-    .fetch_optional(&mut *tx)
+    .bind(&codes)
+    .bind(&names)
+    .fetch_all(&mut *tx)
     .await?;
+    let row = rows
+        .into_iter()
+        .find(|r| r.code == code)
+        .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     entitlement::invalidate_modules(claims.tenant_id);
-
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    Ok(Json(row))
 }
 
 // ── Sequences ───────────────────────────────────────────────

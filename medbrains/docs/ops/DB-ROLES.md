@@ -26,6 +26,11 @@ Other consumers of the env file:
   container. `pg_dump` refuses a table whose policy would filter it, and
   `medbrains_app` is filtered by design.
 - `medbrains-archive` sweeps every tenant, so it uses `WORKER_DATABASE_URL`.
+- The server's background workers use `WORKER_DATABASE_URL` through a pool of
+  their own (`crates/medbrains-server/src/worker_pool.rs`): at most 6
+  connections (`WORKER_DB_POOL_MAX_CONNECTIONS`), none kept idle, closed after
+  60 s unused, and a pass waits up to 30 s for one. The request pool
+  (`DB_POOL_*`) is separate and unchanged.
 - Reference-data loaders (`scripts/seed_world_geo.py`,
   `medbrains/scripts/import_lgd_districts.py`) write tables `medbrains_app` may
   only read since migration 1200 (geography, regulatory bodies, CDS knowledge

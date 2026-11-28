@@ -162,7 +162,7 @@ Six codes, fixed hexes, identical on every deployment regardless of theme:
 - Each feature developed in isolation, merged via PR
 - Do NOT commit directly to `master` — always use feature branches
 - Commit messages: imperative, concise, explain "why" not "what"
-- **Record decisions:** a PR that makes or reverses a decision adds a row to `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was rejected
+- **Record decisions:** a PR that makes or reverses a decision adds one file to `medbrains/docs/decisions/` in the same PR, named `YYYY-MM-DD-short-slug.md`: what, why, what was rejected. Never a row in `medbrains/docs/DECISIONS.md`: that file is the history up to 2026-11-22 and is closed
 
 ---
 
@@ -316,9 +316,14 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
    Rust, TypeScript, Swift, Kotlin, Python. Say what the name cannot. Tests and generated files are
    exempt. `make check-docs` and CI fail on any function a branch adds or changes without one.
    Existing functions get theirs when they are touched.
-2. **Every decision** gets a row in `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was
-   rejected. Reversals add a new row; history is never edited.
-3. **Every failure that could recur** gets a row there too: what happened, the cause, the fix.
+2. **Every decision** gets its own file in `medbrains/docs/decisions/` in the same PR, named
+   `YYYY-MM-DD-short-slug.md`: a front section (`date`, `title`, `status`: `decided`, `proposed`
+   or `reversal-of:<file or row>`, `area`) and three headings, What, Why, Rejected. One file per
+   decision, so two PRs never edit the same lines. A reversal is a new file; history is never
+   edited. `make check-decisions` and CI check the shape; `make decisions-index` lists them.
+   `medbrains/docs/DECISIONS.md` holds everything up to 2026-11-22 and takes no new rows.
+3. **Every failure that could recur** gets a file there too, its title starting `Failure:`: what
+   happened and the fix under What, the cause under Why.
 4. **Every module and feature** has its RFC or guide updated in the same PR, and every build or setup
    has the exact commands to repeat it.
 
@@ -511,6 +516,8 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 ---
 
 ## Ticket / Story Execution Workflow
+
+**The whole lifecycle, stage by stage with its gates and evidence, is `medbrains/docs/AI-SDLC.md`.** This section is its Spec stage.
 
 When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
 
