@@ -288,7 +288,7 @@ export const setupApi = {
 
   // Setup — modules
   listModules: () => request<ModuleConfig[]>("/setup/modules"),
-  updateModule: (code: string, data: { status: string }) =>
+  updateModule: (code: string, data: { status: string; together?: boolean }) =>
     request<ModuleConfig>(`/setup/modules/${code}`, {
       method: "PUT",
       body: JSON.stringify(data),

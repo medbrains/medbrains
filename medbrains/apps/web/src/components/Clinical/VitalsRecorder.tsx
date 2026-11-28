@@ -284,7 +284,8 @@ export function VitalsRecorder({
     if (nextValues.spo2 !== undefined) req.spo2 = nextValues.spo2;
     // Convert weight/height to metric for storage
     if (nextValues.weight !== undefined) {
-      req.weight_kg = Math.round(weightToKg(nextValues.weight, localeConfig.weight_unit) * 10) / 10;
+      req.weight_kg =
+        Math.round(weightToKg(nextValues.weight, localeConfig.weight_unit) * 1000) / 1000;
     }
     if (nextValues.height !== undefined) {
       req.height_cm = Math.round(heightToCm(nextValues.height, localeConfig.height_unit) * 10) / 10;
