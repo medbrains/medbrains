@@ -553,6 +553,16 @@ jobs:
       - name: App bricks
         run: python3 scripts/check_bricks.py
 
+      # Every router the server merges, and the brick switch in front of it. A new router with
+      # no switch fails; the list of today's ungated ones only shrinks.
+      - name: Brick router inventory
+        run: python3 medbrains/scripts/brick_router_inventory.py --self-test && python3 medbrains/scripts/brick_router_inventory.py --check
+
+      # One brick.toml per brick, generated from the code: each parses, needs real bricks, has
+      # no cycle, shares no gated prefix, and matches what the code declares.
+      - name: Brick manifests
+        run: python3 medbrains/scripts/brick_manifests.py --self-test && python3 medbrains/scripts/brick_manifests.py --check
+
       - name: Migration headers
         run: python3 scripts/migration_header_lint.py
 
