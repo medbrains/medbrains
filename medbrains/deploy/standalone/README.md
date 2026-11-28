@@ -264,6 +264,7 @@ Certbot once the domain is proven and add its route to the proxy config.
 | `medbrains-server.service` | systemd unit for the API + SPA server |
 | `medbrains-archive.service` | systemd one-shot for the storage sweeper |
 | `medbrains-archive.timer` | daily 02:00 timer |
+| `medbrains-rollback` | installs a release keeping the last one as `.prev`; run alone, swaps `.prev` back, checks health, and restores the newer release if that fails (`test-rollback.sh` checks it). State: `/usr/local/share/medbrains/release` |
 | `native-postgres.sh` | sourced: PGDG repo, the cluster, its hba and loopback config |
 | `migrate-docker-postgres-to-native.sh` | one-time move of an old-kit host off the Postgres container |
 | `docker-compose.prod.yml` | opt-in container extras only (ICD-API, Rustrak); never started by default |

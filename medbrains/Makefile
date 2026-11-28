@@ -434,6 +434,9 @@ check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys a
 	python3 scripts/check_raw_key_bytes.py
 	bash deploy/standalone/test-jwt-keys.sh
 
+check-rollback: ## A rollback replaces a running binary, restores on a failed health check, and a re-install keeps .prev
+	bash deploy/standalone/test-rollback.sh
+
 FONTS_PY = uv run --no-project --python 3.12 --with-requirements tools/fonts/requirements.txt python -I
 
 fonts: ## Rebuild MedBrains Sans from the pinned IBM Plex release, then its review sheet

@@ -80,7 +80,8 @@ Prerequisites:
   - DNS A/AAAA record for <domain> already pointing at this server's
     public IP — Let's Encrypt verification needs port 80 reachable
   - Pre-built binaries in the staging folder MEDBRAINS_STAGE (default /tmp;
-    use a root-only folder such as /var/lib/medbrains/releases/<version>).
+    use a root-only folder: install -d -m 0700 /var/lib/medbrains-releases/<version>;
+    not under /var/lib/medbrains, which belongs to the service user).
     Every staged file must be owned by root and writable by nobody else:
       $MEDBRAINS_STAGE/medbrains-server      (the Rust API server)
       $MEDBRAINS_STAGE/medbrains-archive     (the storage sweeper)
@@ -98,6 +99,15 @@ fi
 
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 STAGE="${MEDBRAINS_STAGE:-/tmp}"
+# Step 2 hands /var/lib/medbrains to the service user, so a stage inside it is
+# not root-only: that user could swap one staged release for another.
+case "$(realpath -m "$STAGE")/" in
+    /var/lib/medbrains/*)
+        echo "ERROR: $STAGE is inside /var/lib/medbrains, which the service user owns. Stage in a"
+        echo "       root-only folder instead: install -d -m 0700 /var/lib/medbrains-releases/<version>"
+        exit 1
+        ;;
+esac
 
 # Refuse a staged file or folder that is not root's, or that another user can
 # write: in a shared /tmp anyone can plant /tmp/medbrains-server before the
@@ -380,23 +390,18 @@ else
     echo "          not apply. Switch with DB_ROLE_SPLIT=1 or docs/ops/DB-ROLES.md."
 fi
 
-echo "==> [5/9] Installing binaries to /usr/local/bin"
+echo "==> [5/9] Checking the staged release in $STAGE"
 # medbrains-edge is optional: the crate is a library in the workspace and no
 # such binary is produced today. Requiring it here failed the whole install
 # over a service that cannot be built, so it is installed when present and
 # skipped - loudly - when it is not.
+BINARIES=(medbrains-server medbrains-archive medbrains-proxy)
 HAVE_EDGE=0
 if [[ -f "$STAGE/medbrains-edge" ]]; then
     HAVE_EDGE=1
+    BINARIES+=(medbrains-edge)
 else
     echo "    note: medbrains-edge not supplied - edge sync will not be installed"
-fi
-# An explicit array rather than a command substitution: the `&&` form returns
-# non-zero when edge is absent, and reasoning about whether `set -e` fires
-# inside `$( )` in a for-list is not worth the ambiguity.
-BINARIES=(medbrains-server medbrains-archive medbrains-proxy)
-if [[ "$HAVE_EDGE" == "1" ]]; then
-    BINARIES+=(medbrains-edge)
 fi
 for bin in "${BINARIES[@]}"; do
     if [[ ! -f "$STAGE/$bin" ]]; then
@@ -404,54 +409,10 @@ for bin in "${BINARIES[@]}"; do
         exit 1
     fi
     stage_trusted "$STAGE/$bin"
-    # Keep the running version for one-command rollback (medbrains-rollback).
-    if [[ -f "/usr/local/bin/$bin" ]]; then
-        cp -p "/usr/local/bin/$bin" "/usr/local/bin/$bin.prev"
-    fi
-    install -m 0755 "$STAGE/$bin" "/usr/local/bin/$bin"
 done
 
-# Host-side rollback helper — swaps every .prev binary and the previous
-# SPA back into place and restarts services. Invoked via `make rollback`.
-cat > /usr/local/bin/medbrains-rollback <<'ROLLBACK'
-#!/usr/bin/env bash
-set -euo pipefail
-swapped=0
-for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
-    # .prev only exists for binaries a previous run installed, so an absent
-    # edge simply has nothing to roll back.
-    if [[ -f "/usr/local/bin/$bin.prev" ]]; then
-        cp -p "/usr/local/bin/$bin" "/usr/local/bin/$bin.rolledback" || true
-        cp -p "/usr/local/bin/$bin.prev" "/usr/local/bin/$bin"
-        swapped=1
-        echo "rolled back $bin"
-    fi
-done
-if [[ -d /var/www/medbrains.prev ]]; then
-    rm -rf /var/www/medbrains.rolledback
-    mv /var/www/medbrains /var/www/medbrains.rolledback || true
-    cp -r /var/www/medbrains.prev /var/www/medbrains
-    chown -R medbrains:medbrains /var/www/medbrains
-    swapped=1
-    echo "rolled back SPA"
-fi
-if [[ "$swapped" == "0" ]]; then
-    echo "nothing to roll back — no .prev artifacts found"
-    exit 1
-fi
-systemctl restart medbrains-server.service
-systemctl restart medbrains-proxy.service || true
-systemctl restart medbrains-edge.service || true
-echo "rollback complete — verify /api/health"
-ROLLBACK
-chmod 0755 /usr/local/bin/medbrains-rollback
-
-echo "==> [6/9] Installing SPA static files to /var/www/medbrains"
-
-# The SPA now arrives as one archive rather than 1,500-odd separate uploads.
-# Both forms are accepted: a kit and a terraform module can be a version apart
-# during a rollout, and a deploy that half-recognises its own payload is worse
-# than either convention on its own.
+# The SPA arrives as one archive or as a folder. Both forms are accepted: a kit
+# and a terraform module can be a version apart during a rollout.
 if [[ -f "$STAGE/medbrains-web.tgz" ]]; then
     stage_trusted "$STAGE/medbrains-web.tgz"
     echo "    unpacking $STAGE/medbrains-web.tgz"
@@ -460,20 +421,13 @@ if [[ -f "$STAGE/medbrains-web.tgz" ]]; then
     # Root-owned on unpack: an archive built in CI carries its builder's uid.
     tar --no-same-owner -xzf "$STAGE/medbrains-web.tgz" -C "$STAGE/medbrains-web"
 fi
+if [[ -d "$STAGE/medbrains-web" ]]; then stage_trusted "$STAGE/medbrains-web"; fi
 
-if [[ -d "$STAGE/medbrains-web" ]]; then
-    stage_trusted "$STAGE/medbrains-web"
-    if [[ -d /var/www/medbrains ]]; then
-        rm -rf /var/www/medbrains.prev
-        mv /var/www/medbrains /var/www/medbrains.prev
-    fi
-    mkdir -p /var/www/medbrains
-    cp -r "$STAGE/medbrains-web/." /var/www/medbrains/
-    chown -R medbrains:medbrains /var/www/medbrains
-else
-    echo "    $STAGE/medbrains-web/ not found — leaving SPA static dir as-is."
-fi
-
+echo "==> [6/9] Installing binaries to /usr/local/bin and the SPA to /var/www/medbrains"
+# The same helper installs and rolls back (`make rollback`): the live release
+# moves to .prev, except when this very release is being installed again.
+install -m 0755 "$DEPLOY_DIR/medbrains-rollback" /usr/local/bin/medbrains-rollback
+/usr/local/bin/medbrains-rollback install "$STAGE" "${BINARIES[@]}"
 
 # CERT-In direction (i): clocks synced to NIC/NPL NTP or sources traceable
 # to them. Adds India's public servers as extra sources to whichever daemon

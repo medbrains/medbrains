@@ -120,6 +120,8 @@ jobs:
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
+      # A rollback replaces a running binary, restores on a failed health check; a re-install keeps .prev.
+      - run: bash medbrains/deploy/standalone/test-rollback.sh
       # The server tarball carries every binary install.sh installs.
       - run: python3 medbrains/scripts/check_release_bins.py --self-test && python3 medbrains/scripts/check_release_bins.py
 
