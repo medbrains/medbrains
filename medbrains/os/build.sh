@@ -170,6 +170,12 @@ fi
 SIGN_ARGS=()
 SIGN_MOUNTS=()
 if [[ -n "${OS_PCR_KEY:-}" ]]; then
+    # RSA 2048 only (OS-KEYS.md): most TPMs, and swtpm, cannot load a larger key, so every disk sealed to it
+    # never opens. v3.35.6 shipped an RSA 4096 key (KAN-2).
+    if ! openssl pkey -in "$OS_PCR_KEY" -noout -text 2>/dev/null | grep -q '^Private-Key: (2048 bit'; then
+        echo "OS_PCR_KEY must be an RSA 2048 key: a TPM cannot load a larger one, and no sealed disk would open" >&2
+        exit 1
+    fi
     SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT")
     SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
 fi
