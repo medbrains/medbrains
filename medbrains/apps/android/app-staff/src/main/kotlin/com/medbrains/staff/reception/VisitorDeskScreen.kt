@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +52,8 @@ import com.medbrains.ui.CarbonTone
 import com.medbrains.ui.Eyebrow
 import com.medbrains.ui.NotificationKind
 import com.medbrains.ui.RemoteContent
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import uniffi.edge_rn.passActions
@@ -104,6 +105,9 @@ class FrontOfficeApi(private val client: ApiClient) {
     suspend fun resolveEnquiry(id: String): EnquiryRow = client.put("/api/front-office/enquiries/$id/resolve")
 }
 
+/** The desk's three lists, loaded together or not at all: passes without their logs would count the wrong people inside. */
+data class VisitorDeskLists(val passes: List<PassRow>, val visitors: List<VisitorRow>, val logs: List<VisitorLogRow>)
+
 /**
  * Who is in the building, and who should not be any more. Overdue first,
  * because a pass whose hours ran out is the one the desk has to act on.
@@ -113,27 +117,30 @@ class FrontOfficeApi(private val client: ApiClient) {
 fun VisitorDeskScreen(nav: NavHostController, api: FrontOfficeApi) {
     val identity = LocalIdentity.current
     val scope = rememberCoroutineScope()
-    val passes = remember { Remote<List<PassRow>>() }
-    val visitors = remember { mutableStateListOf<VisitorRow>() }
-    val logs = remember { mutableStateListOf<VisitorLogRow>() }
+    val desk = remember { Remote<VisitorDeskLists>() }
     var busyId by remember { mutableStateOf<String?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
     var revoking by remember { mutableStateOf<PassRow?>(null) }
 
-    suspend fun load() {
-        runCatching { api.visitors() }.getOrNull()?.let { visitors.clear(); visitors.addAll(it) }
-        runCatching { api.visitorLogs() }.getOrNull()?.let { logs.clear(); logs.addAll(it) }
-        passes.load { api.passes() }
+    /** Loads passes, visitors and logs side by side; any one failing fails the desk. */
+    suspend fun load() = desk.load {
+        coroutineScope {
+            val visitors = async { api.visitors() }
+            val logs = async { api.visitorLogs() }
+            VisitorDeskLists(api.passes(), visitors.await(), logs.await())
+        }
     }
     LaunchedEffect(Unit) { load() }
-    val state by passes.state.collectAsState()
+    val state by desk.state.collectAsState()
+    val logs = state.value?.logs.orEmpty()
     val now = ServerTime.format(Instant.now())
 
     fun stateOf(p: PassRow) = passState(p.status, p.valid_until, now)
     fun insideOf(p: PassRow) = passIsInside(stateOf(p), logs.none { it.pass_id == p.id && it.check_out_at == null })
-    val rows = state.value.orEmpty()
-    val inside = rows.count { insideOf(it) }
-    val overdue = rows.count { stateOf(it) == "overdue" && insideOf(it) }
+    // Counts only from a loaded desk: an outage shows a dash, never "0 inside".
+    val rows = state.value?.passes
+    val inside = rows?.count { insideOf(it) }
+    val overdue = rows?.count { stateOf(it) == "overdue" && insideOf(it) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-visitor-desk")) {
         CarbonPageHeader("Reception", "Visitor desk", "Passes, and who is still inside.")
@@ -148,10 +155,10 @@ fun VisitorDeskScreen(nav: NavHostController, api: FrontOfficeApi) {
             }
         }
         failure?.let { CarbonNotification(NotificationKind.Error, "Not recorded", it, Modifier.padding(horizontal = 16.dp)) }
-        RemoteContent("passes", state, "Couldn't load the passes", "The hospital server did not answer. Do not read this as an empty building.", { it.isEmpty() }, "No passes today", "Nobody has been issued a visitor pass yet.", { scope.launch { load() } }) { list ->
+        RemoteContent("passes", state, "Couldn't load the visitor desk", "The hospital server did not answer. Do not read this as an empty building. Try again.", { it.passes.isEmpty() }, "No passes today", "Nobody has been issued a visitor pass yet.", { scope.launch { load() } }) { lists ->
             Column {
                 // Overdue first: they are the ones somebody has to chase.
-                list.sortedBy { when (stateOf(it)) { "overdue" -> 0; "active" -> 1; else -> 2 } }.forEach { pass ->
+                lists.passes.sortedBy { when (stateOf(it)) { "overdue" -> 0; "active" -> 1; else -> 2 } }.forEach { pass ->
                     val s = stateOf(pass)
                     val isIn = insideOf(pass)
                     // The desk issues and revokes; the gate guard only records entry and exit.
@@ -160,7 +167,7 @@ fun VisitorDeskScreen(nav: NavHostController, api: FrontOfficeApi) {
                     val actions = if (canRecord) passActions(s, isIn).filter { canManage || it != "revoke" } else emptyList()
                     Column(Modifier.fillMaxWidth()) {
                         CarbonActionRow(
-                            visitors.firstOrNull { it.id == pass.registration_id }?.visitor_name ?: "Visitor",
+                            lists.visitors.firstOrNull { it.id == pass.registration_id }?.visitor_name ?: "Visitor",
                             listOfNotNull(pass.pass_number, pass.bed_number?.let { "bed $it" }, "until ${ServerTime.short(pass.valid_until)}").joinToString(" · "),
                             onClick = {}, modifier = Modifier.fillMaxWidth().testTag("pass-row-${pass.id}"),
                         ) { CarbonTag(s, when (s) { "overdue" -> CarbonTone.Danger; "active" -> CarbonTone.Success; else -> CarbonTone.Neutral }) }

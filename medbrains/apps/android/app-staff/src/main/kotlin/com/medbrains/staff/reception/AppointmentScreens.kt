@@ -192,6 +192,7 @@ fun BookAppointmentScreen(nav: NavHostController, api: AppointmentsApi, session:
                 }
                 CarbonPrimaryButton("Done", modifier = Modifier.testTag("booked-done"), onClick = { nav.popBackStack() })
             } else {
+                UnloadedListsNotice(session)
                 CarbonPicker("Doctor", session.doctors.map { PickerOption(it.id, it.full_name) }, doctorId, { doctorId = it }, placeholder = "Choose a doctor", allowNone = false, tag = "picker-doctor")
                 CarbonPicker("Department", session.departments.map { PickerOption(it.id, it.name) }, departmentId, { departmentId = it }, placeholder = "Choose a department", allowNone = false, tag = "picker-department")
                 Column {

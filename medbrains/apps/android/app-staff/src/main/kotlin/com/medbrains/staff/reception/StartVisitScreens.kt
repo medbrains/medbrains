@@ -82,6 +82,7 @@ fun StartVisitScreen(nav: NavHostController, api: ReceptionApi, session: Recepti
                 }
                 LastVisitState.Failed -> CarbonRow("Last visit", "Could not be loaded; choose the doctor yourself")
             }
+            UnloadedListsNotice(session)
             CarbonPicker("Department", session.departments.map { PickerOption(it.id, it.name) }, departmentId, { departmentId = it }, placeholder = "Choose a department", allowNone = false, tag = "picker-department")
             CarbonPicker("Consultant", session.doctors.map { PickerOption(it.id, it.full_name) }, doctorId, { doctorId = it }, placeholder = "Any consultant", tag = "picker-consultant")
             CarbonTextField(complaint, { complaint = it }, "Chief complaint (optional)", Modifier.testTag("field-chief_complaint"), singleLine = false)
