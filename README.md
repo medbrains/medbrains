@@ -25,6 +25,7 @@
 [![Tests](https://img.shields.io/endpoint?url=https://tests.medbrains.in/badge.json)](https://tests.medbrains.in/)
 [![Error tracking: Sentry](https://img.shields.io/badge/Error_tracking-Sentry-362D59?logo=sentry&logoColor=white)](./medbrains/deploy/standalone/README.md#optional-error-tracking-rustrak)
 [![Security scans](https://github.com/medbrains/medbrains/actions/workflows/security.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/medbrains/medbrains/badge)](https://scorecard.dev/viewer/?uri=github.com/medbrains/medbrains)
 [![Security policy](https://img.shields.io/badge/Security-policy-0F62FE.svg)](./SECURITY.md)
 [![Latest release](https://img.shields.io/github/v/release/medbrains/medbrains?label=Release&color=851B7F)](https://github.com/medbrains/medbrains/releases/latest)
 [![Rust](https://img.shields.io/badge/Rust-2024_·_1.95+-0F62FE?logo=rust&logoColor=white)](#why-rust)
