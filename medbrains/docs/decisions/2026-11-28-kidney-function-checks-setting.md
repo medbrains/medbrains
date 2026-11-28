@@ -8,7 +8,7 @@ area: clinical-safety
 ## What
 
 `tenant_settings` clinical / `kidney_function_checks` holds three rules, seeded for every hospital
-(new and existing) by migration 1498 and edited on Settings → Clinical configuration under
+(new and existing) by migration 1499 and edited on Settings → Clinical configuration under
 `admin.settings.general.manage`:
 
 - an eGFR counts for an admitted patient for 7 days, for an outpatient for 30 (ACR Manual on

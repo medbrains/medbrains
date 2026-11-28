@@ -2,7 +2,7 @@
 //! dosing and contrast screening, and the eGFR below which contrast is held.
 //!
 //! Stored in `tenant_settings` (`clinical` / `kidney_function_checks`),
-//! seeded for every hospital by migration 1498 and edited on Settings →
+//! seeded for every hospital by migration 1499 and edited on Settings →
 //! Clinical configuration. A clinician still confirms each rule.
 
 use serde_json::Value;

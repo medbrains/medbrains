@@ -14,7 +14,7 @@ export interface KidneyFunctionChecks {
   contrast_egfr_threshold: number;
 }
 
-/** Shown when nothing is stored; the server's defaults (kidney_settings.rs, migration 1498). */
+/** Shown when nothing is stored; the server's defaults (kidney_settings.rs, migration 1499). */
 export const KIDNEY_DEFAULTS: KidneyFunctionChecks = {
   egfr_inpatient_days: 7,
   egfr_outpatient_days: 30,
