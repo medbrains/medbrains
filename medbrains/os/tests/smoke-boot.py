@@ -21,7 +21,7 @@ Passes when, on first boot with a TPM 2.0:
 Not covered: the setup screen after the key (needs a person to type part of it back), Secure Boot
 enforcement (the firmware has no keys enrolled), arm64, and real hardware's firmware and TPM.
 """
-import argparse, os, re, shutil, signal, struct, subprocess, tempfile, time
+import argparse, os, re, shutil, signal, socket, struct, subprocess, tempfile, time
 
 REPORT = r"""#!/bin/bash
 # Smoke copy only (os/tests/smoke-boot.py): reports first boot on the serial port. Never released.
@@ -116,10 +116,7 @@ def boot(raw, work, deadline):
     shutil.copy(OVMF[1], f"{work}/vars.fd")
     kvm = os.access("/dev/kvm", os.W_OK)
     serial = f"{work}/serial.log"
-    for _ in range(50):
-        if os.path.exists(f"{work}/tpm.sock"):
-            break
-        time.sleep(0.1)
+    wait_for_socket(f"{work}/tpm.sock")
     qemu = subprocess.Popen([
         "qemu-system-x86_64", "-machine", "q35", "-accel", "kvm" if kvm else "tcg,thread=multi",
         "-cpu", "host" if kvm else "max", "-smp", "4", "-m", "4096", "-no-reboot", "-display", "none",
@@ -139,6 +136,16 @@ def boot(raw, work, deadline):
                     p.wait(10)
                 except subprocess.TimeoutExpired:
                     p.kill()
+
+
+def wait_for_socket(path):
+    """Returns once swtpm accepts connections on path: QEMU gives up at once if it does not yet."""
+    for _ in range(100):
+        with socket.socket(socket.AF_UNIX) as s:
+            if s.connect_ex(path) == 0:
+                return
+        time.sleep(0.1)
+    raise SystemExit(f"swtpm is not listening on {path}")
 
 
 def watch(serial, qemu, deadline):
@@ -175,8 +182,8 @@ def main():
     started = time.monotonic()
     try:
         report, failed_units, why = boot(make_smoke_copy(args.image, work), work, deadline)
-        with open(f"{work}/serial.log", errors="replace") as f:
-            tail = f.read()[-4000:]
+        serial = f"{work}/serial.log"
+        tail = open(serial, errors="replace").read()[-4000:] if os.path.exists(serial) else ""
     finally:
         if not args.work:
             shutil.rmtree(work, ignore_errors=True)
