@@ -11,6 +11,7 @@
 #
 # Runs directly on Linux (root, plus xorriso, dosfstools, mtools and zstd); on a Mac in the builder container.
 set -euo pipefail
+umask 022  # files it makes take their modes from here, never a caller's 077
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ARCH=""

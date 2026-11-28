@@ -13,6 +13,7 @@
 # A file over GitHub's 2 GiB limit per release file stops the build here, not at upload. os/README.md
 # "Virtual machines and clouds" says which file to use where and what each hypervisor needs for the TPM.
 set -euo pipefail
+umask 022  # files it makes take their modes from here, never a caller's 077
 
 RAW="$1"
 NAME="$2"

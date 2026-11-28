@@ -18,6 +18,9 @@
 #
 # --debug adds a root shell on the serial console, for verification only.
 set -euo pipefail
+# The image's files take their modes from this process: a caller's umask 077 (release.yml
+# sets one for its signing keys) made every added file root-only and the network unreadable.
+umask 022
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
