@@ -36,4 +36,19 @@ describe("SystemHealthSettings", () => {
     expect(await screen.findByText("Setup Completeness")).toBeInTheDocument();
     expect(service.completenessCheck).toHaveBeenCalled();
   });
+
+  it("shows the server's counts and its version beside the web build's", async () => {
+    held.codes = new Set([P.ADMIN.SETTINGS.GENERAL.MANAGE]);
+    service.systemHealth.mockResolvedValue({
+      users: 12,
+      departments: 4,
+      modules: 26,
+      migrations_applied: 355,
+      server_version: "0.0.1",
+    });
+    render(<SystemHealthSettings />);
+    expect(await screen.findByText("355")).toBeInTheDocument();
+    expect(screen.getByText(`Server v0.0.1 · Web v${__APP_VERSION__}`)).toBeInTheDocument();
+    expect(screen.getByText("Different releases")).toBeInTheDocument();
+  });
 });

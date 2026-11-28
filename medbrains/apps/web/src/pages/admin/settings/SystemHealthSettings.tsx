@@ -31,6 +31,32 @@ const COMPLETENESS_ITEMS: { key: keyof CompletenessCheck; label: string; min: nu
   { key: "lab_tests", label: "Lab Tests", min: 0 },
 ];
 
+const HEALTH_COUNTS = [
+  { key: "users", label: "Users", icon: IconUsers },
+  { key: "departments", label: "Departments", icon: IconDatabase },
+  { key: "modules", label: "Modules", icon: IconDatabase },
+  { key: "migrations_applied", label: "Migrations", icon: IconDatabase },
+] as const;
+
+/**
+ * The server's release beside the web build this browser runs, so an admin
+ * (and support on the phone) can see when the two differ, for example a tab
+ * still on an old bundle or a web-only patch on an older server.
+ */
+function VersionRow({ serverVersion }: { serverVersion?: string }) {
+  const isSame = serverVersion === __APP_VERSION__;
+  return (
+    <Group gap="sm">
+      <Text size="sm" ff="monospace">
+        Server {serverVersion ? `v${serverVersion}` : "version unknown"} · Web v{__APP_VERSION__}
+      </Text>
+      <Badge tone={isSame ? "success" : "warning"} size="sm">
+        {isSame ? "Same release" : "Different releases"}
+      </Badge>
+    </Group>
+  );
+}
+
 /**
  * Admin → Settings → System health. A holder of only the backup permission
  * (the IT security officer) sees the backup card alone, and the setup queries
@@ -139,95 +165,33 @@ export function SystemHealthSettings() {
           </Button>
         </Group>
         {health ? (
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-            <Card withBorder p="md">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="primary" size="lg">
-                  <IconUsers size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text size="xs" c="dimmed">
-                    Users
-                  </Text>
-                  <Text fw={700} size="xl">
-                    {health.user_count}
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card withBorder p="md">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="teal" size="lg">
-                  <IconDatabase size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text size="xs" c="dimmed">
-                    Departments
-                  </Text>
-                  <Text fw={700} size="xl">
-                    {health.department_count}
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card withBorder p="md">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="violet" size="lg">
-                  <IconDatabase size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text size="xs" c="dimmed">
-                    Modules
-                  </Text>
-                  <Text fw={700} size="xl">
-                    {health.module_count}
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-            <Card withBorder p="md">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="orange" size="lg">
-                  <IconDatabase size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text size="xs" c="dimmed">
-                    Migrations
-                  </Text>
-                  <Text fw={700} size="xl">
-                    {health.migration_count}
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-          </SimpleGrid>
+          <Stack gap="sm">
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+              {HEALTH_COUNTS.map(({ key, label, icon: Icon }) => (
+                <Card key={key} withBorder p="md">
+                  <Group gap="sm">
+                    <ThemeIcon variant="light" color="primary" size="lg">
+                      <Icon size={18} />
+                    </ThemeIcon>
+                    <Stack gap={0}>
+                      <Text size="xs" c="dimmed">
+                        {label}
+                      </Text>
+                      <Text fw={700} size="xl">
+                        {health[key]}
+                      </Text>
+                    </Stack>
+                  </Group>
+                </Card>
+              ))}
+            </SimpleGrid>
+            <VersionRow serverVersion={health.server_version} />
+          </Stack>
         ) : healthLoading ? (
           <Text c="dimmed" size="sm">
             Loading system health...
           </Text>
         ) : null}
-
-        {health && Object.keys(health.table_sizes).length > 0 && (
-          <Card withBorder p="md" mt="sm">
-            <Text fw={500} size="sm" mb="xs">
-              Table Row Counts
-            </Text>
-            <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }}>
-              {Object.entries(health.table_sizes)
-                .sort(([, a], [, b]) => (b as number) - (a as number))
-                .map(([table, count]) => (
-                  <Group key={table} gap="xs">
-                    <Text size="xs" c="dimmed" style={{ minWidth: 120 }}>
-                      {table}
-                    </Text>
-                    <Badge tone="neutral" size="sm">
-                      {String(count)}
-                    </Badge>
-                  </Group>
-                ))}
-            </SimpleGrid>
-          </Card>
-        )}
       </div>
 
       <BackupStatusCard />

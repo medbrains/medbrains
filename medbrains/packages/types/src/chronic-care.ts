@@ -1144,12 +1144,14 @@ export interface CompletenessCheck {
   lab_tests: number;
 }
 
+/** `GET /api/setup/health`, the shape `medbrains-setup`'s `system_health` returns. */
 export interface SystemHealth {
-  user_count: number;
-  department_count: number;
-  module_count: number;
-  migration_count: number;
-  table_sizes: Record<string, number>;
+  users: number;
+  departments: number;
+  modules: number;
+  migrations_applied: number;
+  /** The server's release version, compared on screen with the web build's; older servers omit it. */
+  server_version?: string;
 }
 
 // Scheduling
