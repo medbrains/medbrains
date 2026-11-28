@@ -29,6 +29,23 @@ fn ambulance_search(w: &World, id: &str) -> Value {
     w.message(AMBULANCE_DOMAIN, "search", id, json!({ "intent": {} }))
 }
 
+/// A world whose hospital has an ambulance to offer. These tests search for
+/// one, and passed only where `uhi_hspa_test` had added its own to the same
+/// database first.
+async fn world_with_an_ambulance() -> World {
+    let w = world().await;
+    sqlx::query(
+        "INSERT INTO ambulances (tenant_id, vehicle_number, ambulance_code, ambulance_type) \
+         VALUES ($1, $2, $2, 'als')",
+    )
+    .bind(w.tenant)
+    .bind(format!("KA02-{}", &txn()[..6]))
+    .execute(&w.app.db)
+    .await
+    .expect("ambulance");
+    w
+}
+
 async fn put_settings(w: &World, body: Value) -> reqwest::Response {
     w.app
         .client
@@ -49,7 +66,7 @@ async fn put_settings(w: &World, body: Value) -> reqwest::Response {
 #[tokio::test]
 async fn a_gateway_search_is_trusted_on_the_gateways_signature() {
     let _serial = SERIAL.lock().await;
-    let w = world().await;
+    let w = world_with_an_ambulance().await;
     let id = txn();
     let (status, ack) = w
         .send("search", &ambulance_search(&w, &id), None, true)
@@ -133,7 +150,7 @@ async fn a_gateway_search_is_trusted_on_the_gateways_signature() {
 #[tokio::test]
 async fn a_direct_call_is_checked_against_the_full_registry_record() {
     let _serial = SERIAL.lock().await;
-    let w = world().await;
+    let w = world_with_an_ambulance().await;
     let id = txn();
     w.call("search", &ambulance_search(&w, &id)).await;
     let lookup = w
@@ -204,7 +221,7 @@ async fn a_registry_that_refuses_us_is_our_fault_not_the_callers() {
 #[tokio::test]
 async fn callbacks_go_only_to_the_apps_registered_address() {
     let _serial = SERIAL.lock().await;
-    let w = world().await;
+    let w = world_with_an_ambulance().await;
     let id = txn();
     let mut hijack = ambulance_search(&w, &id);
     hijack["context"]["consumer_uri"] = json!(format!("{}/attacker", w.mock));
@@ -241,7 +258,7 @@ async fn callbacks_go_only_to_the_apps_registered_address() {
 #[tokio::test]
 async fn a_nack_inside_a_200_is_a_failed_delivery() {
     let _serial = SERIAL.lock().await;
-    let w = world().await;
+    let w = world_with_an_ambulance().await;
     w.net().nack_paths.push("/eua/on_search".to_owned());
     let id = txn();
     w.call("search", &ambulance_search(&w, &id)).await;

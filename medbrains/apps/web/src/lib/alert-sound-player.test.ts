@@ -89,6 +89,25 @@ describe("alert sound player", () => {
     expect(await player.play("attention")).toBe("played");
   });
 
+  it("lets the board speak when the browser never starts the clip", async () => {
+    vi.useFakeTimers();
+    try {
+      const { player } = setup({
+        makeAudio: () => {
+          const audio = fakeAudio(() => false);
+          // A clip the browser cannot load: play() neither resolves nor rejects.
+          audio.play.mockImplementation(() => new Promise<void>(() => undefined));
+          return audio as unknown as HTMLAudioElement;
+        },
+      });
+      const outcome = player.play("calm", { ignorePrefs: true });
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(await outcome).toBe("stalled");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reports a refused play so the person can be asked to turn sounds on", async () => {
     const { player, onBlocked } = setup({}, true);
     expect(await player.play("urgent")).toBe("blocked");

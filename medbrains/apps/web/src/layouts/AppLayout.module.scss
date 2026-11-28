@@ -495,7 +495,14 @@
    flex flow, so the controls either side shrink rather than run under them. */
 .hospitalMarks {
   flex: none;
+  // Auto margins centre the marks in whatever gap the two sides leave.
+  margin-inline: auto;
   height: 100%;
   align-items: center;
   pointer-events: none;
+}
+
+// Header controls keep their natural width; the ticker sets its own shrink inline.
+.headerRight > * {
+  flex-shrink: 0;
 }

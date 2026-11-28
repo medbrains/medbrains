@@ -10,7 +10,9 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
-use medbrains_db::pool::{PoolConfig, create_pool_with_config, group_conn, tenant_conn};
+use medbrains_db::pool::{
+    PoolConfig, close_fully, create_pool_with_config, group_conn, tenant_conn,
+};
 use medbrains_db_migrations::testing::{
     APP_ROLE, TestDb, WORKER_ROLE, add_patient, add_tenant, fresh_db,
 };
@@ -356,4 +358,96 @@ async fn releasing_a_connection_does_not_discard_it() {
         "the pool opened a new backend, so after_release errored and sqlx \
          discarded the connection: {pids:?}"
     );
+}
+
+/// How many server processes with these ids are still alive, asked a few times
+/// because a backend exits a moment after its client says goodbye.
+async fn backends_alive(owner: &sqlx::PgPool, pids: &[i32]) -> i64 {
+    let mut alive = -1;
+    for _ in 0..40 {
+        alive = sqlx::query_scalar("SELECT count(*) FROM pg_stat_activity WHERE pid = ANY($1)")
+            .bind(pids)
+            .fetch_one(owner)
+            .await
+            .expect("pg_stat_activity");
+        if alive == 0 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    alive
+}
+
+#[tokio::test]
+async fn closing_a_pool_closes_the_connection_that_was_on_its_way_back() {
+    // The server closes its owner pool right after the startup checks use it.
+    // The last connection is then still being handed back (the release hook
+    // is two round trips), and sqlx's close misses it: one owner connection
+    // stayed open, idle, for the life of the server.
+    let (db, owner, _, _) = two_hospitals().await;
+    let pool = app_pool(&db, 2).await;
+    let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&pool)
+        .await
+        .expect("backend pid");
+    // Let the hand-back start and reach its first wait on the database, as it
+    // has on the server's other threads by the time `close` is called.
+    tokio::task::yield_now().await;
+
+    close_fully(&pool).await;
+
+    assert_eq!(
+        backends_alive(&owner, &[pid]).await,
+        0,
+        "a closed pool still holds a connection to the database"
+    );
+}
+
+// ============================================================= hospital date
+
+/// A zone whose date differs from UTC's right now (UTC+14 or UTC−12; at any
+/// instant one of them does), and that date: the gap 01:00 IST opens nightly.
+fn zone_off_utc() -> (&'static str, chrono::NaiveDate) {
+    let now = chrono::Utc::now();
+    let day = chrono::Days::new(1);
+    if chrono::Timelike::hour(&now) >= 10 {
+        (
+            "Etc/GMT-14",
+            now.date_naive().checked_add_days(day).unwrap(),
+        )
+    } else {
+        (
+            "Etc/GMT+12",
+            now.date_naive().checked_sub_days(day).unwrap(),
+        )
+    }
+}
+
+#[tokio::test]
+async fn a_scoped_connection_dates_by_the_hospital_and_forgets_it_on_release() {
+    // The server's date on a tenant_conn: from 00:00 to 05:30 IST a DLT
+    // template expiring yesterday, or a stock transfer dated today, read wrong.
+    let (db, owner, tenant, _) = two_hospitals().await;
+    let (zone, local) = zone_off_utc();
+    sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
+        .bind(tenant)
+        .bind(zone)
+        .execute(&owner)
+        .await
+        .unwrap();
+    let pool = app_pool(&db, 1).await;
+    let before = setting_after_release(&pool, "TimeZone").await;
+    {
+        let mut conn = tenant_conn(&pool, &tenant).await.expect("scoped");
+        let today: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(
+            today, local,
+            "CURRENT_DATE on a {zone} hospital's connection"
+        );
+    }
+    let after = setting_after_release(&pool, "TimeZone").await;
+    assert_eq!(after, before, "the hospital's zone outlived the connection");
 }
