@@ -69,21 +69,22 @@ REQUIREMENTS: tuple[StaticRequirement, ...] = (
     StaticRequirement(
         control_id="PRIV-MASK-003",
         label="Patient Aadhaar is stored as masked/hash values rather than raw identifier output",
-        path="crates/medbrains-server/src/routes/patients.rs",
+        path="crates/medbrains-patients/src/lib.rs",
         patterns=(
             r"fn masked_aadhaar",
-            r"sha256_hex",
-            r"only masked/hash storage is retained",
+            r"fn sha256_hex",
+            r"fn normalize_aadhaar_number",
             r"aadhaar_masked",
+            r"id_number_hash",
         ),
     ),
     StaticRequirement(
         control_id="PRIV-MASK-003",
         label="Client error telemetry redacts UUID-like route identifiers",
-        path="crates/medbrains-server/src/routes/client_errors.rs",
+        path="crates/medbrains-client-errors/src/lib.rs",
         patterns=(
-            r"redact_uuid_path_segments",
-            r"route_without_query",
+            r"fn redact_uuid_path_segments",
+            r"redact_uuid_path_segments\(route_without_query\)",
             r"client screen crash",
         ),
     ),

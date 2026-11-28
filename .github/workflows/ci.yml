@@ -38,10 +38,14 @@ on:
     branches: [master, main, 'release/**', 'hotfix/**']
     # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
     # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
+  # A merge queue tests each queued pull request on a temporary branch and reads the required
+  # checks from this event; without it they never report and the queue stalls.
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never a merge-group run: cancelling one drops the pull request out of the queue.
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -71,7 +75,7 @@ jobs:
           fetch-depth: 0
       - id: diff
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
           HEAD: ${{ github.sha }}
         run: |
           set -u
@@ -258,6 +262,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_brick_tables.py --self-test
           python3 medbrains/scripts/check_brick_tables.py
+      # "Today" is the hospital's date: the UTC date is yesterday's in India from
+      # 00:00 to 05:30. Existing sites are baselined per file and only fall.
+      - name: No new UTC "today"
+        run: |
+          python3 medbrains/scripts/check_utc_today.py --self-test
+          python3 medbrains/scripts/check_utc_today.py
       # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
       - name: Rust functions and files only shrink
         run: |
@@ -275,6 +285,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_kernel_no_domain.py --self-test
           python3 medbrains/scripts/check_kernel_no_domain.py
+      # A brick's crate depends on no other brick's crate, base crates on no domain crate
+      # (bricks/crates.txt). Today's edges are baselined and the list only shrinks.
+      - name: No new brick to brick crate edge
+        run: |
+          python3 medbrains/scripts/check_brick_edges.py --self-test
+          python3 medbrains/scripts/check_brick_edges.py
       # A crate without `[lints] workspace = true` escapes every denied lint
       # (unwrap, panic, print); eleven did, authz-gate and signing among them (#5976).
       - name: Every crate inherits the workspace lints

@@ -28,11 +28,27 @@ A brick touches the rest of the system only through these, so it can be added, r
 ## Rules
 
 - **No brick imports another brick, on any layer.** A check fails CI if a module crate, web package or Slint app depends on another module's code (backend, web and native alike).
+  - Backend crates: `make check-brick-edges` (`scripts/check_brick_edges.py`). `bricks/crates.txt` gives every workspace crate a class (kernel/base, shared health service, a brick, shell, tooling, native). A new dependency from one brick's crate to another brick's, from a base crate to a domain crate, or from a shared health service to a brick fails; the edges that exist are listed in `scripts/brick_edges.baseline.txt`, which only shrinks. Listing a brick in `depends_on` does not allow a crate edge to it: `depends_on` says what must be switched on together, not what may be linked.
 - **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its background jobs stop, its native app is not started, and nothing else breaks.
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
   - Measured, not yet enforced: `make brick-tables-report` (`scripts/check_brick_tables.py`) counts SQL in one brick's crates that reads or writes a table another brick owns, per brick pair, against `scripts/brick_tables.baseline.txt`. CI prints the change and warns when a pair's writes rise. The owner of a table is guessed from who writes it most, and only upper-case SQL in `src/` is seen, so the numbers are a floor.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
 - **The server is a shell, and it only shrinks.** `crates/medbrains-server` still holds whole areas of domain code and declares routes itself. `make check-shell-size` (`scripts/check_shell_size.py`) fails when the lines under its `src/` or its own `.route(` calls rise above `scripts/shell_size.baseline.txt`; a PR that moves code out lowers the file with `--update`. A handler, a job or a route goes in the crate that owns it.
+
+## Switching a brick off (2026-11-22)
+
+A brick goes off unless a brick that **is on** needs it. "On" is what the module check sees
+(`effective_outcome`): a stored `enabled`, and equally an edition brick nobody set up (no
+`module_config` row, or the seed's `available`), because a missing row counts as on and that
+brick answers its API. The server then refuses (409) and names every such brick with why it is
+on: "Nursing Station (switched on), Maternity (on, never set up)". The Modules screen sends the
+switch, shows the server's sentence when it is refused, and asks once. One confirm sends
+`together: true`, and the server switches them all off in one transaction, writing an explicit
+`disabled` row for a brick that had none. So a hospital that really uses Maternity without ever
+having set it up is told before it goes off, and a hospital that does not can still switch IPD
+off in one step. The screen holds no list of its own for this: a brick with no row is not in what
+it loads, so only the server can name it. Records are kept either way. The rule is `switch_plan`
+in `medbrains-server-core/src/middleware/entitlement.rs`.
 
 ## A brick's background jobs (2026-11-19)
 

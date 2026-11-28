@@ -1,0 +1,43 @@
+# Dependency edges the kernel / bricks split forbids and that existed on 2026-11-23.
+# Checked by scripts/check_brick_edges.py (make check-brick-edges). One edge per line:
+#   <rule> <runtime|dev> <from crate> <to crate>
+#
+# This list only shrinks. When an edge is cut, delete its line in the same PR;
+# the check fails while a line is stale.
+# ADDING A LINE NEEDS THE OWNER: a new edge is a design decision, with its own file
+# in docs/decisions/. Remove the dependency instead (a port in health services, an
+# event, or a typed action: docs/architecture/MODULE-BRICKS.md).
+base-domain runtime medbrains-dashboard medbrains-health-services
+base-domain runtime medbrains-dashboard medbrains-reports
+base-domain runtime medbrains-devices medbrains-lab
+base-domain runtime medbrains-infra-utils medbrains-print
+base-domain runtime medbrains-platform medbrains-terminology
+base-domain runtime medbrains-server-core medbrains-print
+brick-brick dev medbrains-billing medbrains-indent
+brick-brick dev medbrains-billing medbrains-ipd
+brick-brick dev medbrains-billing medbrains-ward-stock
+brick-brick dev medbrains-mrd medbrains-opd
+brick-brick runtime medbrains-camp medbrains-pharmacy
+brick-brick runtime medbrains-emergency medbrains-nursing
+brick-brick runtime medbrains-ipd-post-discharge medbrains-pharmacy
+brick-brick runtime medbrains-lab medbrains-doctor-payouts
+brick-brick runtime medbrains-marketing medbrains-patients
+brick-brick runtime medbrains-opd medbrains-pharmacy
+brick-brick runtime medbrains-order-basket medbrains-diet
+brick-brick runtime medbrains-order-basket medbrains-lab
+brick-brick runtime medbrains-order-basket medbrains-pharmacy
+brick-brick runtime medbrains-order-basket medbrains-radiology
+brick-brick runtime medbrains-payment-gateway medbrains-pharmacy-delivery
+brick-brick runtime medbrains-pharmacy medbrains-billing
+brick-brick runtime medbrains-pharmacy medbrains-payment-gateway
+brick-brick runtime medbrains-pharmacy medbrains-telehealth
+brick-brick runtime medbrains-reports medbrains-scheduling
+brick-brick runtime medbrains-sop-flows medbrains-ipd
+shared-brick dev medbrains-knowledge medbrains-telehealth
+shared-brick runtime medbrains-ai medbrains-pharmacy
+shared-brick runtime medbrains-ai medbrains-research
+shared-brick runtime medbrains-documents-render medbrains-billing
+shared-brick runtime medbrains-documents-render medbrains-clinical-notes
+shared-brick runtime medbrains-documents-render medbrains-specialty
+shared-brick runtime medbrains-knowledge medbrains-lab
+shared-brick runtime medbrains-knowledge medbrains-sop-flows
