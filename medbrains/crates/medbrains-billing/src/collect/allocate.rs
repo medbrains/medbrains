@@ -16,6 +16,10 @@ pub struct Slice {
 
 /// Fill `balances` (oldest first) from `tenders` in order.
 ///
+/// A bill at or below zero (paid, or in credit) takes nothing and is passed
+/// over; without that a negative balance never reaches zero and the loop
+/// never ends, whatever the caller's SQL filtered.
+///
 /// # Errors
 /// What the tenders exceed the balances by, when they do.
 pub fn allocate(balances: &[Decimal], tenders: &[Decimal]) -> Result<Vec<Slice>, Decimal> {
@@ -39,7 +43,7 @@ pub fn allocate(balances: &[Decimal], tenders: &[Decimal]) -> Result<Vec<Slice>,
                 *room -= take;
                 due -= take;
             }
-            if *room == Decimal::ZERO {
+            if *room <= Decimal::ZERO {
                 bill += 1;
             }
         }
@@ -48,6 +52,7 @@ pub fn allocate(balances: &[Decimal], tenders: &[Decimal]) -> Result<Vec<Slice>,
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -91,5 +96,24 @@ mod tests {
             }])
         );
         assert_eq!(allocate(&[d(300)], &[d(200), d(150)]), Err(d(50)));
+    }
+
+    #[test]
+    fn a_bill_in_credit_is_passed_over_instead_of_looping_forever() {
+        let (send, recv) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = send.send(allocate(&[d(-50), d(100)], &[d(80)]));
+        });
+        let got = recv
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("allocate returned instead of looping");
+        assert_eq!(
+            got,
+            Ok(vec![Slice {
+                bill: 1,
+                tender: 0,
+                amount: d(80)
+            }])
+        );
     }
 }
