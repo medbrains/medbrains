@@ -8,6 +8,7 @@ rust-version.workspace = true
 license-file.workspace = true
 
 [dependencies]
+chrono = { workspace = true }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-kernel = { path = "../medbrains-kernel" }
@@ -17,6 +18,7 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
