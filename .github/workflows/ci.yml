@@ -153,6 +153,33 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
 
+  migration-lint:
+    # Squawk on the migrations this PR adds; the merged ones are not linted (a ratchet).
+    name: New migrations do not lock or rewrite a big table
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # Pinned binary + sha256, as the nextest step pins cargo-nextest.
+      - name: Install squawk
+        env:
+          SQUAWK_VERSION: 2.74.0
+          # sha256 of squawk-linux-x64, from the release.
+          SQUAWK_SHA256: 62e2df12169cfdc77bb5f151261cdce419db9b72c49816d6fbcc421314bf1083
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSLo squawk "https://github.com/sbdchd/squawk/releases/download/v$SQUAWK_VERSION/squawk-linux-x64"
+          echo "$SQUAWK_SHA256  squawk" | sha256sum -c -
+          install -m 755 squawk "$HOME/.local/bin/squawk" && rm squawk
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: python3 medbrains/scripts/check_new_migrations_squawk.py --self-test
+      - run: python3 medbrains/scripts/check_new_migrations_squawk.py "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
   docs-prose:
     # Banned words and Title Case headings in the docs site (medbrains/apps/docs/STYLE.md).
     # Report-only until the pages written before the guide are clean; then add --strict.

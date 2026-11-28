@@ -74,6 +74,8 @@ native_fmt 'medbrains/apps/android/*.kts' ktlint ktlint --format --relative
 if [ -x "$TOP/medbrains/.githooks/pre-commit-migrations.sh" ]; then
     (cd "$TOP/medbrains" && ./.githooks/pre-commit-migrations.sh)
 fi
+# Squawk on staged new migrations only; skips with an install hint when squawk is absent.
+python3 "$TOP/medbrains/scripts/check_new_migrations_squawk.py" --staged
 
 # Pull request size (ENGINEERING.md): the whole branch so far, staged changes included,
 # against the newest release branch. MB_MECHANICAL=1 for a pure move or generated change.

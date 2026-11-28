@@ -1,0 +1,19 @@
+# Squawk (https://squawkhq.com) lints the migrations a pull request adds:
+# scripts/check_new_migrations_squawk.py. Existing migrations are not linted.
+# Why each rule is off: docs/decisions/2026-11-28-squawk-for-new-migrations.md.
+pg_version = "17"
+# sqlx::migrate!() wraps every file in a transaction unless its first line is
+# `-- no-transaction`; the script lints those files with --no-assume-in-transaction.
+assume_in_transaction = true
+excluded_rules = [
+    # Would abort the long backfills and index builds that must finish; lock waits are require-lock-timeout's job.
+    "require-statement-timeout",
+    # Client compatibility, not locks: drops are declared in the Drops: header (migration_header_lint.py).
+    "ban-drop-column",
+    "ban-drop-table",
+    "ban-drop-constraint",
+    "ban-drop-function",
+    # Keys are uuid; the int columns are small counters. Style, not a lock.
+    "prefer-bigint-over-int",
+    "prefer-bigint-over-smallint",
+]
