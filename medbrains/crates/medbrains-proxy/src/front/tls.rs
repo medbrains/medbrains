@@ -5,7 +5,7 @@ use anyhow::{Context, ensure};
 use pingora_core::listeners::tls::Acceptor;
 use pingora_core::utils::tls::WrappedX509;
 use rustls::ServerConfig;
-use rustls::crypto::ring::default_provider;
+use rustls::crypto::aws_lc_rs::default_provider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::path::Path;
@@ -29,6 +29,7 @@ fn load_certificates(path: &Path) -> anyhow::Result<Vec<CertificateDer<'static>>
 ///
 /// One certificate covers the machine's whole bounded set of names, so a made-up SNI costs nothing
 /// and stores nothing. A client that asks for another name gets this one, and its browser decides.
+/// Key exchange is aws-lc-rs: hybrid X25519MLKEM768 first, then X25519, P-256, P-384 (MB-113).
 pub(crate) fn acceptor(cert: &Path, key: &Path) -> anyhow::Result<Arc<Acceptor>> {
     let chain = load_certificates(cert)?;
     let key = PrivateKeyDer::from_pem_file(key)
@@ -56,6 +57,10 @@ pub(crate) fn load_ca(path: &Path) -> anyhow::Result<Vec<WrappedX509>> {
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "tls_tests.rs"]
+mod handshake_tests;
 
 #[cfg(test)]
 mod tests {

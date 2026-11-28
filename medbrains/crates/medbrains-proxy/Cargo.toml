@@ -28,7 +28,8 @@ serde_json = "1"
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+# aws-lc-rs: ring has no ML-KEM, so no post-quantum key exchange (MB-113). Pingora still pulls ring.
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum", "logging", "std", "tls12"] }
 async-trait = "0.1.92"
 anyhow = "1"
 bytes = "1"
