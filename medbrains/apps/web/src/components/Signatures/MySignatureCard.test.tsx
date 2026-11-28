@@ -1,7 +1,9 @@
 import { usePermissionStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
+import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, userEvent } from "@/test/test-utils";
+import { OWN_SIGNATURE_KEY } from "@/hooks/useOwnSignature";
+import { render, screen, userEvent, waitFor } from "@/test/test-utils";
 import { MySignatureCard } from "./MySignatureCard";
 
 const mocks = vi.hoisted(() => ({ credentials: vi.fn() }));
@@ -82,5 +84,17 @@ describe("MySignatureCard", () => {
     expect(await screen.findByText("Couldn't check your signature")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Set up" })).not.toBeInTheDocument();
     expect(screen.queryByText(/You have no signature yet/)).not.toBeInTheDocument();
+  });
+
+  it("drops the earlier signatures when a recheck fails, instead of showing the old list", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    mocks.credentials
+      .mockResolvedValueOnce([current, replaced])
+      .mockRejectedValue(new Error("503"));
+    render(<MySignatureCard />, { queryClient });
+    expect(await screen.findByText("Earlier signatures")).toBeVisible();
+    await queryClient.refetchQueries({ queryKey: OWN_SIGNATURE_KEY });
+    expect(await screen.findByText("Couldn't check your signature")).toBeVisible();
+    await waitFor(() => expect(screen.queryByText("Earlier signatures")).not.toBeInTheDocument());
   });
 });
