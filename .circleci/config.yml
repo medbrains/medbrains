@@ -1,0 +1,91 @@
+# Trial (2026-11-28): run the two heavy Rust checks on CircleCI's open-source plan as well as
+# GitHub, to measure whether it clears the GitHub queue. Not a required check; GitHub's ci.yml
+# stays the gate. No secrets: releases and signing never run here. Same commands as ci.yml's
+# rust-clippy and rust-test jobs, so a result here means the same thing.
+version: 2.1
+
+executors:
+  linux:
+    # A full VM (not Docker) so scripts/ci_postgres.sh can install PostgreSQL 17 with sudo,
+    # as on the GitHub runner. large = 4 vCPU / 15 GB; the workspace does not fit in less.
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+    working_directory: ~/project
+
+commands:
+  rust-setup:
+    parameters:
+      cache: { type: string }
+    steps:
+      - checkout
+      # rustup reads medbrains/rust-toolchain.toml, so the pinned toolchain is used.
+      - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+      - run: echo 'source "$HOME/.cargo/env"' >> "$BASH_ENV"
+      - restore_cache:
+          keys:
+            - << parameters.cache >>-{{ checksum "medbrains/rust-toolchain.toml" }}-{{ checksum "medbrains/Cargo.lock" }}
+            - << parameters.cache >>-{{ checksum "medbrains/rust-toolchain.toml" }}-
+
+  rust-save:
+    parameters:
+      cache: { type: string }
+    steps:
+      - save_cache:
+          key: << parameters.cache >>-{{ checksum "medbrains/rust-toolchain.toml" }}-{{ checksum "medbrains/Cargo.lock" }}
+          paths: [~/.cargo/registry, ~/.cargo/git, medbrains/target]
+
+jobs:
+  rust-clippy:
+    executor: linux
+    environment: { SQLX_OFFLINE: "true" }
+    steps:
+      - rust-setup: { cache: clippy }
+      - run:
+          name: Clippy
+          working_directory: medbrains
+          command: cargo clippy --locked --workspace --exclude medbrains-desktop
+      - run:
+          name: Clippy on test targets (ratchet)
+          working_directory: medbrains
+          command: |
+            python3 scripts/check_clippy_tests.py --self-test
+            { cargo clippy --locked --workspace --exclude medbrains-desktop --all-targets \
+                --keep-going --message-format=json || true; } |
+              python3 scripts/check_clippy_tests.py
+      - rust-save: { cache: clippy }
+
+  rust-test:
+    executor: linux
+    environment:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
+      NEXTEST_VERSION: 0.9.150
+      NEXTEST_SHA256: b0959bc64232974224cf9fb22c915845398c0e8668fa7831eb5b43fb1eef781f
+    steps:
+      - rust-setup: { cache: test }
+      - run:
+          name: System packages and PostgreSQL
+          working_directory: medbrains
+          command: bash scripts/ci_postgres.sh
+      - run:
+          name: Install cargo-nextest (pinned, sha256-checked)
+          command: |
+            tgz="cargo-nextest-$NEXTEST_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+            curl -fsSLO "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-$NEXTEST_VERSION/$tgz"
+            echo "$NEXTEST_SHA256  $tgz" | sha256sum -c -
+            tar -xzf "$tgz" -C "$HOME/.cargo/bin" cargo-nextest && rm "$tgz"
+      - run:
+          name: Tests
+          working_directory: medbrains
+          no_output_timeout: 30m
+          command: cargo nextest run --locked --workspace --exclude medbrains-desktop --profile ci
+      - run:
+          name: Doc tests
+          working_directory: medbrains
+          command: cargo test --locked --workspace --exclude medbrains-desktop --doc --no-fail-fast
+      - rust-save: { cache: test }
+
+workflows:
+  heavy-rust:
+    jobs: [rust-clippy, rust-test]
