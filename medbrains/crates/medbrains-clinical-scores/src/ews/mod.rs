@@ -25,6 +25,9 @@
 use serde::{Deserialize, Serialize};
 
 pub mod meows_table;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod news2_bands_ts;
 pub mod news2_table;
 pub mod pews_table;
 mod policy;
