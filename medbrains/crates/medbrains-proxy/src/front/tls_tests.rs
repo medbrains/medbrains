@@ -66,10 +66,10 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// A TLS 1.3 client that offers only `group`.
-fn client_offering(group: &'static dyn SupportedKxGroup) -> anyhow::Result<ClientConnection> {
+/// A TLS 1.3 client that offers only `groups`, in that order.
+fn client_offering(groups: &[&'static dyn SupportedKxGroup]) -> anyhow::Result<ClientConnection> {
     let provider = CryptoProvider {
-        kx_groups: vec![group],
+        kx_groups: groups.to_vec(),
         ..aws_lc_rs::default_provider()
     };
     let config = ClientConfig::builder_with_provider(Arc::new(provider.clone()))
@@ -97,11 +97,11 @@ fn send(from: &mut Connection, to: &mut Connection) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Runs the front's acceptor against a client offering only `group`; the group agreed.
-fn handshake(group: &'static dyn SupportedKxGroup) -> anyhow::Result<NamedGroup> {
+/// Runs the front's acceptor against a client offering only `groups`; the group agreed.
+fn handshake(groups: &[&'static dyn SupportedKxGroup]) -> anyhow::Result<NamedGroup> {
     let front = acceptor(&fixture("cert.pem"), &fixture("key.pem"))?;
     let mut server = Connection::from(ServerConnection::new(Arc::clone(front.acceptor.config()))?);
-    let mut client = Connection::from(client_offering(group)?);
+    let mut client = Connection::from(client_offering(groups)?);
     // Bounded: a TLS 1.3 handshake is three flights; ten means it is stuck.
     for _ in 0..10 {
         if !client.is_handshaking() && !server.is_handshaking() {
@@ -118,7 +118,7 @@ fn handshake(group: &'static dyn SupportedKxGroup) -> anyhow::Result<NamedGroup>
 
 #[test]
 fn a_client_offering_only_hybrid_post_quantum_connects() -> anyhow::Result<()> {
-    let agreed = handshake(aws_lc_rs::kx_group::X25519MLKEM768)?;
+    let agreed = handshake(&[aws_lc_rs::kx_group::X25519MLKEM768])?;
     assert_eq!(agreed, NamedGroup::X25519MLKEM768);
     Ok(())
 }
@@ -126,13 +126,26 @@ fn a_client_offering_only_hybrid_post_quantum_connects() -> anyhow::Result<()> {
 #[test]
 fn classical_only_clients_still_connect() -> anyhow::Result<()> {
     for group in [aws_lc_rs::kx_group::X25519, aws_lc_rs::kx_group::SECP256R1] {
-        assert_eq!(handshake(group)?, group.name());
+        assert_eq!(handshake(&[group])?, group.name());
     }
     Ok(())
 }
 
 #[test]
-fn the_front_prefers_hybrid_post_quantum() -> anyhow::Result<()> {
+fn a_client_offering_both_gets_the_one_it_lists_first() -> anyhow::Result<()> {
+    // rustls agrees the client's first supported group, as browsers expect: they list the hybrid
+    // first. The server's own order does not override it.
+    let (pq, classical) = (
+        aws_lc_rs::kx_group::X25519MLKEM768,
+        aws_lc_rs::kx_group::X25519,
+    );
+    assert_eq!(handshake(&[pq, classical])?, NamedGroup::X25519MLKEM768);
+    assert_eq!(handshake(&[classical, pq])?, NamedGroup::X25519);
+    Ok(())
+}
+
+#[test]
+fn the_front_lists_hybrid_post_quantum_first() -> anyhow::Result<()> {
     let front = acceptor(&fixture("cert.pem"), &fixture("key.pem"))?;
     let groups = &front.acceptor.config().crypto_provider().kx_groups;
     assert_eq!(
