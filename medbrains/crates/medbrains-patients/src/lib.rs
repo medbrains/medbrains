@@ -1233,59 +1233,15 @@ pub async fn list_patients(
 
     tx.commit().await?;
 
-    // ── Compute _perms for each row in one bulk_check round-trip ──
-    // 5 relations × N rows = single gRPC for SpiceDB; falls back to
-    // per-row check() for the Postgres backend.
-    let perm_items: Vec<(String, kernel::authz::Relation, Uuid)> = patients_raw
-        .iter()
-        .flat_map(|p| {
-            let id = p.id;
-            [
-                ("patient".to_owned(), kernel::authz::Relation::Viewer, id),
-                ("patient".to_owned(), kernel::authz::Relation::Editor, id),
-                ("patient".to_owned(), kernel::authz::Relation::Owner, id),
-            ]
-        })
-        .collect();
-    let perms_map = if patients_raw.is_empty() {
-        HashMap::new()
-    } else {
-        state
-            .authz
-            .bulk_check(&authz_ctx, &perm_items)
-            .await
-            .unwrap_or_default()
-    };
+    let ids: Vec<Uuid> = patients_raw.iter().map(|p| p.id).collect();
+    let perms = listed_patient_perms(&state, &claims, &ids).await?;
 
     let patients: Vec<PatientWithPerms> = patients_raw
         .into_iter()
-        .map(|p| {
+        .zip(perms)
+        .map(|(p, perms)| {
             let id = p.id;
             let billing = payment_status.get(&id);
-            let perms = if authz_ctx.is_bypass {
-                medbrains_core::perms_block::PermsBlock::all()
-            } else {
-                medbrains_core::perms_block::PermsBlock {
-                    view: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Viewer, id))
-                        .copied()
-                        .unwrap_or(false),
-                    edit: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Editor, id))
-                        .copied()
-                        .unwrap_or(false),
-                    delete: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Owner, id))
-                        .copied()
-                        .unwrap_or(false),
-                    // share == owner in our schema; same lookup
-                    share: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Owner, id))
-                        .copied()
-                        .unwrap_or(false),
-                    approve: false,
-                }
-            };
             PatientWithPerms {
                 opd: opd_number::take(&mut opd_rows, id, &restricted),
                 patient: filter_patient_response(p, &restricted).into(),
@@ -1312,6 +1268,52 @@ pub async fn list_patients(
         page,
         per_page,
     }))
+}
+
+/// Row flags for each listed patient, in `ids` order, in one bulk check.
+///
+/// The ids came from `list_accessible(Viewer)` (or a bypass role sees all), so
+/// view is already known and only Editor and Owner are asked. A backend that
+/// cannot answer is an outage (503), never a page of rows with every action
+/// switched off (ENGINEERING.md, "a fault is not a refusal").
+async fn listed_patient_perms(
+    state: &AppState,
+    claims: &Claims,
+    ids: &[Uuid],
+) -> Result<Vec<medbrains_core::perms_block::PermsBlock>, AppError> {
+    use kernel::authz::Relation::{Editor, Owner};
+    let authz_ctx = kernel::authz::authz_context(claims);
+    if authz_ctx.is_bypass || ids.is_empty() {
+        return Ok(vec![
+            medbrains_core::perms_block::PermsBlock::all();
+            ids.len()
+        ]);
+    }
+    let items: Vec<_> = (ids.iter())
+        .flat_map(|id| [Editor, Owner].map(|r| ("patient".to_owned(), r, *id)))
+        .collect();
+    let answers = state
+        .authz
+        .bulk_check(&authz_ctx, &items)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, user = %authz_ctx.user_id,
+            "rebac: bulk_check(patient list) FAILED");
+            AppError::ServiceUnavailable("authorization backend unavailable".to_owned())
+        })?;
+    // A pair the backend left out of a successful answer was not granted.
+    let has = |r, id| (answers.get(&("patient".to_owned(), r, id)).copied()).unwrap_or(false);
+    Ok(ids
+        .iter()
+        .map(|&id| medbrains_core::perms_block::PermsBlock {
+            view: true,
+            edit: has(Editor, id),
+            delete: has(Owner, id),
+            // share == owner in our schema; same lookup
+            share: has(Owner, id),
+            approve: false,
+        })
+        .collect())
 }
 
 // ══════════════════════════════════════════════════════════
