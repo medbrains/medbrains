@@ -265,11 +265,3 @@ export interface LogAccessRequest {
   patient_id?: string;
   module?: string;
 }
-
-export interface IntegrityResult {
-  valid: boolean;
-  total_checked: number;
-  broken_at: string | null;
-  expected_hash: string | null;
-  actual_prev_hash: string | null;
-}

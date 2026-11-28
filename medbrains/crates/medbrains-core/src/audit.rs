@@ -97,24 +97,6 @@ pub struct AuditLogQuery {
 
 // ── Integrity Check ───────────────────────────────────────
 
-/// Row used for hash chain verification.
-#[derive(Debug, sqlx::FromRow)]
-pub struct AuditHashRow {
-    pub id: Uuid,
-    pub prev_hash: Option<String>,
-    pub hash: Option<String>,
-}
-
-/// Result of an audit log integrity verification.
-#[derive(Debug, Serialize)]
-pub struct IntegrityResult {
-    pub valid: bool,
-    pub total_checked: i64,
-    pub broken_at: Option<Uuid>,
-    pub expected_hash: Option<String>,
-    pub actual_prev_hash: Option<String>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct AccessLogQuery {
     pub patient_id: Option<String>,

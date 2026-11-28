@@ -7,7 +7,6 @@ import type {
   AuditLogQuery,
   AuditLogSummary,
   AuditStats,
-  IntegrityResult,
   LogAccessRequest,
 } from "@medbrains/types";
 import { request } from "../client.js";
@@ -79,8 +78,6 @@ export const auditApi = {
     const qs = sp.toString();
     return `${getApiBase()}/audit/export${qs ? `?${qs}` : ""}`;
   },
-
-  verifyAuditIntegrity: () => request<IntegrityResult>("/audit/verify-integrity"),
 
   getUserActivity: (userId: string) => request<AuditLogSummary[]>(`/audit/user/${userId}/activity`),
 

@@ -33,7 +33,6 @@ pub const SWEEP_ENDPOINTS: &[&str] = &[
     "/api/audit/entity-types",
     "/api/audit/modules",
     "/api/audit/stats",
-    "/api/audit/verify-integrity",
     "/api/auth/me",
     "/api/auth/revocations",
     "/api/backups",

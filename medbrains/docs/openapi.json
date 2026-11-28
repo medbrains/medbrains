@@ -7520,46 +7520,6 @@
         }
       }
     },
-    "/api/audit/verify-integrity": {
-      "get": {
-        "operationId": "getAuditVerifyIntegrity",
-        "summary": "verify integrity",
-        "description": "Implemented by `verify_integrity` in `medbrains-server`.\n\nRequires the `audit.log.view` permission.",
-        "tags": [
-          "audit"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated"
-          },
-          "403": {
-            "description": "Authenticated, but not permitted"
-          }
-        },
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-required-permission": "audit.log.view",
-        "x-required-permissions": {
-          "all_of": [
-            "audit.log.view"
-          ]
-        }
-      }
-    },
     "/api/auth/change-password": {
       "post": {
         "operationId": "postAuthChangePassword",

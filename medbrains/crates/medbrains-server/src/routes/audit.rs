@@ -41,9 +41,8 @@ use axum::{
     response::IntoResponse,
 };
 use medbrains_core::audit::{
-    AccessLogEntry, AccessLogQuery, ActionCount, AuditHashRow, AuditLogEntry, AuditLogQuery,
-    AuditLogSummary, AuditStats, DistinctValue, IntegrityResult, LogAccessRequest, ModuleCount,
-    UserActionCount,
+    AccessLogEntry, AccessLogQuery, ActionCount, AuditLogEntry, AuditLogQuery, AuditLogSummary,
+    AuditStats, DistinctValue, LogAccessRequest, ModuleCount, UserActionCount,
 };
 use medbrains_core::permissions;
 use uuid::Uuid;
@@ -515,50 +514,6 @@ fn escape_csv(value: &str) -> String {
     } else {
         value.to_owned()
     }
-}
-
-// ── Verify hash chain integrity ─────────────────────────
-pub async fn verify_integrity(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<IntegrityResult>, AppError> {
-    require_permission(&claims, permissions::audit::VIEW)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, AuditHashRow>(
-        "SELECT id, prev_hash, hash FROM audit_log ORDER BY created_at ASC LIMIT 5000",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    let total = rows.len() as i64;
-    let mut prev_hash: Option<String> = None;
-
-    for row in &rows {
-        // Compare this row's prev_hash with the hash of the preceding row
-        if row.prev_hash != prev_hash {
-            return Ok(Json(IntegrityResult {
-                valid: false,
-                total_checked: total,
-                broken_at: Some(row.id),
-                expected_hash: prev_hash,
-                actual_prev_hash: row.prev_hash.clone(),
-            }));
-        }
-        prev_hash = row.hash.clone();
-    }
-
-    Ok(Json(IntegrityResult {
-        valid: true,
-        total_checked: total,
-        broken_at: None,
-        expected_hash: None,
-        actual_prev_hash: None,
-    }))
 }
 
 // ── User activity ────────────────────────────────────────

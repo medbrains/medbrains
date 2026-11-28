@@ -1,12 +1,11 @@
-import { Code, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Code, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { AuditLogEntry, AuditLogQuery, AuditLogSummary } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { IconDownload, IconSearch } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { AuditActor } from "@/components/ai/AuditActor";
@@ -112,34 +111,6 @@ export function AuditLogTab() {
     queryKey: ["audit-entry", selectedId],
     queryFn: () => (selectedId ? auditService.getAuditEntry(selectedId) : Promise.resolve(null)),
     enabled: !!selectedId,
-  });
-
-  // Integrity check mutation
-  const integrityMutation = useMutation({
-    mutationFn: () => auditService.verifyIntegrity(),
-    onSuccess: (result) => {
-      if (result.valid) {
-        notifications.show({
-          title: "Integrity Verified",
-          message: `Hash chain is valid across ${result.total_checked} entries.`,
-          color: "green",
-        });
-      } else {
-        notifications.show({
-          title: "Integrity Broken",
-          message: `Chain broken at entry ${result.broken_at ?? "unknown"}. Expected hash: ${result.expected_hash ?? "none"}, found: ${result.actual_prev_hash ?? "none"}.`,
-          color: "red",
-          autoClose: false,
-        });
-      }
-    },
-    onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to verify audit integrity.",
-        color: "red",
-      });
-    },
   });
 
   // Handlers
@@ -288,17 +259,6 @@ export function AuditLogTab() {
             Export CSV
           </Button>
         )}
-        <Button
-          tone="secondary"
-          size="sm"
-          leftSection={
-            integrityMutation.isPending ? <Loader size={14} /> : <IconShieldCheck size={14} />
-          }
-          onClick={() => integrityMutation.mutate()}
-          disabled={integrityMutation.isPending}
-        >
-          Verify Integrity
-        </Button>
       </Group>
 
       {/* Table */}

@@ -11,7 +11,6 @@ export const auditService = {
   listAuditLog: auditApi.listAuditLog,
   getAuditEntry: auditApi.getAuditEntry,
   getStats: auditApi.getAuditStats,
-  verifyIntegrity: auditApi.verifyAuditIntegrity,
   exportAuditLogUrl: auditApi.exportAuditLogUrl,
   getEntityTimeline: auditApi.getEntityTimeline,
   getUserActivity: auditApi.getUserActivity,
