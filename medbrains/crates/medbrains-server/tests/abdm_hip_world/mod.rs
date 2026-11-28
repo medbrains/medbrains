@@ -7,141 +7,24 @@
 pub mod hiu;
 pub mod scan_share;
 
-use std::{
-    collections::{HashMap, HashSet},
-    future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
+use axum::http::StatusCode;
+pub use medbrains_abdm_fake_gateway::{
+    Call, Calls, Hook, Hooks, Recorder, RefuseOnce, Replies, SANDBOX_ISSUER, gateway_claims,
 };
-
-use axum::{
-    Json, Router,
-    body::Bytes,
-    extract::State,
-    http::{HeaderMap, StatusCode, Uri},
-    routing::post,
-};
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use openssl::{hash::MessageDigest, pkey::PKey, rsa::Rsa, sign::Signer};
+use openssl::{pkey::PKey, rsa::Rsa};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::common;
 
-#[derive(Clone, Debug)]
-pub struct Call {
-    pub path: String,
-    pub headers: HeaderMap,
-    pub body: Value,
-}
-
-pub type Calls = Arc<Mutex<Vec<Call>>>;
-/// Run while the gateway call is still open — ABDM answering before our
-/// call returns.
-pub type Hook = Arc<dyn Fn(Call) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
-pub type Hooks = Arc<Mutex<HashMap<String, Hook>>>;
-/// Gateway paths that answer 401 once — a session the gateway revoked.
-pub type RefuseOnce = Arc<Mutex<HashSet<String>>>;
-/// Canned answers by path (status and JSON body), instead of a bare 202.
-pub type Replies = Arc<Mutex<HashMap<String, (StatusCode, Value)>>>;
-type MockState = (Calls, Hooks, RefuseOnce, Replies);
-
-/// The sandbox realm the official M2 document's sample token names.
-pub const SANDBOX_ISSUER: &str = "https://dev.ndhm.gov.in/auth/realms/central-registry";
-
-/// What the gateway's own token carries (`clientId` "gateway").
-pub fn gateway_claims() -> Value {
-    json!({ "iss": SANDBOX_ISSUER, "clientId": "gateway", "azp": "gateway", "typ": "Bearer" })
-}
-
-/// A JWT over `claims` (plus a one-minute `exp`), signed RS256 or RS512 with
-/// `key` (a PKCS#8 PEM).
-pub fn jwt(alg: &str, mut claims: Value, key: &[u8]) -> String {
-    let exp = chrono::Utc::now().timestamp() + 60;
-    claims["exp"] = json!(exp);
-    let part = |v: &Value| URL_SAFE_NO_PAD.encode(v.to_string());
-    let input = format!(
-        "{}.{}",
-        part(&json!({ "alg": alg, "typ": "JWT" })),
-        part(&claims)
-    );
-    let pkey = PKey::private_key_from_pem(key).expect("private key");
-    let digest = if alg == "RS512" {
-        MessageDigest::sha512()
-    } else {
-        MessageDigest::sha256()
-    };
-    let mut signer = Signer::new(digest, &pkey).expect("signer");
-    signer.update(input.as_bytes()).expect("sign input");
-    let signature = signer.sign_to_vec().expect("signature");
-    format!("{input}.{}", URL_SAFE_NO_PAD.encode(signature))
+/// A JWT over `claims`, signed RS256 or RS512 with `key` (a PKCS#8 PEM).
+pub fn jwt(alg: &str, claims: Value, key: &[u8]) -> String {
+    medbrains_abdm_fake_gateway::jwt(alg, claims, key).expect("jwt")
 }
 
 /// The gateway's callback token, signed with `key`.
 pub fn gateway_jwt(key: &[u8]) -> String {
-    jwt("RS256", gateway_claims(), key)
-}
-
-/// The gateway (sessions + every HIP call, answered 202) and the HIU push URL.
-async fn spawn_mock(state: MockState) -> String {
-    async fn record(
-        State((c, hooks, refuse, replies)): State<MockState>,
-        uri: Uri,
-        headers: HeaderMap,
-        body: Bytes,
-    ) -> axum::response::Response {
-        use axum::response::IntoResponse;
-        let body = serde_json::from_slice(&body).unwrap_or(Value::Null);
-        let call = Call {
-            path: uri.path().to_owned(),
-            headers,
-            body,
-        };
-        c.lock().expect("calls").push(call.clone());
-        if refuse.lock().expect("refuse").remove(&call.path) {
-            return StatusCode::UNAUTHORIZED.into_response();
-        }
-        let reply = replies.lock().expect("replies").get(&call.path).cloned();
-        let hook = hooks.lock().expect("hooks").get(&call.path).cloned();
-        if let Some(hook) = hook {
-            hook(call).await;
-        }
-        match reply {
-            Some((status, body)) => (status, Json(body)).into_response(),
-            None => StatusCode::ACCEPTED.into_response(),
-        }
-    }
-    /// The gateway swagger requires `grantType: client_credentials`.
-    async fn sessions(
-        State((c, ..)): State<MockState>,
-        Json(body): Json<Value>,
-    ) -> (StatusCode, Json<Value>) {
-        c.lock().expect("calls").push(Call {
-            path: "/sessions".to_owned(),
-            headers: HeaderMap::new(),
-            body: body.clone(),
-        });
-        if body["grantType"] != "client_credentials" {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "message": "grantType is required" })),
-            );
-        }
-        (
-            StatusCode::OK,
-            Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })),
-        )
-    }
-    let app = Router::new()
-        .route("/sessions", post(sessions))
-        .fallback(record)
-        .with_state(state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind mock");
-    let addr = listener.local_addr().expect("addr");
-    tokio::spawn(async move { axum::serve(listener, app).await.ok() });
-    format!("http://{addr}")
+    medbrains_abdm_fake_gateway::gateway_jwt(key).expect("gateway jwt")
 }
 
 pub struct World {
@@ -278,17 +161,17 @@ impl World {
 }
 
 pub async fn world() -> World {
-    let calls: Calls = Arc::default();
-    let hooks: Hooks = Arc::default();
-    let refuse_once: RefuseOnce = Arc::default();
-    let replies: Replies = Arc::default();
-    let mock = spawn_mock((
-        calls.clone(),
-        hooks.clone(),
-        refuse_once.clone(),
-        replies.clone(),
-    ))
-    .await;
+    let recorder = Recorder::default();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind mock");
+    let mock = medbrains_abdm_fake_gateway::spawn(listener, recorder.clone()).expect("mock");
+    let Recorder {
+        calls,
+        hooks,
+        refuse_once,
+        replies,
+    } = recorder;
     let gateway = PKey::from_rsa(Rsa::generate(2048).expect("rsa")).expect("pkey");
     let public = String::from_utf8(gateway.public_key_to_pem().expect("pem")).expect("utf8");
     let app = common::spawn_app_with_secrets(
@@ -344,7 +227,7 @@ pub async fn world() -> World {
     .expect("hfr id");
 
     let abha = format!("91{:012}", Uuid::new_v4().as_u128() % 1_000_000_000_000);
-    let address = format!("priya.{}@sbx", &tag[10..16].to_lowercase());
+    let address = format!("priya.{}@sbx", tag[10..16].to_lowercase());
     let verification: Uuid = sqlx::query_scalar(
         "INSERT INTO abha_verifications (tenant_id, created_by, method, otp_system, environment, \
             login_id_cipher, abdm_txn_id, stage, abha_number, abha_address, profile, verified_at, expires_at) \
