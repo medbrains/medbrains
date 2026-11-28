@@ -7,7 +7,13 @@ import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
 import { offDependencies } from "./module-bricks";
 
 function mod(code: string, status: "enabled" | "disabled", depends_on: string[] = []) {
-  return { code, name: code, status, depends_on } as unknown as ModuleConfig;
+  return {
+    code,
+    name: code,
+    status,
+    on: status === "enabled",
+    depends_on,
+  } as unknown as ModuleConfig;
 }
 
 const MODULES = [

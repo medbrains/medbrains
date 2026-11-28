@@ -15,13 +15,11 @@ export const BRANDING_MARKS_QUERY_KEY = ["branding-marks"];
 const MARK_HEIGHT = 32;
 
 /**
- * The emblem, then the name banner, at one height in the header's centre;
- * either alone when only one is set, and nothing at all when neither is (or
- * when they cannot be read: the product brand on the left still shows, and
- * the read is not retried in a loop). The header's middle column: the
- * controls either side shrink to make room, never slide underneath.
+ * The hospital's marks for the header, read once and shared by every caller
+ * (the centre marks and the default profile picture); undefined while loading,
+ * when unreadable, or for a user who may not view branding. Not retried in a loop.
  */
-export function HospitalMarks() {
+export function useBrandingMarks() {
   const canView = useHasPermission(P.BRANDING.VIEW);
   const { data } = useQuery({
     queryKey: BRANDING_MARKS_QUERY_KEY,
@@ -30,6 +28,18 @@ export function HospitalMarks() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  return data;
+}
+
+/**
+ * The emblem, then the name banner, at one height in the header's centre;
+ * either alone when only one is set, and nothing at all when neither is (or
+ * when they cannot be read: the product brand on the left still shows, and
+ * the read is not retried in a loop). The header's middle column: the
+ * controls either side shrink to make room, never slide underneath.
+ */
+export function HospitalMarks() {
+  const data = useBrandingMarks();
   if (!data || (!data.emblem && !data.name_banner)) return null;
   const name = data.display_name ?? "Hospital";
   return (

@@ -5,6 +5,7 @@ import { getOpdDept } from "../helpers/seed-resolvers";
 import { loginAsRole, navigateTo, routeApiDirect } from "../helpers";
 import { uniquePatient } from "../fixtures/patients";
 import { expectKeyboardFocusable } from "../helpers/wcag";
+import { appOfPath, launcherAppNames, openLauncherApp } from "../helpers/launcher";
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -64,11 +65,6 @@ async function expectSidebarEntry(page: Page, label: string) {
   await expect(sidebar.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 10_000 });
 }
 
-async function expectNoSidebarEntry(page: Page, label: string) {
-  const sidebar = page.locator('[data-testid="app-sidebar"]');
-  await expect(sidebar.getByText(label, { exact: true })).toHaveCount(0);
-}
-
 /** A screen typed by address that the role may not open lands on the refusal screen. */
 async function expectDirectRouteDenied(page: Page, path: string) {
   await page.goto(path);
@@ -79,8 +75,8 @@ async function expectDirectRouteDenied(page: Page, path: string) {
 }
 
 /**
- * The sidebar lists every module the role may open (the workspace switcher
- * went in #311); collapsed to the icon rail it shows no labels, so open it.
+ * The side panel lists the screens of the app the person is in (the launcher
+ * offers the apps); collapsed to the icon rail it shows no labels, so open it.
  */
 async function openSidebar(page: Page) {
   const sidebar = page.locator('[data-testid="app-sidebar"]');
@@ -208,9 +204,8 @@ test.describe("UI journeys and action surfaces", () => {
     const runtimeFailures = monitorRuntimeFailures(page);
 
     await loginAndNavigate(page, "store_keeper", "/dashboard");
-    await openSidebar(page);
-    // Procurement is a section of the Materials workspace.
-    await expectSidebarEntry(page, "Materials");
+    // Procurement is a section of the Materials workspace, in the stores app.
+    expect(await launcherAppNames(page)).toContain("Inventory & Stores");
     await navigateTo(page, "/materials");
     await page.getByRole("tab", { name: "Procurement" }).click();
     await expect(page.getByRole("tab", { name: "Purchase Orders" })).toBeVisible();
@@ -243,7 +238,8 @@ test.describe("UI journeys and action surfaces", () => {
 
   test("lab technician is blocked from the procurement screen and navigation", async ({ page }) => {
     await loginAndNavigate(page, "lab_technician", "/dashboard");
-    await expectNoSidebarEntry(page, "Procurement");
+    // Procurement lives in the stores app, which the launcher does not offer them.
+    expect(await launcherAppNames(page)).not.toContain("Inventory & Stores");
     await expectDirectRouteDenied(page, "/procurement");
   });
 
@@ -281,6 +277,8 @@ test.describe("UI journeys and action surfaces", () => {
     const runtimeFailures = monitorRuntimeFailures(page);
 
     await loginAndNavigate(page, "security_guard", "/dashboard");
+    // Front Office is a screen of the registration app, their one app.
+    await openLauncherApp(page, "Patient Registration");
     await openSidebar(page);
     await expectSidebarEntry(page, "Front Office");
     await navigateTo(page, "/front-office");
@@ -383,6 +381,10 @@ test.describe("UI journeys and action surfaces", () => {
         ignoredApiFailures: [/^\/api\/patients\/[0-9a-f-]{36}$/],
       });
       await loginAndNavigate(page, c.role, "/dashboard");
+      // An app's screens are in its own panel, entered by its launcher tile; a core
+      // screen (no app) is in the panel on the dashboard.
+      const app = appOfPath(c.path);
+      if (app) await openLauncherApp(page, app);
       await openSidebar(page);
 
       const sidebar = page.locator('[data-testid="app-sidebar"]');
