@@ -1,8 +1,8 @@
-import { api } from "@medbrains/api";
+import { labApi } from "@medbrains/api/modules/lab";
 
-export type CreateLabCatalogInput = Parameters<typeof api.createLabCatalogEntry>[0];
+export type CreateLabCatalogInput = Parameters<typeof labApi.createLabCatalogEntry>[0];
 
 export const labCatalogService = {
-  listLabCatalog: () => api.listLabCatalog(),
-  createLabCatalogEntry: (data: CreateLabCatalogInput) => api.createLabCatalogEntry(data),
+  listLabCatalog: () => labApi.listLabCatalog(),
+  createLabCatalogEntry: (data: CreateLabCatalogInput) => labApi.createLabCatalogEntry(data),
 };

@@ -290,7 +290,7 @@ async fn wellness(
         let author = readings
             .first()
             .and_then(|r| authors.get(&r.recorded_by))
-            .cloned();
+            .map(|(party, _)| party.clone());
         let ctx = clinical(c, author.as_ref(), Some(context.source_id), at);
         let lines: Vec<VitalsLine> = readings
             .iter()
@@ -338,18 +338,21 @@ async fn wellness(
     Ok(())
 }
 
-/// Staff names and HPR IDs, once each.
-async fn parties(
+/// Staff names, HPR IDs and specialities (their own, then the doctor
+/// profile's sub-speciality), once each.
+pub(super) async fn parties(
     tx: Tx<'_, '_>,
     tenant_id: Uuid,
     users: impl Iterator<Item = Uuid>,
-) -> Result<HashMap<Uuid, Party>, AppError> {
+) -> Result<HashMap<Uuid, (Party, Option<String>)>, AppError> {
     let mut wanted: Vec<Uuid> = users.collect();
     wanted.sort_unstable();
     wanted.dedup();
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
-    let rows: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
-        "SELECT u.id, u.full_name, dp.hpr_id FROM users u \
+    let rows: Vec<(Uuid, String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT u.id, u.full_name, dp.hpr_id, \
+                NULLIF(concat_ws(', ', NULLIF(btrim(u.specialization), ''), NULLIF(btrim(dp.subspecialty), '')), '') \
+           FROM users u \
            LEFT JOIN doctor_profiles dp ON dp.user_id = u.id AND dp.tenant_id = $1 AND dp.deleted_at IS NULL \
           WHERE u.id = ANY($2)",
     )
@@ -359,15 +362,13 @@ async fn parties(
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, name, hpr)| {
-            (
+        .map(|(id, name, hpr, speciality)| {
+            let party = Party {
                 id,
-                Party {
-                    id,
-                    name,
-                    registry_id: hpr,
-                },
-            )
+                name,
+                registry_id: hpr,
+            };
+            (id, (party, speciality))
         })
         .collect())
 }

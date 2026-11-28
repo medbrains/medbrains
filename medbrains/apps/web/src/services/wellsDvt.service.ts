@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const wellsDvtService = {
-  computeWellsDvt: (data: Parameters<typeof api.computeWellsDvt>[0]) => api.computeWellsDvt(data),
+  computeWellsDvt: (data: Parameters<typeof clinicalApi.computeWellsDvt>[0]) =>
+    clinicalApi.computeWellsDvt(data),
 };

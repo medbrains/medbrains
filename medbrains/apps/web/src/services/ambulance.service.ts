@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { ambulanceApi } from "@medbrains/api/modules/ambulance";
 import type {
   AmbulanceMaintenanceStatus,
   AmbulanceTripStatus,
@@ -10,18 +10,20 @@ import type {
 } from "@medbrains/types";
 
 export const ambulanceService = {
-  listAmbulances: api.listAmbulances,
-  createAmbulance: (data: CreateAmbulanceRequest) => api.createAmbulance(data),
-  updateAmbulance: (id: string, data: UpdateAmbulanceRequest) => api.updateAmbulance(id, data),
-  listAmbulanceDrivers: api.listAmbulanceDrivers,
-  createAmbulanceDriver: (data: CreateAmbulanceDriverRequest) => api.createAmbulanceDriver(data),
-  listAmbulanceTrips: api.listAmbulanceTrips,
-  createAmbulanceTrip: (data: CreateAmbulanceTripRequest) => api.createAmbulanceTrip(data),
+  listAmbulances: ambulanceApi.listAmbulances,
+  createAmbulance: (data: CreateAmbulanceRequest) => ambulanceApi.createAmbulance(data),
+  updateAmbulance: (id: string, data: UpdateAmbulanceRequest) =>
+    ambulanceApi.updateAmbulance(id, data),
+  listAmbulanceDrivers: ambulanceApi.listAmbulanceDrivers,
+  createAmbulanceDriver: (data: CreateAmbulanceDriverRequest) =>
+    ambulanceApi.createAmbulanceDriver(data),
+  listAmbulanceTrips: ambulanceApi.listAmbulanceTrips,
+  createAmbulanceTrip: (data: CreateAmbulanceTripRequest) => ambulanceApi.createAmbulanceTrip(data),
   updateAmbulanceTripStatus: (id: string, status: AmbulanceTripStatus) =>
-    api.updateAmbulanceTripStatus(id, { status }),
-  listAmbulanceMaintenance: api.listAmbulanceMaintenance,
+    ambulanceApi.updateAmbulanceTripStatus(id, { status }),
+  listAmbulanceMaintenance: ambulanceApi.listAmbulanceMaintenance,
   createAmbulanceMaintenance: (data: CreateAmbulanceMaintenanceRequest) =>
-    api.createAmbulanceMaintenance(data),
+    ambulanceApi.createAmbulanceMaintenance(data),
   updateAmbulanceMaintenanceStatus: (id: string, status: AmbulanceMaintenanceStatus) =>
-    api.updateAmbulanceMaintenance(id, { status }),
+    ambulanceApi.updateAmbulanceMaintenance(id, { status }),
 };

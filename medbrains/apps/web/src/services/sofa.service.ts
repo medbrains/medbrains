@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const sofaService = {
-  computeSofa: (data: Parameters<typeof api.computeSofa>[0]) => api.computeSofa(data),
+  computeSofa: (data: Parameters<typeof clinicalApi.computeSofa>[0]) =>
+    clinicalApi.computeSofa(data),
 };

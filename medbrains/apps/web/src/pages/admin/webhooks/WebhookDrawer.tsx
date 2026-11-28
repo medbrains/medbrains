@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import {
   CLINICAL_EVENT_I18N_KEYS,
   type WebhookSubscription,
@@ -48,10 +48,10 @@ export function WebhookDrawer({ target, onClose, onSecret }: WebhookDrawerProps)
   const save = useMutation({
     mutationFn: async (v: Form) => {
       if (editing) {
-        await api.updateWebhook(editing.id, v);
+        await adminApi.updateWebhook(editing.id, v);
         return null;
       }
-      return api.createWebhook(v);
+      return adminApi.createWebhook(v);
     },
     onSuccess: (issued) => {
       void queryClient.invalidateQueries({ queryKey: ["webhooks"] });

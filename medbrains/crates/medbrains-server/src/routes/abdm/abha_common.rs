@@ -8,7 +8,10 @@ use std::{
 };
 
 use axum::Json;
-use medbrains_abdm::AbhaProfile;
+use medbrains_abdm::{
+    AbhaProfile,
+    rules::{AADHAAR_INVALID, MOBILE_INVALID, RESEND_LOCKED, RESEND_LOCKOUT_MINUTES},
+};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -20,6 +23,10 @@ pub(crate) const RESEND_AFTER_SECONDS: i64 = 60;
 /// "Resend OTP" at most twice per OTP (M1 test cases `CRT_ABHA_106` and
 /// `VRFY_ABHA_405`, official M1 test sheet on sandboxcms.abdm.gov.in).
 pub(crate) const MAX_RESENDS: i32 = 2;
+/// Longest life of an OTP transaction (verification, search or enrolment).
+pub(crate) const OTP_TRANSACTION_MINUTES: i32 = 30;
+// `check_resend` relies on this: a transaction never outlives the lockout.
+const _: () = assert!(OTP_TRANSACTION_MINUTES <= RESEND_LOCKOUT_MINUTES);
 /// ABDM's person tokens live at most 30 minutes.
 const USER_TOKEN_TTL: Duration = Duration::from_secs(25 * 60);
 /// Bound on tokens held at once; expired ones are dropped first.
@@ -118,13 +125,22 @@ pub struct VerificationStep {
     pub already_linked: Option<LinkedPatient>,
     /// ABHA addresses ABDM suggests, when creating an ABHA.
     pub suggestions: Vec<String>,
+    /// The masked mobile the OTP went to (`******1234`), when known
+    /// (`CRT_ABHA_105`).
+    pub sent_to: Option<String>,
+    /// `sbx` or `abdm`: what follows the `@` of a new ABHA address, so the
+    /// screen can count it into the 8–18 characters (`CRT_ABHA_112`).
+    pub address_domain: Option<&'static str>,
 }
 
 impl VerificationStep {
-    pub(crate) const fn otp_sent(id: Uuid, message: Option<String>) -> Self {
+    /// An OTP is waiting: the pause, both resends, and where it went.
+    pub(crate) fn otp_sent(id: Uuid, message: Option<String>) -> Self {
         Self {
             id,
             stage: "otp_sent",
+            sent_to: message.as_deref().and_then(masked_mobile_in),
+            address_domain: None,
             message,
             resend_after_seconds: Some(RESEND_AFTER_SECONDS),
             resends_left: Some(MAX_RESENDS),
@@ -144,15 +160,17 @@ impl VerificationStep {
     }
 }
 
-/// Refuse a resend inside the pause or past the cap.
+/// Refuse a resend inside the pause or past the cap. Past the cap the answer
+/// is NHA's 30-minute message (`CRT_ABHA_106`): every OTP transaction lives
+/// at most 30 minutes from its start (asserted beside [`OTP_TRANSACTION_MINUTES`]), so it
+/// ends before 30 minutes pass from its last send — the refusal holds for
+/// the whole lockout without a second timestamp.
 ///
 /// # Errors
 /// 429 either way, with what to do.
 pub(crate) fn check_resend(ready: bool, used: i32) -> Result<(), AppError> {
     if used >= MAX_RESENDS {
-        return Err(AppError::TooManyRequests(
-            "ABDM allows the OTP to be sent again only twice — start again".to_owned(),
-        ));
+        return Err(AppError::TooManyRequests(RESEND_LOCKED.to_owned()));
     }
     if !ready {
         return Err(AppError::TooManyRequests(
@@ -160,6 +178,28 @@ pub(crate) fn check_resend(ready: bool, used: i32) -> Result<(), AppError> {
         ));
     }
     Ok(())
+}
+
+/// `******1234`: a mobile as the screen may show it.
+pub(crate) fn mask_mobile(mobile: &str) -> String {
+    let d = digits(mobile);
+    format!("******{}", &d[d.len().saturating_sub(4)..])
+}
+
+/// The masked mobile in ABDM's "OTP sent to … ending with ******1234" or
+/// "…XXXXXX1234", masked our way.
+pub(crate) fn masked_mobile_in(message: &str) -> Option<String> {
+    let chars: Vec<char> = message.chars().collect();
+    let masked = |c: char| matches!(c, '*' | 'X' | 'x');
+    (0..chars.len().saturating_sub(5)).find_map(|i| {
+        let tail: String = chars[i + 2..].iter().take(4).collect();
+        (masked(chars[i])
+            && masked(chars[i + 1])
+            && tail.len() == 4
+            && tail.chars().all(|c| c.is_ascii_digit())
+            && chars.get(i + 6).is_none_or(|c| !c.is_ascii_digit()))
+        .then(|| format!("******{tail}"))
+    })
 }
 
 /// `91-1234-5678-9012` from any spacing of 14 digits.
@@ -175,6 +215,21 @@ pub(crate) const fn env_name(abdm: &Abdm) -> &'static str {
     }
 }
 
+/// The 12 digits of a valid Aadhaar number (length and Verhoeff check
+/// digit), else NHA's exact refusal (`CRT_ABHA_104`) — before any OTP.
+pub(crate) fn aadhaar_digits(aadhaar: &str) -> Result<String, AppError> {
+    medbrains_abdm::rules::aadhaar(aadhaar)
+        .ok_or_else(|| AppError::BadRequest(AADHAAR_INVALID.to_owned()))
+}
+
+/// The 10 digits of a valid mobile, else NHA's exact refusal
+/// (`VRFY_ABHA_301`) — before any search or OTP.
+pub(crate) fn mobile_digits(mobile: &str) -> Result<String, AppError> {
+    medbrains_abdm::rules::mobile(mobile)
+        .ok_or_else(|| AppError::BadRequest(MOBILE_INVALID.to_owned()))
+}
+
+/// Only the ASCII digits of `value`.
 pub(crate) fn digits(value: &str) -> String {
     value.chars().filter(char::is_ascii_digit).collect()
 }
@@ -255,6 +310,8 @@ pub(crate) async fn record_verified(
         profile: Some(profile),
         already_linked,
         suggestions: Vec::new(),
+        sent_to: None,
+        address_domain: None,
     }))
 }
 
@@ -305,7 +362,7 @@ pub(crate) fn to_profile(raw: AbhaProfile) -> Result<VerifiedProfile, AppError> 
 
 #[cfg(test)]
 mod tests {
-    use super::{abha_number_display, gender_name, to_profile};
+    use super::{abha_number_display, gender_name, mask_mobile, masked_mobile_in, to_profile};
     use medbrains_abdm::AbhaProfile;
 
     /// ABDM's day/month/year become one date; a partial date stays absent
@@ -345,6 +402,24 @@ mod tests {
             Some("91-4173-3253-1234")
         );
         assert_eq!(abha_number_display("9141733253123"), None);
+    }
+
+    /// `CRT_ABHA_105`: the masked mobile is found in ABDM's sentence, however
+    /// ABDM masks it, and never taken from a longer number.
+    #[test]
+    fn the_masked_mobile_is_read_from_abdms_message() {
+        assert_eq!(
+            masked_mobile_in("OTP sent to Aadhaar registered mobile number ending with ******3210")
+                .as_deref(),
+            Some("******3210")
+        );
+        assert_eq!(
+            masked_mobile_in("We just sent an OTP on the Mobile Number XXXXXX3210").as_deref(),
+            Some("******3210")
+        );
+        assert_eq!(masked_mobile_in("OTP sent"), None);
+        assert_eq!(masked_mobile_in("**123456"), None);
+        assert_eq!(mask_mobile("9876543210"), "******3210");
     }
 
     #[test]

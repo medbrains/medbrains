@@ -1,6 +1,6 @@
 import { Box, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { blogApi } from "@medbrains/api/modules/blog";
 import { useHasPermission } from "@medbrains/stores";
 import type { BlogPostListItem, UpsertBlogInput } from "@medbrains/types";
 import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -51,28 +51,28 @@ export function BlogSection() {
 
   const { data: posts } = useQuery({
     queryKey: ["blog", canAuthor],
-    queryFn: () => api.listBlog({ include_drafts: canAuthor }),
+    queryFn: () => blogApi.listBlog({ include_drafts: canAuthor }),
     staleTime: 120_000,
   });
 
   // The list omits `body_html` (multi-KB) — fetch the full post on open.
   const { data: reading, isLoading: readingLoading } = useQuery({
     queryKey: ["blog", "article", readingId],
-    queryFn: () => api.getBlogPost(readingId as string),
+    queryFn: () => blogApi.getBlogPost(readingId as string),
     enabled: Boolean(readingId),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["blog"] });
   const save = useMutation({
     mutationFn: (input: UpsertBlogInput) =>
-      editId ? api.updateBlogPost(editId, input) : api.createBlogPost(input),
+      editId ? blogApi.updateBlogPost(editId, input) : blogApi.createBlogPost(input),
     onSuccess: () => {
       void invalidate();
       editor.close();
     },
   });
   const remove = useMutation({
-    mutationFn: (id: string) => api.deleteBlogPost(id),
+    mutationFn: (id: string) => blogApi.deleteBlogPost(id),
     onSuccess: invalidate,
   });
 
@@ -86,7 +86,7 @@ export function BlogSection() {
     // `body_html` isn't in the list row — fetch the full post for the editor.
     const full = await queryClient.fetchQuery({
       queryKey: ["blog", "article", post.id],
-      queryFn: () => api.getBlogPost(post.id),
+      queryFn: () => blogApi.getBlogPost(post.id),
     });
     setForm({
       title: full.title,

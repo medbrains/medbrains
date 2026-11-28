@@ -17,8 +17,23 @@ export function patientIdentitySubline(opts: {
   uhid: string;
   ageYears?: number | null;
   gender?: string | null;
+  /** The hospital OPD number and its register date, when it keeps one. */
+  opd?: { opd_number?: string | null; opd_date?: string | null };
 }): string {
   const age = opts.ageYears != null ? ` · ${opts.ageYears}y` : "";
   const gender = opts.gender ? ` · ${opts.gender}` : "";
-  return `${opts.uhid}${age}${gender}`;
+  return `${opts.uhid}${age}${gender}${opdLabel(opts.opd)}`;
+}
+
+/** " · OPD 1043 (20 Nov 2026)", or nothing when the patient has no OPD number. */
+export function opdLabel(opd?: { opd_number?: string | null; opd_date?: string | null }): string {
+  if (!opd?.opd_number) return "";
+  const date = opd.opd_date
+    ? new Date(`${opd.opd_date}T00:00:00`).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
+  return ` · OPD ${opd.opd_number}${date ? ` (${date})` : ""}`;
 }

@@ -28,6 +28,8 @@ use super::{
 };
 use crate::{last_visit, referral_lifecycle, reports, rx_policy, transfer};
 
+mod display_settings;
+
 /// The clinical-visit core: what any encounter needs, whichever app opened it.
 ///
 /// IPD and Emergency write rows into the same `encounters` table and chart on them through these
@@ -160,6 +162,10 @@ fn catalogue_routes() -> axum::Router<AppState> {
             delete(delete_prescription_template),
         )
         .route("/api/opd/procedure-catalog", get(list_procedure_catalog))
+        .route(
+            "/api/clinical/display-settings",
+            get(display_settings::list_display_settings),
+        )
         .route("/api/opd/duplicate-check", get(check_duplicate_orders))
         .route("/api/opd/icd11/search", get(search_icd11))
         .route(

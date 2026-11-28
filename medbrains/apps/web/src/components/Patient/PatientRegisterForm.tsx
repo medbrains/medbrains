@@ -73,6 +73,12 @@ import { AbhaLinkPanel } from "./AbhaLinkPanel";
 import { CampaignSelect } from "./CampaignSelect";
 import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
 import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
+import {
+  drugAllergyOptionLabel,
+  joinDrugAllergyTags,
+  splitDrugAllergyTags,
+} from "./drug-allergy-tags";
+import { OpdNumberRow, opdNumberFields } from "./OpdNumberRow";
 import { RegistrationMoreDetails } from "./RegistrationMoreDetails";
 import { RegistrationRequiredFields } from "./RegistrationRequiredFields";
 import { useOpdVisitGates } from "./useOpdVisitGates";
@@ -92,30 +98,6 @@ interface PatientRegisterFormProps {
   initialValues?: PatientRegistrationInitialValues;
   /** An ABHA the server already verified for this registration (Scan & Share). */
   initialAbhaVerificationId?: string;
-}
-
-function splitDrugAllergyTags(value: string | undefined): string[] {
-  return (value ?? "")
-    .split(/[,;\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function joinDrugAllergyTags(values: string[]): string {
-  return values
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .join(", ");
-}
-
-function drugAllergyOptionLabel(item: PharmacyCatalog): string {
-  return [
-    item.name,
-    item.generic_name,
-    item.drug_schedule ? `Schedule ${item.drug_schedule}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 interface LabelOption {
@@ -663,6 +645,7 @@ export function PatientRegisterForm({
         : undefined,
       address: Object.keys(address).length > 0 ? address : null,
       attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
+      ...(isEdit ? {} : opdNumberFields(queryClient, values)),
     };
     return req;
   };
@@ -806,6 +789,7 @@ export function PatientRegisterForm({
 
         {activeStep === 0 && (
           <FormProvider {...form}>
+            {!isEdit && <OpdNumberRow />}
             <RegistrationRequiredFields
               genderOptions={localizedGenderOptions}
               departmentOptions={departmentOptions}

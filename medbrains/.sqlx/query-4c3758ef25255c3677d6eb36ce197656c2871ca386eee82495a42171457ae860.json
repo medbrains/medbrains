@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE uhi_transactions SET doctor_no_show_at = COALESCE(doctor_no_show_at, now()) WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c3758ef25255c3677d6eb36ce197656c2871ca386eee82495a42171457ae860"
+}

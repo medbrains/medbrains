@@ -4,16 +4,22 @@ pub mod abha_link;
 pub mod acquisition;
 pub mod actions;
 pub mod contact_consent;
+mod context_parts;
 pub mod dpdp_consent;
 pub mod group_identity;
 mod group_identity_store;
 mod identifier_key;
 pub mod immunization_schedule;
+mod list_row;
 pub mod local_name;
+pub mod opd_number;
 pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
+mod registration_token;
 mod search;
+mod search_settings;
+pub use search::SearchBy;
 
 use medbrains_health_services::patient as gate;
 use medbrains_kernel as kernel;
@@ -102,6 +108,8 @@ pub struct ListPatientsQuery {
     pub sort: Option<String>,
     /// Sort direction: "asc" or "desc" (default desc).
     pub order: Option<String>,
+    /// Search only this field: all (default), phone, uhid, name or `opd_number`.
+    pub by: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -112,58 +120,7 @@ pub struct PatientListResponse {
     pub per_page: i64,
 }
 
-/// Slim projection of `Patient` for LIST responses. Only the fields the list
-/// table + search/picker consumers actually render — the full 40-field entity
-/// (addresses, guardians, audit, attributes, extra UUIDs) is fetched on demand
-/// via `GET /patients/{id}` for detail/edit. Cuts the list payload ~half (raw
-/// serialize/parse/memory; the wire is already compressed). Built from the
-/// already field-access-redacted `Patient`, so privacy masking is preserved.
-#[derive(Debug, Serialize)]
-pub struct PatientListRow {
-    pub id: Uuid,
-    pub uhid: String,
-    pub prefix: Option<String>,
-    pub first_name: String,
-    pub middle_name: Option<String>,
-    pub last_name: String,
-    pub suffix: Option<String>,
-    pub full_name_local: Option<String>,
-    pub phone: String,
-    pub gender: Gender,
-    pub date_of_birth: Option<NaiveDate>,
-    pub blood_group: Option<BloodGroup>,
-    pub category: PatientCategory,
-    pub registration_type: RegistrationType,
-    pub is_vip: bool,
-    pub is_medico_legal: bool,
-    pub mlc_number: Option<String>,
-    pub is_deceased: bool,
-}
-
-impl From<Patient> for PatientListRow {
-    fn from(p: Patient) -> Self {
-        Self {
-            id: p.id,
-            uhid: p.uhid,
-            prefix: p.prefix,
-            first_name: p.first_name,
-            middle_name: p.middle_name,
-            last_name: p.last_name,
-            suffix: p.suffix,
-            full_name_local: p.full_name_local,
-            phone: p.phone,
-            gender: p.gender,
-            date_of_birth: p.date_of_birth,
-            blood_group: p.blood_group,
-            category: p.category,
-            registration_type: p.registration_type,
-            is_vip: p.is_vip,
-            is_medico_legal: p.is_medico_legal,
-            mlc_number: p.mlc_number,
-            is_deceased: p.is_deceased,
-        }
-    }
-}
+pub use list_row::PatientListRow;
 
 /// Patient list row with the embedded `_perms` block. Frontend reads
 /// `_perms.edit` / `_perms.delete` etc. via `useResourcePerm(row)`.
@@ -171,6 +128,9 @@ impl From<Patient> for PatientListRow {
 pub struct PatientWithPerms {
     #[serde(flatten)]
     pub patient: PatientListRow,
+    /// The hospital OPD number: the patient's, else their latest visit's.
+    #[serde(flatten)]
+    pub opd: opd_number::OnRow,
     pub outstanding_balance: Decimal,
     pub pending_invoice_count: i64,
     #[serde(rename = "_perms")]
@@ -229,6 +189,8 @@ fn mask_json_text(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// Blank or mask the patient fields this caller's role may not see, so the
+/// response never carries a value the screen would have to hide.
 pub(crate) fn filter_patient_response(
     mut row: Patient,
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -393,6 +355,12 @@ pub struct CreatePatientRequest {
     pub financial_class: Option<FinancialClass>,
     /// The campaign the patient came through, picked at the desk.
     pub campaign_id: Option<Uuid>,
+    /// The hospital OPD number the desk typed, when its policy is per patient.
+    pub opd_number: Option<String>,
+    /// The day that number was issued in the paper register; today if absent.
+    pub opd_date: Option<NaiveDate>,
+    /// The register number typed as the UHID, in the hospital's one-number mode.
+    pub uhid: Option<String>,
 
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
@@ -717,38 +685,8 @@ pub struct MatchRequest {
 /// storefront's sign-up (`medbrains_server_services::patient_match`).
 pub use medbrains_server_services::patient_match::MatchResult;
 
-// ══════════════════════════════════════════════════════════
-//  UHID generation
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, sqlx::FromRow)]
-struct SequenceResult {
-    current_val: i64,
-    prefix: String,
-    pad_width: i32,
-}
-
-pub async fn generate_uhid(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<String, AppError> {
-    let seq = sqlx::query_as!(
-        SequenceResult,
-        "UPDATE sequences SET current_val = current_val + 1 \
-         WHERE tenant_id = $1 AND seq_type = 'UHID' \
-         RETURNING current_val, prefix, pad_width",
-        tenant_id,
-    )
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let seq = seq.ok_or_else(|| {
-        AppError::Internal("UHID sequence not configured for this tenant".to_owned())
-    })?;
-
-    let pad = usize::try_from(seq.pad_width).unwrap_or(5);
-    Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
-}
+/// The series' next UHID (lives beside the typed one, in one-number mode).
+pub use opd_number::generate_uhid;
 
 // ══════════════════════════════════════════════════════════
 //  Helper: convert optional enum to its serde string form
@@ -1102,9 +1040,8 @@ pub async fn list_patients(
         }
     };
 
-    let matcher =
-        search::PatientSearch::for_request(&state, claims.tenant_id, params.search.as_deref())
-            .await?;
+    let q = (params.search.as_deref(), params.by.as_deref());
+    let matcher = search::PatientSearch::for_request(&state, claims.tenant_id, q).await?;
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // Build dynamic WHERE conditions
@@ -1269,6 +1206,7 @@ pub async fn list_patients(
         .into_iter()
         .map(|row| (row.patient_id, row))
         .collect::<HashMap<_, _>>();
+    let mut opd_rows = opd_number::on_rows(&mut tx, claims.tenant_id, &patient_ids).await?;
 
     if let Some(search) = params
         .search
@@ -1295,60 +1233,17 @@ pub async fn list_patients(
 
     tx.commit().await?;
 
-    // ── Compute _perms for each row in one bulk_check round-trip ──
-    // 5 relations × N rows = single gRPC for SpiceDB; falls back to
-    // per-row check() for the Postgres backend.
-    let perm_items: Vec<(String, kernel::authz::Relation, Uuid)> = patients_raw
-        .iter()
-        .flat_map(|p| {
-            let id = p.id;
-            [
-                ("patient".to_owned(), kernel::authz::Relation::Viewer, id),
-                ("patient".to_owned(), kernel::authz::Relation::Editor, id),
-                ("patient".to_owned(), kernel::authz::Relation::Owner, id),
-            ]
-        })
-        .collect();
-    let perms_map = if patients_raw.is_empty() {
-        HashMap::new()
-    } else {
-        state
-            .authz
-            .bulk_check(&authz_ctx, &perm_items)
-            .await
-            .unwrap_or_default()
-    };
+    let ids: Vec<Uuid> = patients_raw.iter().map(|p| p.id).collect();
+    let perms = listed_patient_perms(&state, &claims, &ids).await?;
 
     let patients: Vec<PatientWithPerms> = patients_raw
         .into_iter()
-        .map(|p| {
+        .zip(perms)
+        .map(|(p, perms)| {
             let id = p.id;
             let billing = payment_status.get(&id);
-            let perms = if authz_ctx.is_bypass {
-                medbrains_core::perms_block::PermsBlock::all()
-            } else {
-                medbrains_core::perms_block::PermsBlock {
-                    view: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Viewer, id))
-                        .copied()
-                        .unwrap_or(false),
-                    edit: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Editor, id))
-                        .copied()
-                        .unwrap_or(false),
-                    delete: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Owner, id))
-                        .copied()
-                        .unwrap_or(false),
-                    // share == owner in our schema; same lookup
-                    share: perms_map
-                        .get(&("patient".to_owned(), kernel::authz::Relation::Owner, id))
-                        .copied()
-                        .unwrap_or(false),
-                    approve: false,
-                }
-            };
             PatientWithPerms {
+                opd: opd_number::take(&mut opd_rows, id, &restricted),
                 patient: filter_patient_response(p, &restricted).into(),
                 outstanding_balance: if scrub_billing_amount {
                     Decimal::ZERO
@@ -1375,6 +1270,52 @@ pub async fn list_patients(
     }))
 }
 
+/// Row flags for each listed patient, in `ids` order, in one bulk check.
+///
+/// The ids came from `list_accessible(Viewer)` (or a bypass role sees all), so
+/// view is already known and only Editor and Owner are asked. A backend that
+/// cannot answer is an outage (503), never a page of rows with every action
+/// switched off (ENGINEERING.md, "a fault is not a refusal").
+async fn listed_patient_perms(
+    state: &AppState,
+    claims: &Claims,
+    ids: &[Uuid],
+) -> Result<Vec<medbrains_core::perms_block::PermsBlock>, AppError> {
+    use kernel::authz::Relation::{Editor, Owner};
+    let authz_ctx = kernel::authz::authz_context(claims);
+    if authz_ctx.is_bypass || ids.is_empty() {
+        return Ok(vec![
+            medbrains_core::perms_block::PermsBlock::all();
+            ids.len()
+        ]);
+    }
+    let items: Vec<_> = (ids.iter())
+        .flat_map(|id| [Editor, Owner].map(|r| ("patient".to_owned(), r, *id)))
+        .collect();
+    let answers = state
+        .authz
+        .bulk_check(&authz_ctx, &items)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, user = %authz_ctx.user_id,
+            "rebac: bulk_check(patient list) FAILED");
+            AppError::ServiceUnavailable("authorization backend unavailable".to_owned())
+        })?;
+    // A pair the backend left out of a successful answer was not granted.
+    let has = |r, id| (answers.get(&("patient".to_owned(), r, id)).copied()).unwrap_or(false);
+    Ok(ids
+        .iter()
+        .map(|&id| medbrains_core::perms_block::PermsBlock {
+            view: true,
+            edit: has(Editor, id),
+            delete: has(Owner, id),
+            // share == owner in our schema; same lookup
+            share: has(Owner, id),
+            approve: false,
+        })
+        .collect())
+}
+
 // ══════════════════════════════════════════════════════════
 //  POST /api/patients
 // ══════════════════════════════════════════════════════════
@@ -1383,7 +1324,7 @@ pub async fn create_patient(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePatientRequest>,
-) -> Result<Json<Patient>, AppError> {
+) -> Result<Json<opd_number::CreatedPatient>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::CREATE)?;
 
     // Validate field-level write access
@@ -1453,7 +1394,7 @@ pub async fn create_patient(
 
     validate_patient_registration_links(&mut tx, &claims.tenant_id, &body).await?;
 
-    let uhid = generate_uhid(&mut tx, &claims.tenant_id).await?;
+    let uhid = opd_number::uhid_at_registration(&mut tx, claims.tenant_id, &body).await?;
 
     let mut patient = sqlx::query_as_unchecked!(
         Patient,
@@ -1528,6 +1469,7 @@ pub async fn create_patient(
     )
     .fetch_one(&mut *tx)
     .await?;
+    let assigned = opd_number::assign_at_registration(&mut tx, &claims, patient.id, &body).await?;
     if let Some(local) = body.full_name_local.as_deref() {
         local_name::save(&mut tx, claims.tenant_id, patient.id, local).await?;
         patient.full_name_local = Some(local.trim().to_owned()).filter(|n| !n.is_empty());
@@ -1607,28 +1549,7 @@ pub async fn create_patient(
     }
 
     // Auto-issue a registration token (skipped if the module is disabled).
-    let patient_label = format!("{} {}", patient.first_name, patient.last_name);
-    // Registration is where a visit starts, so it mints the id the rest of the
-    // journey shares: the lab and pharmacy tokens raised later carry the same
-    // number, and the patient holds one slip instead of three.
-    medbrains_tokens::issue_token_in_tx(
-        &mut tx,
-        claims.tenant_id,
-        medbrains_tokens::IssueToken {
-            visit_id: Some(Uuid::new_v4()),
-            module: "registration",
-            scope: "global",
-            scope_id: None,
-            scope_label: Some("Registration"),
-            priority: "normal",
-            patient_id: Some(patient.id),
-            patient_name: Some(patient_label.trim()),
-            entity_type: Some("patient"),
-            entity_id: Some(patient.id),
-            issued_by: Some(claims.sub),
-        },
-    )
-    .await?;
+    registration_token::issue(&mut tx, &claims, &patient).await?;
     // The registration fee, when the hospital charges one at registration
     // (#4885); hospitals that charge it at the first consultation get it there.
     medbrains_server_services::billing_lanes::charge_registration_fee(
@@ -1699,7 +1620,7 @@ pub async fn create_patient(
     )
     .await;
 
-    Ok(Json(filter_patient_response(patient, &restricted)))
+    Ok(Json(opd_number::created(patient, &restricted, assigned)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2576,7 +2497,11 @@ pub async fn list_patient_insurance(
 
     let rows = sqlx::query_as!(
         PatientInsurance,
-        "SELECT * FROM patient_insurance \
+        "SELECT id, tenant_id, patient_id, insurance_provider, policy_number, group_number, \
+         member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, \
+         valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, \
+         company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason \
+         FROM patient_insurance \
          WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY priority ASC, created_at",
         patient_id,
@@ -2623,7 +2548,10 @@ pub async fn create_patient_insurance(
           coverage_type, priority, is_active) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, \
                  $13, $14, $15, $16, $17) \
-         RETURNING *",
+         RETURNING id, tenant_id, patient_id, insurance_provider, policy_number, group_number, \
+         member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, \
+         valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, \
+         company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason",
         claims.tenant_id,
         patient_id,
         &body.insurance_provider,
@@ -2692,7 +2620,10 @@ pub async fn update_patient_insurance(
          is_active = COALESCE($15, is_active), \
          updated_at = now() \
          WHERE id = $16 AND patient_id = $17 AND tenant_id = $18 \
-         RETURNING *",
+         RETURNING id, tenant_id, patient_id, insurance_provider, policy_number, group_number, \
+         member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, \
+         valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, \
+         company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason",
         &body.insurance_provider,
         &body.policy_number,
         &body.group_number,
@@ -3222,6 +3153,7 @@ pub(crate) fn filter_match_result(
 ) -> MatchResult {
     if patient_field_is_hidden(restricted, PATIENT_UHID_FIELD) {
         row.uhid = "Restricted".to_owned();
+        row.opd_number = None; // an identifier like the UHID
     } else if patient_field_is_masked(restricted, PATIENT_UHID_FIELD) {
         row.uhid = mask_identifier_keep_last(&row.uhid, 4);
     }
@@ -3261,6 +3193,8 @@ pub(crate) fn filter_match_result(
     row
 }
 
+/// `POST /api/patients/match`: the duplicate check registration runs, scored
+/// and banded, identity only.
 pub async fn match_patients(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3373,6 +3307,8 @@ pub async fn match_patients(
 pub struct FindPatientsQuery {
     /// A UHID, a phone number, or part of a name — whatever the desk was told.
     pub q: String,
+    /// Search only this field: all (default), phone, uhid, name or `opd_number`.
+    pub by: Option<String>,
 }
 
 /// The desk lookup's query: the shared matcher (`search.rs`) for the tiers,
@@ -3384,17 +3320,19 @@ pub(crate) async fn find_matches(
     tenant_id: Uuid,
     matcher: &search::PatientSearch,
 ) -> Result<Vec<MatchResult>, AppError> {
+    // The fuzzy name binds after the matcher's own.
+    let fz = 2 + search::BINDS;
     let sql = format!(
         "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
            (CASE {rank} WHEN 0 THEN 1.0 WHEN 1 THEN 0.9 WHEN 2 THEN 0.8 \
-              ELSE COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) * 0.7 \
-            END)::float8 AS score, pharmacy_customer \
+              ELSE COALESCE(word_similarity(${fz}, first_name || ' ' || last_name), 0) * 0.7 \
+            END)::float8 AS score, pharmacy_customer, opd_number, opd_date \
          FROM patients \
          WHERE tenant_id = $1 AND is_merged = false AND is_active = true \
            AND deleted_at IS NULL \
-           AND ({matches} OR ($7 <> '' AND $7 <% (first_name || ' ' || last_name))) \
+           AND ({matches} OR (${fz} <> '' AND ${fz} <% (first_name || ' ' || last_name))) \
          ORDER BY score DESC, \
-           COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) DESC, \
+           COALESCE(word_similarity(${fz}, first_name || ' ' || last_name), 0) DESC, \
            last_name, first_name \
          LIMIT 20",
         rank = search::rank_sql(2),
@@ -3426,7 +3364,8 @@ pub async fn find_patients(
     // authz: role-only — the desk's hospital-wide lookup, by design (above): identity
     // only, each field masked by the caller's field access (DECISIONS 2026-11-19).
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
-    let rows = actions::find(&mut tx, &state, &claims, &params.q).await?;
+    let by = SearchBy::from_param(params.by.as_deref())?;
+    let rows = actions::find_by(&mut tx, (&state, &claims), &params.q, by).await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -3435,6 +3374,7 @@ pub async fn find_patients(
 //  Masters — Religions, Occupations, Relations
 // ══════════════════════════════════════════════════════════
 
+/// `GET /api/masters/religions`: the religions the registration form offers.
 pub async fn list_religions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4447,47 +4387,9 @@ pub struct UpdatePhotoRequest {
 //  Cached 30s on frontend (TanStack Query).
 // ══════════════════════════════════════════════════════════
 
-#[derive(Debug, Serialize)]
-pub struct LastVitalsContext {
-    pub recorded_at: DateTime<Utc>,
-    pub temperature: Option<Decimal>,
-    pub pulse: Option<i32>,
-    pub systolic_bp: Option<i32>,
-    pub diastolic_bp: Option<i32>,
-    pub respiratory_rate: Option<i32>,
-    pub spo2: Option<i32>,
-    pub weight_kg: Option<Decimal>,
-    pub height_cm: Option<Decimal>,
-    pub bmi: Option<Decimal>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AllergyContext {
-    pub substance: String,
-    pub allergy_type: String,
-    pub severity: String,
-    pub reaction: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct NextOfKinContext {
-    pub name: String,
-    pub phone: Option<String>,
-    pub relation: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct InsuranceContext {
-    pub provider_name: String,
-    pub policy_number: Option<String>,
-    pub valid_till: Option<NaiveDate>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PendingConsentContext {
-    pub consent_type: String,
-    pub status: String,
-}
+pub use context_parts::{
+    AllergyContext, InsuranceContext, LastVitalsContext, NextOfKinContext, PendingConsentContext,
+};
 
 #[derive(Debug, Serialize)]
 pub struct PatientContext {
@@ -4508,6 +4410,9 @@ pub struct PatientContext {
     pub is_vip: bool,
     pub is_unknown_patient: bool,
     pub is_deceased: bool,
+    /// The hospital OPD number and its register date, when it keeps one per patient.
+    #[serde(flatten)]
+    pub opd: opd_number::OnRow,
     // Pending consents
     pub pending_consents: Vec<PendingConsentContext>,
     // Financial
@@ -4849,6 +4754,7 @@ pub async fn get_patient_context(
     let primary_insurance = insurance_iter.next();
     let secondary_insurance = insurance_iter.next();
 
+    let opd = opd_number::of_patient(&mut tx, (claims.tenant_id, id), &restricted).await?;
     tx.commit().await?;
 
     Ok(Json(PatientContext {
@@ -4866,6 +4772,7 @@ pub async fn get_patient_context(
         is_vip: core.is_vip,
         is_unknown_patient: core.is_unknown_patient,
         is_deceased: core.is_deceased,
+        opd,
         pending_consents,
         outstanding_balance,
         preferred_language: core.preferred_language,
@@ -5158,4 +5065,5 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/masters/religions", get(list_religions))
         .route("/api/masters/occupations", get(list_occupations))
         .route("/api/masters/relations", get(list_relations))
+        .merge(opd_number::router())
 }

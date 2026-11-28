@@ -1,8 +1,9 @@
-import type { OpdCardPrintData } from "@medbrains/types";
+import type { OpdCardPrintData, PatientCardPrintData } from "@medbrains/types";
 import { renderPatientIdCard } from "./patient-id-card";
 import { esc, type PrintPage } from "./print-html";
 import { printDocumentDef } from "./print-registry";
 import { qrSvgMarkup } from "./qr-svg";
+import { renderThermalCard } from "./thermal-card";
 import { renderTokenTicket } from "./token-ticket";
 
 /**
@@ -127,6 +128,7 @@ const PRINT_CSS = `
 const CURATED: Record<string, (data: unknown) => PrintPage | { problem: string }> = {
   "opd-card": (data) => renderPatientIdCard(data as OpdCardPrintData),
   "opd-visit-card": (data) => renderTokenTicket(data as OpdCardPrintData),
+  "patient-card": (data) => renderThermalCard(data as PatientCardPrintData),
 };
 
 /** The page for a document: its drawn layout if it has one, else the generic sheet. */

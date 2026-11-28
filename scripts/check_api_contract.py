@@ -21,6 +21,8 @@ Exit codes:
 import re
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
+from api_client_source import api_client_source  # noqa: E402
 
 # ── Paths ────────────────────────────────────────────────────────────
 
@@ -131,7 +133,7 @@ def extract_frontend_endpoints() -> list[tuple[str, str, int, str]]:
     """
     Extract (method, path, line_number, func_name) from client.ts.
     """
-    source = CLIENT_TS.read_text()
+    source = api_client_source()
     lines = source.split('\n')
     endpoints = []
 

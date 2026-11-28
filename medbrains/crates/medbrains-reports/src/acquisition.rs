@@ -7,15 +7,16 @@
 //! what was billed and collected, against what the campaign cost.
 
 use axum::Json;
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use medbrains_core::analytics::DateRangeQuery;
 use medbrains_core::permissions;
 use medbrains_core::reports::{
     ReportDataResponse, ReportExportMode, ReportPriority, ReportReadiness,
 };
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_any_permission,
-    report_runner::begin_report, state::AppState,
+    error::AppError, hospital_time::tenant_local_today, middleware::auth::Claims,
+    middleware::authorization::require_any_permission, report_runner::begin_report,
+    state::AppState,
 };
 use serde::Serialize;
 use sqlx::{Postgres, Transaction};
@@ -105,14 +106,21 @@ pub(crate) fn family_seed() -> ReportFamilySeed {
 }
 
 /// The range a report covers, defaulting to the last quarter.
-fn range_of(range: &DateRangeQuery) -> (String, String) {
-    let today = Utc::now().date_naive();
+///
+/// Ends on the hospital's own today: a UTC today left the day's new patients out
+/// of the report from local midnight until UTC caught up.
+async fn range_of(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    range: &DateRangeQuery,
+) -> Result<(String, String), AppError> {
+    let today = tenant_local_today(&mut **tx, tenant_id).await?;
     let to = range.to.clone().unwrap_or_else(|| today.to_string());
     let from = range
         .from
         .clone()
         .unwrap_or_else(|| (today - Duration::days(DEFAULT_DAYS)).to_string());
-    (from, to)
+    Ok((from, to))
 }
 
 /// One of this family's reports, as the Reports section reads it.
@@ -124,8 +132,8 @@ pub(crate) async fn data(
     range: &DateRangeQuery,
 ) -> Result<Json<ReportDataResponse>, AppError> {
     require_reader(claims)?;
-    let (from, to) = range_of(range);
     let (mut tx, run) = begin_report(state, claims, "acquisition").await?;
+    let (from, to) = range_of(&mut tx, claims.tenant_id, range).await?;
     let response = match kind {
         ReportDataKind::CampaignAttribution => live_response(
             report_id,

@@ -87,7 +87,7 @@ function LocalNameFormRow() {
 
 /**
  * Everything on step 1 the rules do not require, kept apart from the required block so the desk
- * never has to hunt for what must be filled (owner, Rishi Hospital 2026-11-17).
+ * never has to hunt for what must be filled (owner, first standalone hospital, 2026-11-17).
  */
 export function RegistrationMoreDetails(props: RegistrationMoreDetailsProps) {
   const { t } = useTranslation("patients");

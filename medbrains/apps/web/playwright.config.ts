@@ -1,17 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const webRoot = path.dirname(fileURLToPath(import.meta.url));
-const authStatePath = path.join(webRoot, "e2e/.auth/user.json");
+import { authStatePath } from "./e2e/helpers/e2e-identities";
+import { E2E_WORKERS, slotForwardedFor, workerSlot } from "./e2e/helpers/worker-tenant";
 
 export default defineConfig({
   testDir: "./e2e",
   globalTeardown: "./e2e/global-teardown.ts",
+  // Files run side by side, each worker in its own hospital (e2e/helpers/worker-tenant.ts);
+  // the tests inside a file keep their order, since a journey's steps build on each other.
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  workers: E2E_WORKERS,
   // CI (e2e.yml) runs in shards; each writes a blob that playwright.merge.config.ts turns
   // into one HTML report and one JUnit file.
   reporter: process.env.CI ? [["github"], ["blob"]] : [["html"]],
@@ -20,6 +19,8 @@ export default defineConfig({
 
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
+    // This file is loaded again in every worker, so the slot here is that worker's.
+    extraHTTPHeaders: { "X-Forwarded-For": slotForwardedFor(workerSlot()) },
     ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
@@ -28,10 +29,16 @@ export default defineConfig({
   },
 
   projects: [
-    { name: "setup", testMatch: /global-setup\.ts/ },
+    // A hospital and role users per worker (API only), then each worker's browser session.
+    { name: "tenants", testMatch: /tenants\.setup\.ts/ },
+    { name: "setup", testMatch: /global-setup\.ts/, dependencies: ["tenants"] },
     // API-only layers. They talk HTTP and never open a page, so they neither
     // need a browser binary nor the browser login the `setup` project performs.
-    { name: "api", testMatch: /(smoke\/.*\.smoke\.spec|identity\/identity\.spec)\.ts/ },
+    {
+      name: "api",
+      testMatch: /(smoke\/.*\.smoke\.spec|identity\/identity\.spec)\.ts/,
+      dependencies: ["tenants"],
+    },
 
     // Layer 1 — API smoke (auto-generated, REST-only, no UI auth needed)
     {
@@ -192,6 +199,10 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
       },
+      // Needs no server, but a project with no dependency runs in the first phase, and every
+      // project that depends on setup waits for that whole phase: the mock specs held three
+      // of four workers idle. Without a server: `--project=mock-chromium --no-deps`.
+      dependencies: ["setup"],
     },
   ],
 });

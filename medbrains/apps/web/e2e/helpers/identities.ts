@@ -13,12 +13,15 @@
  */
 
 import type { APIRequestContext } from "@playwright/test";
+import { loadWorkerTenant, ownClientHeaders } from "./worker-tenant";
 
 export const BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
-/** Only ever used to create the run's own super admin. */
-const BOOTSTRAP_USERNAME = process.env.E2E_BOOTSTRAP_ADMIN_USER ?? "admin";
-const BOOTSTRAP_PASSWORD = process.env.E2E_BOOTSTRAP_ADMIN_PASS ?? "admin123";
+/** Only ever used to create the run's own super admin: this worker's hospital administrator. */
+function bootstrapLogin(request: APIRequestContext): Promise<Session> {
+  const tenant = loadWorkerTenant();
+  return login(request, tenant.adminUsername, tenant.adminPassword);
+}
 
 export interface Session {
   csrf: string;
@@ -41,7 +44,7 @@ export async function login(
   password: string,
 ): Promise<Session> {
   const post = () =>
-    request.post(`${BACKEND_URL}/api/auth/login`, { data: { username, password } });
+    request.post(`${BACKEND_URL}/api/auth/login`, { headers: ownClientHeaders(), data: { username, password } });
   let response = await post();
   // Sign-in is limited to five a minute per address; a long run that signs
   // staff in back to back meets it. Wait it out rather than fail the test.
@@ -79,7 +82,7 @@ let workerAdmin: Promise<Identity> | null = null;
 
 export function runAdmin(request: APIRequestContext): Promise<Identity> {
   workerAdmin ??= (async () => {
-    const bootstrap = await login(request, BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD);
+    const bootstrap = await bootstrapLogin(request);
     return createIdentity(request, bootstrap, "super_admin");
   })();
   return workerAdmin;
@@ -94,7 +97,7 @@ export async function retireRunAdmin(request: APIRequestContext): Promise<void> 
   if (!workerAdmin) return;
   const admin = await workerAdmin;
   workerAdmin = null;
-  const bootstrap = await login(request, BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD);
+  const bootstrap = await bootstrapLogin(request);
   await request.put(`${BACKEND_URL}/api/setup/users/${admin.id}`, {
     headers: authHeaders(bootstrap),
     data: { full_name: `Retired ${admin.username}`, is_active: false },

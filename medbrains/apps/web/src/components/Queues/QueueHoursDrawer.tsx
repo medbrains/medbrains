@@ -1,6 +1,6 @@
 import { Chip, Group, Stack, Text } from "@mantine/core";
 import { TimeInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
 import type { QueueRow, QueueSession } from "@medbrains/types";
 import { IconClock, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,7 +38,7 @@ export function QueueHoursDrawer({ queue, onClose }: QueueHoursDrawerProps) {
   const queryClient = useQueryClient();
   const hours = useQuery({
     queryKey: ["queue-hours", queue?.id],
-    queryFn: () => api.listQueueSessions(queue?.id ?? ""),
+    queryFn: () => queuesApi.listQueueSessions(queue?.id ?? ""),
     enabled: Boolean(queue),
   });
   const { control, register, handleSubmit } = useForm<HoursForm>({
@@ -55,7 +55,7 @@ export function QueueHoursDrawer({ queue, onClose }: QueueHoursDrawerProps) {
 
   const save = useMutation({
     mutationFn: (values: HoursForm) =>
-      api.replaceQueueSessions(
+      queuesApi.replaceQueueSessions(
         queue?.id ?? "",
         values.sessions.map((s) => ({
           ...s,

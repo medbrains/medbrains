@@ -30,15 +30,14 @@ object Abha {
     /** A 10-digit Indian mobile from whatever was sent, or null (a masked "XXXXXX1234" is no number to call). */
     fun mobile(text: String?): String? = digits(text.orEmpty()).takeIf { it.length >= MOBILE_LENGTH }?.takeLast(MOBILE_LENGTH)
 
-    /** Why the lookup cannot be sent yet, or null. */
+    /** Why the lookup cannot be sent yet, or null — NHA's exact words for a mobile or Aadhaar number (VRFY_ABHA_301, CRT_ABHA_104). */
     fun lookupProblem(method: AbhaVerifyMethod, value: String): String? {
         val v = value.trim()
         return when (method) {
             AbhaVerifyMethod.ABHA_NUMBER -> if (digits(v).length == ABHA_NUMBER_LENGTH) null else "An ABHA number is 14 digits"
-            AbhaVerifyMethod.MOBILE -> if (digits(v).length == MOBILE_LENGTH) null else "Enter the 10-digit mobile"
+            AbhaVerifyMethod.MOBILE, AbhaVerifyMethod.FIND_MOBILE -> if (AbhaRules.isValidMobile(v)) null else AbhaRules.MOBILE_INVALID
             AbhaVerifyMethod.ABHA_ADDRESS -> if (v.isEmpty() || v.contains(' ')) "Enter the ABHA address, e.g. priya.v@abdm" else null
-            AbhaVerifyMethod.AADHAAR -> if (digits(v).length == AADHAAR_LENGTH) null else "An Aadhaar number is 12 digits"
-            AbhaVerifyMethod.FIND_MOBILE -> if (digits(v).length == MOBILE_LENGTH) null else "Enter the 10-digit mobile"
+            AbhaVerifyMethod.AADHAAR -> if (AbhaRules.isValidAadhaar(v)) null else AbhaRules.AADHAAR_INVALID
         }
     }
 
@@ -58,13 +57,6 @@ object Abha {
     /** What the card says, for the desk to check before the OTP. */
     fun cardSummary(card: AbhaCardQr): String =
         listOfNotNull(card.name, card.gender, card.date_of_birth?.let { "born $it" }).joinToString(" · ").ifEmpty { "The card names an ABHA but no details." }
-
-    /** An ABHA address the patient chose: letters, numbers, dot or underscore; ABDM adds the @ part. */
-    fun addressProblem(address: String): String? = when {
-        address.isEmpty() -> "Choose or type an ABHA address"
-        address.all { it.isLetterOrDigit() && it.code < 128 || it == '.' || it == '_' } -> null
-        else -> "Letters, numbers, dot or underscore only"
-    }
 
     private fun clean(text: String?): String = text.orEmpty().trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
     private fun name(vararg parts: String?): String = parts.map(::clean).filter { it.isNotEmpty() }.joinToString(" ")
@@ -122,10 +114,10 @@ object Abha {
 
     fun resendLabel(wait: Int): String = if (wait > 0) "Resend OTP in ${wait}s" else "Resend OTP"
 
-    /** ABDM allows "Resend OTP" twice per OTP (M1 CRT_ABHA_106, VRFY_ABHA_405); the server enforces it. Null when nothing needs saying. */
+    /** ABDM allows "Resend OTP" twice per OTP (M1 CRT_ABHA_106, VRFY_ABHA_405), with the count shown; after the second, NHA's 30-minute words. The server refuses the same. Null when nothing needs saying. */
     fun resendNote(left: Int?): String? = when (left) {
         null -> null
-        0 -> "The OTP cannot be sent again. If it has not arrived, close this and start again."
+        0 -> AbhaRules.RESEND_LOCKED
         1 -> "One resend left"
         else -> "$left resends left"
     }
@@ -233,6 +225,10 @@ data class AbhaVerificationStep(
     val profile: AbhaVerifiedProfile? = null,
     /** Another patient here already carries this ABHA. */
     val already_linked: AbhaLinkedPatient? = null,
-    /** ABHA addresses ABDM suggests, when creating one. */
+    /** ABHA addresses ABDM suggests, when creating one (at least 3, CRT_ABHA_112). */
     val suggestions: List<String> = emptyList(),
+    /** The masked mobile the OTP went to, e.g. `******1234` (CRT_ABHA_105). */
+    val sent_to: String? = null,
+    /** `sbx` or `abdm`: what follows the `@` of a new ABHA address. */
+    val address_domain: String? = null,
 )

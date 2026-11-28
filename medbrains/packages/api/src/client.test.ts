@@ -7646,6 +7646,13 @@ describe("/opd endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
+  it("listClinicalDisplaySettings → GET /clinical/display-settings", async () => {
+    mockOk([]);
+    await api.listClinicalDisplaySettings();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("/api/clinical/display-settings");
+  });
+
   it("listProcedureCatalog → GET /opd/procedure-catalog", async () => {
     mockOk({});
     await api.listProcedureCatalog();

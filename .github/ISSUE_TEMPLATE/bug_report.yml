@@ -1,6 +1,6 @@
 name: 🐞 Bug report
 description: Something isn't working as expected
-labels: ["bug", "needs-triage"]
+labels: ["bug", "needs-triage", "status:intake"]
 body:
   - type: markdown
     attributes:
@@ -30,6 +30,32 @@ body:
         3. See error
     validations:
       required: true
+  - type: input
+    id: screen
+    attributes:
+      label: Screen and role
+      description: The screen it happened on, and the role signed in (doctor, nurse, front office and so on).
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How bad is it?
+      options:
+        - "S1: a patient could be harmed, data is lost or exposed, or the hospital cannot work"
+        - "S2: a main task is broken, but there is a way round it"
+        - "S3: something is wrong outside the main tasks"
+        - "S4: polish"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen instead?
+      description: One line is enough. It becomes the test that proves the fix.
+      placeholder: "Given …, when …, then …"
+    validations:
+      required: false
   - type: dropdown
     id: area
     attributes:

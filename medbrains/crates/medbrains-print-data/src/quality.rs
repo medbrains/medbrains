@@ -10,6 +10,8 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -21,7 +23,6 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 /// Strings out of a JSONB column that should hold an array; anything else
@@ -71,18 +72,11 @@ pub async fn get_incident_report_print_data(
 ) -> Result<Json<IncidentReportPrintData>, AppError> {
     // A patient-safety incident report — the quality officer's permission, not
     // `admin.roles.list`, which it was once gated on.
-    require_permission(&claims, permissions::quality::incidents::LIST)?;
-    medbrains_authz_gate::require_access_via_optional(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::QUALITY_INCIDENT,
-        incident_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+    let permit = kernel::authz::permit(&claims, permissions::quality::incidents::LIST)?;
+    gate::require_access_via_optional(&state, &claims, gate::links::QUALITY_INCIDENT, incident_id)
         .await?;
+
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, IncidentReportRow>(concat!(
@@ -190,18 +184,11 @@ pub async fn get_rca_template_print_data(
 ) -> Result<Json<RcaTemplatePrintData>, AppError> {
     // Root-cause analysis of an incident, so it follows the incident permission
     // and the incident's (optional) patient.
-    require_permission(&claims, permissions::quality::incidents::LIST)?;
-    medbrains_authz_gate::require_access_via_optional(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::QUALITY_INCIDENT,
-        incident_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+    let permit = kernel::authz::permit(&claims, permissions::quality::incidents::LIST)?;
+    gate::require_access_via_optional(&state, &claims, gate::links::QUALITY_INCIDENT, incident_id)
         .await?;
+
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, RcaIncidentRow>(concat!(
@@ -324,7 +311,7 @@ pub async fn get_capa_form_print_data(
     Extension(claims): Extension<Claims>,
     Path(capa_id): Path<Uuid>,
 ) -> Result<Json<CapaFormPrintData>, AppError> {
-    require_permission(&claims, permissions::quality::capa::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::quality::capa::LIST)?;
     // A CAPA reaches a patient only through its incident, and both hops are
     // nullable — so resolve the first by hand and let the optional check take
     // the second. The gate's optional check does not follow chained links.
@@ -334,22 +321,20 @@ pub async fn get_capa_form_print_data(
     )
     .bind(capa_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
+    .fetch_optional(&mut *kernel::tenant_session(&state.db, &permit).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     if let Some(incident_id) = incident_id {
-        medbrains_authz_gate::require_access_via_optional(
+        gate::require_access_via_optional(
             &state,
             &claims,
-            medbrains_authz_gate::links::QUALITY_INCIDENT,
+            gate::links::QUALITY_INCIDENT,
             incident_id,
         )
         .await?;
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CapaFormRow>(
@@ -471,19 +456,11 @@ pub async fn get_adr_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(report_id): Path<Uuid>,
 ) -> Result<Json<AdrReportPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::adr::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::adr::LIST)?;
     // Optional parent: an ADR can be filed against a batch with no patient.
-    medbrains_authz_gate::require_access_via_optional(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::ADR_REPORT,
-        report_id,
-    )
-    .await?;
+    gate::require_access_via_optional(&state, &claims, gate::links::ADR_REPORT, report_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdrReportRow>(concat!(
@@ -633,18 +610,16 @@ pub async fn get_transfusion_reaction_print_data(
 ) -> Result<Json<TransfusionReactionPrintData>, AppError> {
     // The reaction is recorded on the blood bank's transfusion record, so it
     // reads under that record's permission and its patient.
-    require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
-    medbrains_authz_gate::require_access_via(
+    let permit = kernel::authz::permit(&claims, permissions::blood_bank::transfusion::LIST)?;
+    gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::TRANSFUSION_RECORD,
+        gate::links::TRANSFUSION_RECORD,
         transfusion_id,
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, TransfusionReactionRow>(

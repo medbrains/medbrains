@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const meowsService = {
-  computeMeows: (data: Parameters<typeof api.computeMeows>[0]) => api.computeMeows(data),
+  computeMeows: (data: Parameters<typeof clinicalApi.computeMeows>[0]) =>
+    clinicalApi.computeMeows(data),
 };

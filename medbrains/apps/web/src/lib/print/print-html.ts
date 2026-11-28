@@ -24,6 +24,11 @@ export function esc(value: unknown): string {
  * printer's machine had. MedBrains Sans is IBM Plex Sans with easy-read
  * letterforms; IBM Plex Mono draws UHIDs and token numbers.
  */
+/** "male" -> "Male": the gender enum as a person reads it, the same on every card. */
+export function genderLabel(gender: string): string {
+  return gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "";
+}
+
 export const PRINT_FONT_FACES = `
   @font-face { font-family: "MedBrains Sans"; font-weight: 400 700; src: url("${sansLatin}") format("woff2"); }
   @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("${plexMonoSemibold}") format("woff2"); }

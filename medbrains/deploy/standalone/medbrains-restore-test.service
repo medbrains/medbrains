@@ -1,7 +1,7 @@
 [Unit]
 Description=MedBrains monthly restore test of the point-in-time archive (emailed)
 Documentation=https://github.com/DomnicAmalan/MedBrains/blob/master/medbrains/docs/ops/BACKUP-RESTORE.md
-After=docker.service postgresql.service network-online.target
+After=postgresql.service network-online.target
 Wants=network-online.target
 # A restore that fails is the one finding that matters; page as well as email.
 OnFailure=medbrains-alert@%n.service
@@ -9,7 +9,7 @@ OnFailure=medbrains-alert@%n.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
-EnvironmentFile=-/etc/medbrains/.compose-env
+EnvironmentFile=-/etc/medbrains/postgres.env
 ExecStart=/usr/local/bin/medbrains-restore-test
 TimeoutStartSec=3h
 Nice=15

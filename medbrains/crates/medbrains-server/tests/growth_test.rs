@@ -2,7 +2,7 @@
 
 use crate::common;
 
-use chrono::{Duration, Utc};
+use chrono::{Duration, NaiveDate};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
@@ -23,7 +23,15 @@ async fn post(app: &common::TestApp, csrf: &str, path: &str, body: Value) -> Val
 
 /// A boy born `days` ago with one OPD visit; returns (patient id, encounter id).
 async fn child(app: &common::TestApp, csrf: &str, days: i64, gender: &str) -> (String, String) {
-    let dob = (Utc::now() - Duration::days(days)).date_naive();
+    // Days old by the hospital's calendar, which dates the visit's measurements.
+    let today: NaiveDate = sqlx::query_scalar(
+        "SELECT (timezone(COALESCE((SELECT t.timezone FROM tenants t \
+           JOIN users u ON u.tenant_id = t.id WHERE u.username = 'admin'), 'UTC'), now()))::date",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("hospital today");
+    let dob = today - Duration::days(days);
     let phone = format!("97{}", &uuid::Uuid::new_v4().as_u128().to_string()[..8]);
     let p = post(
         app,

@@ -22,18 +22,20 @@ const INVOICE_STATUS_COLORS: Record<string, BadgeTone> = {
   refunded: "warning",
 };
 
+/**
+ * The patient's invoices, dues and active IPD bill. Per-invoice print needs
+ * billing.invoices.view (stricter than this list, served under patients.view).
+ */
 export function BillingTab({ patientId }: { patientId: string }) {
-  // The per-invoice print pulls the full invoice through getInvoicePrintData,
-  // which is served under billing.invoices.view — a stricter code than the
-  // list this tab already shows. The ledger button below prints from the rows
-  // already fetched and needs nothing extra.
   const canViewInvoice = useHasPermission(P.BILLING.INVOICES_VIEW);
   const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const [printingInvoiceId, setPrintingInvoiceId] = useState<string | null>(null);
   const [printingPatientLedger, setPrintingPatientLedger] = useState(false);
   const { data: invoices, isLoading } = useQuery({
     queryKey: ["patient-invoices", patientId],
     queryFn: () => patientDetailService.listPatientInvoices(patientId),
+    enabled: canViewPatient,
   });
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
@@ -58,10 +60,7 @@ export function BillingTab({ patientId }: { patientId: string }) {
       { total: 0, paid: 0, balance: 0 },
     );
   }, [invoices]);
-  const pendingInvoices = useMemo(
-    () => (invoices ?? []).filter((inv) => Number.parseFloat(inv.balance) > 0.004),
-    [invoices],
-  );
+  const pendingInvoices = (invoices ?? []).filter((inv) => Number.parseFloat(inv.balance) > 0.004);
 
   async function handlePrintInvoice(invoiceId: string) {
     setPrintingInvoiceId(invoiceId);

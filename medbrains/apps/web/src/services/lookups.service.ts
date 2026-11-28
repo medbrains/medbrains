@@ -1,19 +1,29 @@
-import { api } from "@medbrains/api";
+import { geoApi } from "@medbrains/api/modules/geo";
+import { hrApi } from "@medbrains/api/modules/hr";
+import { ipdApi } from "@medbrains/api/modules/ipd";
+import { labApi } from "@medbrains/api/modules/lab";
+import { patientsApi } from "@medbrains/api/modules/patients";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
+import { setupApi } from "@medbrains/api/modules/setup";
 
 export const lookupsService = {
-  listWards: (...args: Parameters<typeof api.listWards>) => api.listWards(...args),
-  listAvailableBeds: (...args: Parameters<typeof api.listAvailableBeds>) =>
-    api.listAvailableBeds(...args),
-  listEmployees: (...args: Parameters<typeof api.listEmployees>) => api.listEmployees(...args),
-  searchPincode: (...args: Parameters<typeof api.searchPincode>) => api.searchPincode(...args),
-  listDoctors: (...args: Parameters<typeof api.listDoctors>) => api.listDoctors(...args),
-  listPharmacyCatalog: (...args: Parameters<typeof api.listPharmacyCatalog>) =>
-    api.listPharmacyCatalog(...args),
-  listLabCatalog: (...args: Parameters<typeof api.listLabCatalog>) => api.listLabCatalog(...args),
-  listDepartments: (...args: Parameters<typeof api.listDepartments>) =>
-    api.listDepartments(...args),
-  listPatients: (...args: Parameters<typeof api.listPatients>) => api.listPatients(...args),
-  findPatients: (...args: Parameters<typeof api.findPatients>) => api.findPatients(...args),
-  listPatientVisits: (...args: Parameters<typeof api.listPatientVisits>) =>
-    api.listPatientVisits(...args),
+  listWards: (...args: Parameters<typeof ipdApi.listWards>) => ipdApi.listWards(...args),
+  listAvailableBeds: (...args: Parameters<typeof ipdApi.listAvailableBeds>) =>
+    ipdApi.listAvailableBeds(...args),
+  listEmployees: (...args: Parameters<typeof hrApi.listEmployees>) => hrApi.listEmployees(...args),
+  searchPincode: (...args: Parameters<typeof geoApi.searchPincode>) =>
+    geoApi.searchPincode(...args),
+  listDoctors: (...args: Parameters<typeof setupApi.listDoctors>) => setupApi.listDoctors(...args),
+  listPharmacyCatalog: (...args: Parameters<typeof pharmacyApi.listPharmacyCatalog>) =>
+    pharmacyApi.listPharmacyCatalog(...args),
+  listLabCatalog: (...args: Parameters<typeof labApi.listLabCatalog>) =>
+    labApi.listLabCatalog(...args),
+  listDepartments: (...args: Parameters<typeof setupApi.listDepartments>) =>
+    setupApi.listDepartments(...args),
+  listPatients: (...args: Parameters<typeof patientsApi.listPatients>) =>
+    patientsApi.listPatients(...args),
+  findPatients: (...args: Parameters<typeof patientsApi.findPatients>) =>
+    patientsApi.findPatients(...args),
+  listPatientVisits: (...args: Parameters<typeof patientsApi.listPatientVisits>) =>
+    patientsApi.listPatientVisits(...args),
 };

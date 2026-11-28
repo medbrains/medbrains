@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { BYPASS_ROLES, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconMailForward, IconTrash } from "@tabler/icons-react";
@@ -66,7 +66,7 @@ export function InviteUsersPanel() {
     isLoading: invitesLoading,
   } = useQuery({
     queryKey: ["invitations"],
-    queryFn: () => api.listInvitations(),
+    queryFn: () => adminApi.listInvitations(),
   });
 
   const {
@@ -82,7 +82,7 @@ export function InviteUsersPanel() {
 
   const create = useMutation({
     mutationFn: (data: FormInput) =>
-      api.createInvitation({ email: data.email, role: data.role, full_name: data.full_name }),
+      adminApi.createInvitation({ email: data.email, role: data.role, full_name: data.full_name }),
     onSuccess: () => {
       toast.success("Invitation sent.", { title: "Invited" });
       void queryClient.invalidateQueries({ queryKey: ["invitations"] });
@@ -93,7 +93,7 @@ export function InviteUsersPanel() {
   });
 
   const revoke = useMutation({
-    mutationFn: (id: string) => api.revokeInvitation(id),
+    mutationFn: (id: string) => adminApi.revokeInvitation(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["invitations"] }),
   });
 
