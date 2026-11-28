@@ -35,17 +35,15 @@ changes the boot settings. Every disk key and what to do when one is lost is in
 
 ### If the machine has no security chip
 
-A machine without a working TPM stops before storing anything and asks what
-to do.
+A machine without a working TPM 2.0 stops before storing anything. MedBrains
+OS does not store patient data unencrypted.
 
-![The no-TPM question on a black screen](/img/os/no-tpm-question.webp "The machine stops and explains before it stores any data.")
+Type `OFF` and press Enter. Turn on the TPM in the BIOS (it may be called
+PTT, fTPM or Security Device), or fit a TPM 2.0 module, and start again. Or
+use a machine that has one.
 
-- **Recommended:** type `OFF` and press Enter. Turn on the TPM in the
-  firmware settings, or fit a TPM 2.0 module, and start again.
-- To carry on **without encryption**, type `STORE UNENCRYPTED` and press
-  Enter. Do this only if your hospital accepts that anyone who takes or copies
-  the disk can read every patient record. The choice is recorded, and the top
-  bar then always says **This disk is not encrypted**.
+Only test images, which never go to a hospital, can carry on without
+encryption.
 
 ## 1. Network
 

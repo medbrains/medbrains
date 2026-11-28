@@ -42,8 +42,8 @@ brew install qemu
 make os-boot FRESH=1    # a brand-new box; `make os-boot` keeps the disk across runs
 ```
 
-**arm64 under QEMU has no TPM, so a new box stops and asks about it.** Type `STORE UNENCRYPTED` on its
-screen to carry on. Debian's arm64 kernel has no driver for the only TPM QEMU can offer there. The sealed
+**arm64 under QEMU has no TPM, so a new box stops and asks about it.** On a debug image, type
+`STORE UNENCRYPTED` on its screen to carry on; a release image offers only `OFF`. Debian's arm64 kernel has no driver for the only TPM QEMU can offer there. The sealed
 path is tested on x86-64: `MB_OS_TEST_ARCH=x86-64 cargo run -p medbrains-os-test -- <image> disk`.
 
 `os/tests/vm.py` drives it (real input over QMP, screenshots, and a command in the debug shell). QEMU runs headless with its sockets in `/tmp/mb-osimage/vm/`: `vnc.sock` is the screen, `qmp.sock` takes
@@ -110,7 +110,7 @@ Proven by booting on QEMU arm64 only; no real ARM board has run this image.
 
 A release carries the one system image in every format below (`os/release-files.md`, which also goes into
 the release notes). All are UEFI only. **Every one needs a TPM 2.0, real or virtual, for the sealed data
-disk**; without one, setup stops and asks before it stores anything unencrypted ([Data disk](#data-disk)).
+disk**; without one, setup stops and stores nothing ([Data disk](#data-disk)).
 The image is not Secure Boot signed yet (T1): turn Secure Boot off, or build with `OS_SB_KEY` /
 `OS_SB_CERT` and enrol that certificate in the firmware. Secure Boot changes PCR 7, so turn it on or off
 before first boot, not after: the disk is sealed to PCRs 4+7 at first boot.
@@ -262,7 +262,7 @@ finished, not before.
 
 1. `medbrains-disk-setup` creates the encrypted data partition with `systemd-repart`, filling the disk and
    sealed to the TPM, then the machine shows a recovery key once and waits for it to be confirmed. A machine
-   with no TPM stops and asks instead. See [Data disk](#data-disk).
+   with no TPM stops instead: a release image offers only `OFF`. See [Data disk](#data-disk).
 2. `medbrains-firstboot` generates every secret (JWT keys, ID-fingerprint and provider keys, database
    password), a checksummed PostgreSQL cluster and the certificate for the screen's own front end. None
    of it is in the image, and no password is generated for a person.
@@ -457,7 +457,7 @@ system partition (binary 48 MB, UI 2 MB), 13 MB of the binary after `zstd -19`.
 we took three EC private keys out of a backup and openssl read them with no passphrase. It has no key-encryption
 setting, and its TPM support is not compiled in. So **a release image refuses to run it on an unencrypted disk**:
 `require-encrypted-data` runs first and wants `/var/lib/kanidm` on dm-crypt and a sealed record from `disk-setup`. A
-machine that chose `STORE UNENCRYPTED` gets local sign-in and no identity provider. A debug image, marked at build, may
+debug image that chose `STORE UNENCRYPTED` gets local sign-in and no identity provider. A debug image, marked at build, may
 run it anyway. **A backup copied off the machine is not protected by this:** anyone with one can forge a token for any user.
 Until the disk encryption branch is merged, a release image finishes setup with local sign-in only, and says so in its log.
 
@@ -1042,7 +1042,7 @@ Task T1, disk half. Every key, what happens if it is lost or stolen, and the fai
 | First boot, TPM works | Prepares the disk, shows the recovery key once, and waits until its last group is typed back. Then asks: start by itself (Enter), or a PIN at every start |
 | Every later boot | Nothing, opens with no typing; or the PIN, if one was chosen |
 | Disk copied to another machine, board or TPM changed, or the signed boot file changed | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
-| First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. The top bar then says "This disk is not encrypted" |
+| First boot, no TPM | Stops. A release image says to turn the TPM on in the BIOS and offers only `OFF`; nothing is stored. A debug image also offers `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. The top bar then says "This disk is not encrypted" |
 
 **What this protects:** a disk that has left the machine. **What it does not, without a PIN:** a stolen machine, from someone
 who changes its system partition and boots it, since nothing verifies that partition. A PIN closes that today; Secure Boot and

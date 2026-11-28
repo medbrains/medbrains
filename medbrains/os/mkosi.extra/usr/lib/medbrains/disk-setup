@@ -54,13 +54,38 @@ set_seal_args() {
     fi
 }
 
-# Asks what to do on a machine with no TPM. Returns only if the person typed the choice to store data
-# unencrypted. A loop with no limit, on purpose: nothing may happen until a person decides.
-ask_about_missing_tpm() {
+# Left by build.sh on debug images only. Only they may store patient data unencrypted (owner, 2026-11-28).
+DEBUG_MARKER=/usr/lib/medbrains/debug-image
+
+# A release image on a machine with no TPM: says how to fix it and offers only OFF. Never returns.
+refuse_without_tpm() {
     local answer
     clear_screen
     cat <<'TEXT'
 MedBrains: this machine has no security chip (TPM 2.0).
+
+Turn it on in the BIOS (it may be called PTT, fTPM or Security Device), or use a
+machine that has one. Nothing has been stored.
+
+  To turn off now, type OFF and press Enter.
+
+TEXT
+    while read -r -p '> ' answer; do
+        [[ "$answer" == OFF ]] && { systemctl poweroff; exit 1; }
+        echo 'Please type OFF.'
+    done
+    exit 1
+}
+
+# Asks what to do on a machine with no TPM. On a release image it refuses. On a debug image it returns
+# only if the person typed the choice to store data unencrypted. A loop with no limit, on purpose:
+# nothing may happen until a person decides.
+ask_about_missing_tpm() {
+    local answer
+    [[ -e "$DEBUG_MARKER" ]] || refuse_without_tpm
+    clear_screen
+    cat <<'TEXT'
+MedBrains TEST IMAGE: this machine has no security chip (TPM 2.0).
 
 Without one, anyone who takes or copies this disk can read every patient record.
 Nothing has been stored yet.
