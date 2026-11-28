@@ -6,7 +6,7 @@ import SwiftUI
 /// admission-management screen.
 struct IpdRoundsView: View {
     @Environment(\.apiClient) private var client
-    @State private var remote = Remote<[AdmissionRow]>()
+    @State private var remote = Remote<PagedRows<AdmissionRow>>()
 
     var body: some View {
         ScrollView {
@@ -17,19 +17,17 @@ struct IpdRoundsView: View {
                     state: remote.state,
                     unavailableTitle: "Couldn't load IPD rounds",
                     unavailableMessage: "The ward list could not be loaded. Do not read this as an empty ward.",
-                    isEmpty: \.isEmpty,
+                    isEmpty: \.rows.isEmpty,
                     emptyTitle: "No active admissions",
                     emptyMessage: "No patients are currently on rounds.",
                     retry: { Task { await load() } }
-                ) { rows in
-                    LazyVStack(spacing: 0) {
-                        ForEach(rows) { row in
-                            NavigationLink(value: DoctorRoute.roundDetail(row)) {
-                                CarbonRow(row.patientName, detail: row.bedLine) { CarbonTag("round", tone: .info) }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("round-\(row.id)")
+                ) { paged in
+                    AdmissionWorklist(paged: paged) { row in
+                        NavigationLink(value: DoctorRoute.roundDetail(row)) {
+                            CarbonRow(row.patientName, detail: row.bedLine) { CarbonTag("round", tone: .info) }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("round-\(row.id)")
                     }
                 }
             }

@@ -25,7 +25,7 @@ enum BedsideMode: String, Hashable { case vitals, io, pain, fallRisk }
 struct NurseHomeView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(\.apiClient) private var client
-    @State private var admissions = Remote<[AdmissionRow]>()
+    @State private var admissions = Remote<Int>()
     @State private var calls = Remote<NurseCallBoard>()
 
     private var api: NurseApi? { client.map(NurseApi.init) }
@@ -41,7 +41,7 @@ struct NurseHomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 HStack(spacing: 1) {
-                    StatTile(eyebrow: "Due", count: admissions.value?.count, title: "Active admissions")
+                    StatTile(eyebrow: "Due", count: admissions.value, title: "Active admissions")
                     StatTile(eyebrow: "Calls", count: calls.value?.calls.count, title: "Beds waiting on a call")
                 }
                 .padding(.horizontal, 16)
@@ -74,7 +74,7 @@ struct NurseHomeView: View {
         .abdmRecordsDestinations()
         .task {
             guard let api else { return }
-            async let a: () = admissions.load { try await api.listActiveAdmissions() }
+            async let a: () = admissions.load { try await api.countActiveAdmissions() }
             async let c: () = calls.load { try await api.listNurseCalls() }
             _ = await (a, c)
         }
