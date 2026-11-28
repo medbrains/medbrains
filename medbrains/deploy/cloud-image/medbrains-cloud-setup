@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Finishes a machine launched from the MedBrains cloud image, with the release and
+# kit baked into /usr/local/lib/medbrains-image.
+#   medbrains-cloud-setup --first-boot        run once by medbrains-first-boot.service
+#   medbrains-cloud-setup <domain> <email> [backup-bucket]
+#                                             run by the operator over SSH, once DNS
+#                                             for <domain> points at this machine
+set -euo pipefail
+
+IMG=/usr/local/lib/medbrains-image
+DONE=/var/lib/medbrains-first-boot.done
+PENDING=setup-pending.invalid
+export MEDBRAINS_STAGE="$IMG/release"
+
+# Makes this machine's own keys, passwords and database with the kit's install.sh,
+# and starts the server on loopback only: nothing answers on a public port until
+# the operator, who holds the SSH key, names the domain.
+first_boot() {
+    [[ -e "$DONE" ]] && return 0
+    if command -v make-ssl-cert >/dev/null; then make-ssl-cert generate-default-snakeoil --force-overwrite; fi
+    # ponytail: attach mode is the kit's existing "no public proxy, no certificate yet"
+    # path and the one the staging harness proves on every release. Upgrade path: a
+    # kit flag of its own, shipped in a release with no other installer change.
+    ATTACH_MODE=1 PG_CLUSTER=main OS_AUTO_UPDATES=1 bash "$IMG/kit/install.sh" "$PENDING" "ops@$PENDING"
+    touch "$DONE"
+    echo "MedBrains $(cat "$IMG/release-tag") is ready on this machine only. To put it on the"
+    echo "internet, sign in over SSH and run: sudo medbrains-cloud-setup <domain> <email>"
+}
+
+# Puts the server behind the kit's proxy with a certificate for the operator's domain.
+go_public() {
+    local domain="$1" email="$2" bucket="${3:-}"
+    [[ -e "$DONE" ]] || { echo "ERROR: first boot has not finished (journalctl -u medbrains-first-boot)" >&2; exit 1; }
+    sed -i "s|$PENDING|$domain|g" /etc/medbrains/env
+    # Same binaries as first boot, so there is no migration for a pre-deploy backup to protect.
+    SKIP_PREDEPLOY_BACKUP=1 bash "$IMG/kit/install.sh" "$domain" "$email" "$bucket"
+    echo "Sign in at https://$domain as the first administrator. The password is in a"
+    echo "root-only file; read it, change it at first sign-in, then delete the file:"
+    echo "    sudo cat /etc/medbrains/initial-admin-password"
+}
+
+[[ "${EUID}" -eq 0 ]] || { echo "ERROR: run as root (sudo)" >&2; exit 1; }
+case "${1:-}" in
+    --first-boot) first_boot ;;
+    ""|-*) sed -n '2,7p' "$0"; exit 1 ;;
+    *) go_public "$1" "${2:?usage: medbrains-cloud-setup <domain> <email> [backup-bucket]}" "${3:-}" ;;
+esac
