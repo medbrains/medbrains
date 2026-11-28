@@ -1,0 +1,13 @@
+# Codecov (coverage on PRs). Informational only: GitHub's ci.yml stays the gate, so coverage
+# never blocks a merge. Uploads come from .github/workflows/sonarqube.yml.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+comment:
+  layout: "diff, flags, files"
+  require_changes: true
