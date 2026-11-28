@@ -320,6 +320,14 @@ async fn an_abha_is_verified_end_to_end_against_abdm() {
     assert_eq!(status, StatusCode::OK, "{changed}");
     assert_eq!(changed["message"], "Mobile Number linked successfully");
 
+    // The number may be on a patient from an earlier test; free it, as
+    // `abdm_abha_world::setup` does.
+    sqlx::query(
+        "UPDATE patient_abha_links SET deleted_at = now() WHERE abha_number = '91111122223333'",
+    )
+    .execute(&app.db)
+    .await
+    .expect("free the ABHA");
     let (status, patient) = send(&csrf, app.client.post(app.url("/api/patients")).json(&json!({
         "first_name": "Priya", "last_name": "Varude", "gender": "female", "date_of_birth": "1989-11-26",
         "phone": format!("9{:09}", uuid::Uuid::new_v4().as_u128() % 1_000_000_000),

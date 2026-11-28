@@ -208,6 +208,8 @@ zip = { workspace = true }
 openssl = { version = "0.10", features = ["vendored"] }
 # Analyser tests build ingest payloads with the bridge's own HL7 parser.
 medbrains-adapter-sdk = { path = "../medbrains-adapter-sdk" }
+# A database per cargo-nextest slot for the integration suite (tests/common.rs).
+medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }
 
 [features]
 # Compile the AWS Secrets Manager backend (`MEDBRAINS_SECRETS_BACKEND=aws`).
