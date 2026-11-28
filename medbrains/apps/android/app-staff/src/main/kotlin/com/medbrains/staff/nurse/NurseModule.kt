@@ -87,11 +87,11 @@ fun NurseModule() {
 @Composable
 fun NurseHome(nav: NavHostController, api: NurseApi) {
     val identity = LocalIdentity.current
-    val admissions = remember { Remote<List<AdmissionRow>>() }
+    val admissions = remember { Remote<Int>() }
     val calls = remember { Remote<NurseCallBoard>() }
     LaunchedEffect(Unit) {
         coroutineScope {
-            async { admissions.load { api.listActiveAdmissions() } }
+            async { admissions.load { api.countActiveAdmissions() } }
             async { calls.load { api.listNurseCalls() } }
         }
     }
@@ -101,7 +101,7 @@ fun NurseHome(nav: NavHostController, api: NurseApi) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("module-home-nurse")) {
         CarbonPageHeader("Module", "Nurse", "MAR, vitals, handoff, intake/output.")
         Row(Modifier.padding(horizontal = 16.dp)) {
-            CarbonStatTile("Due", a.value?.size, "Active admissions", Modifier.weight(1f))
+            CarbonStatTile("Due", a.value, "Active admissions", Modifier.weight(1f))
             Spacer(Modifier.width(1.dp))
             CarbonStatTile("Calls", c.value?.calls?.size, "Beds waiting on a call", Modifier.weight(1f))
         }
