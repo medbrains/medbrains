@@ -4,8 +4,8 @@
 //! "Rupees Zero" for money it could not read is worse than no receipt.
 
 use medbrains_server_core::error::AppError;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::{Decimal, RoundingStrategy};
 
 const ONES: [&str; 20] = [
     "",
@@ -70,18 +70,30 @@ fn indian(n: u64) -> String {
         .join(" ")
 }
 
-/// "Rupees … and … Paise Only" for a money amount.
+/// Rupees from which the crore count reaches a hundred, which the grouping
+/// below cannot say ("One Hundred Crore" would need a fourth word group).
+const CRORE_100: u64 = 1_000_000_000;
+
+/// "Rupees … and … Paise Only" for a money amount, rounded to the paisa first
+/// so 0.289999… (a float's 0.29) reads as 29 paise, not 28.
 ///
 /// # Errors
-/// A negative amount, or one too large to read out. The old `f64 as u64`
-/// cast turned both into "Rupees Zero".
+/// A negative amount (the old `f64 as u64` cast turned it into "Rupees Zero"),
+/// or ₹100 crore or more, refused with a message saying so.
 pub(crate) fn amount_in_words(amount: Decimal) -> Result<String, AppError> {
     let unreadable =
         || AppError::Internal(format!("the amount {amount} cannot be written in words"));
     if amount < Decimal::ZERO {
         return Err(unreadable());
     }
+    let amount = amount.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
     let rupees = amount.trunc().to_u64().ok_or_else(unreadable)?;
+    if rupees >= CRORE_100 {
+        return Err(AppError::Conflict(format!(
+            "₹{amount} is ₹100 crore or more, which a receipt cannot write in words. \
+             Split the amount, or print it without the words."
+        )));
+    }
     let paise = (amount.fract() * Decimal::ONE_HUNDRED)
         .trunc()
         .to_u64()
@@ -120,6 +132,7 @@ pub(crate) fn float_amount_in_words(amount: f64) -> Result<String, AppError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{amount_in_words, float_amount_in_words, text_amount_in_words};
     use rust_decimal::Decimal;
@@ -146,6 +159,29 @@ mod tests {
         assert_eq!(
             amount_in_words(Decimal::ZERO).ok().as_deref(),
             Some("Rupees Zero Only")
+        );
+    }
+
+    #[test]
+    fn an_amount_is_rounded_to_the_paisa_before_it_is_cut() {
+        // 0.29 as a float is 0.28999…; cut first, it printed 28 paise.
+        assert_eq!(
+            float_amount_in_words(0.29).ok().as_deref(),
+            Some("Rupees Zero and Twenty Nine Paise Only")
+        );
+        assert_eq!(
+            text_amount_in_words("10.999").ok().as_deref(),
+            Some("Rupees Eleven Only")
+        );
+    }
+
+    #[test]
+    fn a_hundred_crore_or_more_is_refused_with_a_message() {
+        assert!(text_amount_in_words("999999999.99").is_ok());
+        let refused = text_amount_in_words("1000000000.00");
+        assert!(
+            matches!(&refused, Err(medbrains_server_core::error::AppError::Conflict(m)) if m.contains("100 crore")),
+            "{refused:?}"
         );
     }
 }
