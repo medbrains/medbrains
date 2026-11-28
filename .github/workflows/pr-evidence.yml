@@ -43,3 +43,16 @@ jobs:
         run: |
           gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
           python3 medbrains/scripts/check_pr_evidence.py < "$RUNNER_TEMP/changed.txt"
+      - run: python3 medbrains/scripts/check_pr_size.py --self-test
+      - name: Check the pull request size
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+        # numstat lines from the API (added, removed, path); bots are exempt.
+        run: |
+          [ "$PR_AUTHOR_TYPE" = Bot ] && exit 0
+          gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | "\(.additions)\t\(.deletions)\t\(.filename)"' > "$RUNNER_TEMP/numstat.txt"
+          python3 medbrains/scripts/check_pr_size.py < "$RUNNER_TEMP/numstat.txt"
