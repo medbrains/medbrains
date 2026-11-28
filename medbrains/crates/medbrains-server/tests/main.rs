@@ -228,6 +228,7 @@ mod mlc_record_and_alerts_test;
 mod module_entitlement_test;
 mod monitor_vitals_test;
 mod mrd_custodian_test;
+mod mrd_overall_los_test;
 mod my_widgets_test;
 mod new_hospital_sequences_test;
 mod nhcx_claim_documents_test;

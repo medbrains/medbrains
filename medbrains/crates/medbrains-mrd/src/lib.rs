@@ -2648,8 +2648,20 @@ struct AdmDischRow {
     total_discharged: Option<i64>,
     total_deaths: Option<i64>,
     avg_los_days: Option<f64>,
+    /// The same four over every admission of the period (window sums).
+    all_admitted: i64,
+    all_discharged: i64,
+    all_deaths: i64,
+    all_avg_los_days: Option<f64>,
 }
 
+/// GET /api/mrd/stats/admission-discharge — the period's stays by department.
+///
+/// Admissions, discharges, deaths and average length of stay per department
+/// for the period, and overall. The overall figures are summed in SQL over every admission: the overall
+/// stay is total days over total admissions, where it used to be the plain
+/// mean of the department means, so one patient in a small department
+/// weighed as much as a whole ward. Soft-deleted admissions are not counted.
 pub async fn stats_admission_discharge(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2662,42 +2674,41 @@ pub async fn stats_admission_discharge(
         .await?;
 
     let rows = sqlx::query_as::<_, AdmDischRow>(
-        "SELECT \
-           dep.name AS department_name, \
-           COUNT(*)::bigint AS total_admitted, \
-           COUNT(*) FILTER (WHERE a.status = 'discharged'::admission_status)::bigint \
-             AS total_discharged, \
-           COUNT(*) FILTER (WHERE a.discharge_type = 'deceased'::discharge_type)::bigint \
-             AS total_deaths, \
-           AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400)::float8 \
-             AS avg_los_days \
-         FROM admissions a \
-         JOIN encounters enc ON enc.id = a.encounter_id \
-         LEFT JOIN departments dep ON dep.id = enc.department_id \
-         WHERE ($1::date IS NULL OR a.admitted_at::date >= $1) \
-           AND ($2::date IS NULL OR a.admitted_at::date <= $2) \
-         GROUP BY dep.name \
-         ORDER BY total_admitted DESC LIMIT 5000",
+        "WITH d AS ( \
+           SELECT \
+             dep.name AS department_name, \
+             COUNT(*)::bigint AS total_admitted, \
+             COUNT(*) FILTER (WHERE a.status = 'discharged'::admission_status)::bigint \
+               AS total_discharged, \
+             COUNT(*) FILTER (WHERE a.discharge_type = 'deceased'::discharge_type)::bigint \
+               AS total_deaths, \
+             SUM(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) \
+               / 86400)::float8 AS los_days \
+           FROM admissions a \
+           JOIN encounters enc ON enc.id = a.encounter_id \
+           LEFT JOIN departments dep ON dep.id = enc.department_id \
+           WHERE a.deleted_at IS NULL \
+             AND ($1::date IS NULL OR a.admitted_at::date >= $1) \
+             AND ($2::date IS NULL OR a.admitted_at::date <= $2) \
+           GROUP BY dep.name) \
+         SELECT department_name, total_admitted, total_discharged, total_deaths, \
+           (los_days / total_admitted)::float8 AS avg_los_days, \
+           (SUM(total_admitted) OVER ())::bigint AS all_admitted, \
+           (SUM(total_discharged) OVER ())::bigint AS all_discharged, \
+           (SUM(total_deaths) OVER ())::bigint AS all_deaths, \
+           (SUM(los_days) OVER () / SUM(total_admitted) OVER ())::float8 AS all_avg_los_days \
+         FROM d ORDER BY total_admitted DESC LIMIT 5000",
     )
     .bind(q.from_date)
     .bind(q.to_date)
     .fetch_all(&mut *tx)
     .await?;
 
-    let total_admitted: i64 = rows.iter().map(|r| r.total_admitted.unwrap_or(0)).sum();
-    let total_discharged: i64 = rows.iter().map(|r| r.total_discharged.unwrap_or(0)).sum();
-    let total_deaths: i64 = rows.iter().map(|r| r.total_deaths.unwrap_or(0)).sum();
-    let overall_avg_los_days = if rows.is_empty() {
-        None
-    } else {
-        let sum: f64 = rows.iter().filter_map(|r| r.avg_los_days).sum();
-        let count = rows.iter().filter(|r| r.avg_los_days.is_some()).count();
-        if count > 0 {
-            Some(sum / count as f64)
-        } else {
-            None
-        }
-    };
+    let all = rows.first();
+    let total_admitted = all.map_or(0, |r| r.all_admitted);
+    let total_discharged = all.map_or(0, |r| r.all_discharged);
+    let total_deaths = all.map_or(0, |r| r.all_deaths);
+    let overall_avg_los_days = all.and_then(|r| r.all_avg_los_days);
 
     let result_rows: Vec<AdmissionDischargeRow> = rows
         .into_iter()
