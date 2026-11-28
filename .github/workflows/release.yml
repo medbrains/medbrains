@@ -514,6 +514,18 @@ jobs:
           medbrains/os/formats.sh "$raw" "$name" ${{ matrix.arch }} img
           # The image, its padded Azure copy and every format pass through this disk at once.
           df -h "$PWD" "$RUNNER_TEMP"
+      # Boots a smoke copy of the image just built, with a software TPM, and stops the job before upload
+      # unless first boot reaches the recovery key screen (os/tests/smoke-boot.py says what is and is not
+      # covered). x86-64 only: the arm64 runner has no KVM, and an emulated arm64 boot with a TPM is not
+      # one we have seen work. Measured: about 2 minutes under TCG on a laptop; KVM, where the runner has it, less.
+      - name: Smoke boot (x86-64, TPM)
+        if: matrix.arch == 'x86-64'
+        timeout-minutes: 20
+        run: |
+          apt-get install -yq --no-install-recommends qemu-system-x86 ovmf swtpm swtpm-tools
+          raw=$(ls "$RUNNER_TEMP"/os/out-x86-64/*.raw | head -1)
+          TMPDIR="$RUNNER_TEMP" python3 -I medbrains/os/tests/smoke-boot.py "$raw" --minutes 15
+          echo "smoke-boot: passed" >> img/os-checks-x86-64.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: os-${{ matrix.arch }}

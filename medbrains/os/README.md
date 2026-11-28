@@ -64,6 +64,7 @@ From another computer the same box answers at `https://<address>` with a certifi
 | `tests/check-units.sh` | `ci.yml`, job "OS image unit rules", on every pull request that touches `os/` or `deploy/`; again in `release.yml`'s OS image job | the source tree only |
 | `tests/check-image.sh <image.raw>` | `release.yml`'s OS image job, on the image it has just built, for both architectures. A FAIL stops the job before any file is uploaded | the built image; reads it with `debugfs`, no boot and no mount |
 | `medbrains-os-test` (the VM suite) | nowhere in CI; on a Mac before a release (`make os-test`) | a debug image, QEMU with hardware acceleration, swtpm |
+| `tests/smoke-boot.py <image.raw>` | `release.yml`'s OS image job, x86-64 only, before upload; `os-smoke.yml` nightly on the latest release. Fails unless first boot with a TPM reaches the recovery key screen, sealed, `/var` on the data disk, network unit and app manifest readable. about 2 minutes under TCG on a laptop. Not covered: the setup screen after the key, Secure Boot enforcement, arm64 | QEMU, OVMF, swtpm, `debugfs`: boots a deleted copy with one report unit written into the system partition |
 
 Why the VM suite is not in CI, so nobody assumes it is: it drives the machine through a root shell on the
 serial port, which only a debug image has, and the release job never builds one (`release` mode checks a

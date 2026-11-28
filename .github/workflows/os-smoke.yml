@@ -1,0 +1,53 @@
+# Boots the latest published x86-64 OS image (or a chosen tag's) headless with a software TPM and checks
+# that first boot reaches the recovery key screen: the same smoke boot the release's os-image job runs on
+# every new image before upload (medbrains/os/tests/smoke-boot.py). Nightly, so a release that slipped
+# through, or a change in the runner's firmware or QEMU, shows up the next morning, not at a hospital.
+
+name: OS smoke boot
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to boot (empty for the latest published release)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Smoke boot (x86-64, TPM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container:
+      image: debian:trixie
+      options: --privileged
+    steps:
+      - name: Tools
+        run: |
+          apt-get update -q
+          apt-get install -yq --no-install-recommends ca-certificates curl gh python3 zstd e2fsprogs qemu-utils \
+            qemu-system-x86 ovmf swtpm swtpm-tools
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download and verify the image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          tag="${TAG:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}"
+          mkdir -p "$RUNNER_TEMP/img" && cd "$RUNNER_TEMP/img"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern 'medbrains-os-*-x86-64.raw.zst' --pattern SHA256SUMS
+          grep -E ' medbrains-os-.*-x86-64\.raw\.zst$' SHA256SUMS | sha256sum -c -
+          zstd -d --rm -q medbrains-os-*-x86-64.raw.zst
+          echo "booting $tag" >> "$GITHUB_STEP_SUMMARY"
+      - name: Smoke boot
+        run: TMPDIR="$RUNNER_TEMP" python3 -I medbrains/os/tests/smoke-boot.py "$RUNNER_TEMP"/img/medbrains-os-*-x86-64.raw --minutes 15
