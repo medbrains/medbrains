@@ -140,8 +140,8 @@ RPO 24 h (≤ 6 min with point-in-time recovery, `PITR_ENABLED=1`); RTO ≈ 2 h 
    is, and you must move it offline and `shred -u` it there: until then root
    on the server can read the backups.
    ```sh
-   brew install age                                  # or apt install age
-   age-keygen -o medbrains-backup.key                # prints "Public key: age1…"
+   brew install age                                  # age 1.3+ (distro packages are older)
+   age-keygen -pq -o medbrains-backup.key            # post-quantum; prints "Public key: age1pq1…"
    age -p -o medbrains-backup.key.age medbrains-backup.key   # passphrase-protect it
    rm -P medbrains-backup.key                        # keep only the protected copy
    ```
@@ -150,8 +150,9 @@ RPO 24 h (≤ 6 min with point-in-time recovery, `PITR_ENABLED=1`); RTO ≈ 2 h 
    separately. Lose both and **every backup is unreadable** — consider a
    second key held by someone you trust, as a second line in step 2.
 2. **Give the public key to the install** (not secret):
-   `sudo BACKUP_AGE_RECIPIENT='age1…' bash install.sh <domain> <email> …`
-   (several keys: one per line). It lands in
+   `sudo BACKUP_AGE_RECIPIENT='age1pq1…' bash install.sh <domain> <email> …`
+   (several keys: one per line, all post-quantum or all classic; age refuses a
+   mix). A classic `age1…` key still works, with a warning on every run. It lands in
    `/etc/medbrains/backup-recipients.txt`; later installs keep that file
    unless `BACKUP_AGE_RECIPIENT` is set again. `install.sh` refuses a
    malformed key. The kit ships no key: a key in the kit would seal every
@@ -185,14 +186,18 @@ S3, with a throwaway key).
 
 ### Rotate the backup key
 
+Step by step, with re-sealing old copies, a lost key and restore onto a new
+server: the admin guide's **Backups** page (`apps/docs/docs/admin/backups.md`).
+A classic `age1…` key is rotated the same way to a post-quantum `age1pq1…` one.
+
 Kits before 3.33.1 installed the MedBrains project's own public key on every
 host, so those backups are sealed to a key the hospital does not hold. Such a
 host says so in the backup log (`journalctl -u medbrains-pg-backup`) and on
 **Admin → Settings → System health**. To move to the hospital's own key:
 
 1. Make a key offline (step 1 above).
-2. On the server: `sudo BACKUP_AGE_RECIPIENT='age1…' bash install.sh …` as for
-   any update, or write the `age1…` line to
+2. On the server: `sudo BACKUP_AGE_RECIPIENT='age1pq1…' bash install.sh …` as for
+   any update, or write the `age1pq1…` line to
    `/etc/medbrains/backup-recipients.txt` directly.
 3. `sudo systemctl start medbrains-pg-backup.service`, check System health no
    longer warns, and run the restore drill (step 5) with the new key.
