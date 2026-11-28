@@ -37,6 +37,7 @@ export type { RichTextEditorProps } from "./RichTextEditor";
 export { SegmentedControl } from "./SegmentedControl";
 export { Select, type SelectProps } from "./Select";
 export { SignatureHero, type SignatureHeroProps } from "./SignatureHero";
+export { SignaturePad, type SignaturePadProps } from "./SignaturePad";
 export { Slider, type SliderProps } from "./Slider";
 export { Switch } from "./Switch";
 export { Table } from "./Table";

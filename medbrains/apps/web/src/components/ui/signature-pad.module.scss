@@ -1,0 +1,19 @@
+// A sheet of paper in both themes: the ink is saved into the image and
+// printed on white, so it is dark even when the app is dark.
+.paper {
+  background: var(--mb-bg-default);
+  color: var(--mb-text-primary);
+  border: 1px dashed var(--mb-border-strong);
+
+  [data-mantine-color-scheme="dark"] & {
+    background: var(--mb-bg-inverse);
+    color: var(--mb-text-on-inverse);
+  }
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
