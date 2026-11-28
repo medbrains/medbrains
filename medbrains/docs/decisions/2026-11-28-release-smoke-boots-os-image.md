@@ -10,7 +10,7 @@ The release's os-image job boots the x86-64 image it just built, headless in QEM
 
 ## Why
 
-The 2026-11-28 end-to-end test found that v3.35.6 on x86-64 with a TPM drops to emergency mode on first boot: a box that cannot be set up. No CI job booted the artefact we publish, so it shipped. KVM keeps it to about 5 minutes; TCG, on a runner without KVM, about 25.
+The 2026-11-28 end-to-end test found that v3.35.6 on x86-64 with a TPM drops to emergency mode on first boot: a box that cannot be set up. No CI job booted the artefact we publish, so it shipped. The boot took 1.4 minutes under TCG on a laptop (KVM, where the runner has it, is faster); the step is capped at 20 minutes.
 
 ## Rejected
 

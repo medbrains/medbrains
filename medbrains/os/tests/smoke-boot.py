@@ -2,10 +2,11 @@
 """Boots a just-built x86-64 release image headless, with a TPM, and fails unless first boot reaches the
 recovery key screen.
 
-  os/tests/smoke-boot.py IMAGE.raw [--minutes 40] [--work DIR]
+  os/tests/smoke-boot.py IMAGE.raw [--minutes 15] [--work DIR]
 
 Linux only (the release's os-image container): needs qemu-system-x86, ovmf, swtpm and
-e2fsprogs. Uses KVM when /dev/kvm is writable, else TCG (slow: see os/README.md "Test an image").
+e2fsprogs. Uses KVM when /dev/kvm is writable, else TCG (1.4 minutes to the
+recovery key on a laptop).
 
 A release image has no shell and prints nothing on its serial port, so this boots a smoke copy: the
 same image with one extra unit in its system partition (written offline with debugfs) that waits for
@@ -86,23 +87,23 @@ def make_smoke_copy(image, work):
     """A sparse copy of the image with the report unit written into slot A, offline."""
     raw = f"{work}/smoke.raw"
     run("cp", "--sparse=always", image, raw)
-    files = {"smoke-report": REPORT, "smoke.service": UNIT, "smoke.rules": RULE}
-    for name, text in files.items():
-        with open(f"{work}/{name}", "w") as f:
+    files = [("/usr/lib/medbrains/smoke-report", "0100755", REPORT),
+             ("/usr/lib/systemd/system/medbrains-smoke@.service", "0100644", UNIT),
+             ("/usr/lib/udev/rules.d/90-medbrains-smoke.rules", "0100644", RULE)]
+    cmds = []
+    for i, (path, mode, text) in enumerate(files):
+        with open(f"{work}/file{i}", "w") as f:
             f.write(text)
-    cmds = [f"write {work}/smoke-report /usr/lib/medbrains/smoke-report",
-            f"write {work}/smoke.service /usr/lib/systemd/system/medbrains-smoke@.service",
-            f"write {work}/smoke.rules /usr/lib/udev/rules.d/90-medbrains-smoke.rules"]
-    modes = {"/usr/lib/medbrains/smoke-report": "0100755", "/usr/lib/systemd/system/medbrains-smoke@.service": "0100644",
-             "/usr/lib/udev/rules.d/90-medbrains-smoke.rules": "0100644"}
-    for path, mode in modes.items():
-        cmds += [f"set_inode_field {path} mode {mode}", f"set_inode_field {path} uid 0", f"set_inode_field {path} gid 0"]
+        cmds += [f"write {work}/file{i} {path}", f"set_inode_field {path} mode {mode}",
+                 f"set_inode_field {path} uid 0", f"set_inode_field {path} gid 0"]
     with open(f"{work}/debugfs.cmds", "w") as f:
         f.write("\n".join(cmds) + "\n")
-    out = subprocess.run(["debugfs", "-w", "-f", f"{work}/debugfs.cmds", f"{raw}?offset={root_offset(raw)}"],
-                         text=True, capture_output=True)
-    if out.returncode or re.search(r"(?m)^(?!debugfs ).*(error|not found|No such)", out.stdout + out.stderr, re.I):
-        raise SystemExit(f"debugfs could not write the report unit:\n{out.stdout}{out.stderr}")
+    fs = f"{raw}?offset={root_offset(raw)}"
+    out = subprocess.run(["debugfs", "-w", "-f", f"{work}/debugfs.cmds", fs], text=True, capture_output=True)
+    # debugfs exits 0 even when a command fails, so each file is read back instead.
+    for path, _, text in files:
+        if subprocess.run(["debugfs", "-R", f"cat {path}", fs], text=True, capture_output=True).stdout != text:
+            raise SystemExit(f"debugfs could not write {path}:\n{out.stdout}{out.stderr}")
     return raw
 
 
@@ -164,7 +165,7 @@ def main():
     """Boots the image and exits non-zero unless every first-boot check passed."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("image")
-    ap.add_argument("--minutes", type=float, default=40)
+    ap.add_argument("--minutes", type=float, default=15)
     ap.add_argument("--work")
     args = ap.parse_args()
     deadline = time.monotonic() + args.minutes * 60

@@ -82,7 +82,7 @@ software TPM and fails unless first boot reaches the recovery key screen, with t
 `/var` on it, and the network unit and app manifest readable by an unprivileged user. A release image has no
 shell, so it boots a copy with one report unit written into the system partition; the copy is deleted. The
 release runs it on every x86-64 image before upload, and `os-smoke.yml` nightly on the latest release. Time:
-about 5 minutes with KVM, 20 to 30 under TCG. It stops at the recovery key: the setup screen after it needs a
+1.4 minutes under TCG on a laptop, less with KVM; the release step is capped at 20. It stops at the recovery key: the setup screen after it needs a
 person to type part of the key back. Not covered: Secure Boot enforcement, arm64, real firmware.
 
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.

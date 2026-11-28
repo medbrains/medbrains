@@ -25,7 +25,7 @@ jobs:
   smoke:
     name: Smoke boot (x86-64, TPM)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     container:
       image: debian:trixie
       options: --privileged
@@ -50,4 +50,4 @@ jobs:
           zstd -d --rm -q medbrains-os-*-x86-64.raw.zst
           echo "booting $tag" >> "$GITHUB_STEP_SUMMARY"
       - name: Smoke boot
-        run: TMPDIR="$RUNNER_TEMP" python3 -I medbrains/os/tests/smoke-boot.py "$RUNNER_TEMP"/img/medbrains-os-*-x86-64.raw --minutes 45
+        run: TMPDIR="$RUNNER_TEMP" python3 -I medbrains/os/tests/smoke-boot.py "$RUNNER_TEMP"/img/medbrains-os-*-x86-64.raw --minutes 15
