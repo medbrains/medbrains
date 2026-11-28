@@ -94,7 +94,7 @@ async function signIn(hospital: Hospital, code: string, phone: string): Promise<
   await store.goto(`/store/${code}`);
   await store.getByRole("textbox", { name: "Mobile number" }).fill(phone);
   await store.getByRole("button", { name: "Send code" }).click();
-  await store.getByRole("textbox", { name: "Code" }).fill(latestPortalCode(phone));
+  await store.getByRole("textbox", { name: "Code" }).fill(await latestPortalCode(phone));
   await store.getByRole("button", { name: "Sign in" }).click();
   return store;
 }
