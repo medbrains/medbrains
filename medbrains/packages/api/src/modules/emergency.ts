@@ -23,6 +23,7 @@ import type {
   ErResuscitationLog,
   ErTriageAssessment,
   ErVisit,
+  ErWaitTargets,
   MassCasualtyEvent,
   MlcCase,
   MlcDocument,
@@ -48,6 +49,8 @@ export const emergencyApi = {
     const query = qs.toString();
     return request<ErVisit[]>(`/emergency/visits${query ? `?${query}` : ""}`);
   },
+
+  getErWaitTargets: () => request<ErWaitTargets>("/emergency/wait-targets"),
 
   getErVisit: (id: string) => request<ErVisit>(`/emergency/visits/${id}`),
 

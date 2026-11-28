@@ -144,6 +144,7 @@ mod doctor_profile_from_user_test;
 mod domain_ownership_test;
 mod dpdp_compliance_test;
 mod dpdp_consent_test;
+mod er_list_order_test;
 mod ews_auto_score_test;
 mod ews_plan_policy_test;
 mod fhir_diagnostic_report_test;

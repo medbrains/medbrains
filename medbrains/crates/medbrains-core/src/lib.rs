@@ -58,6 +58,7 @@ pub mod document;
 pub mod dose_safety;
 pub mod emergency;
 pub mod encounter;
+pub mod er_wait_targets;
 pub mod facilities_mgmt;
 pub mod facility;
 pub mod fatigue;
