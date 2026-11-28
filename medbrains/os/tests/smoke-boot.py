@@ -143,7 +143,7 @@ def boot(raw, work, deadline):
 
 def watch(serial, qemu, deadline):
     """Follows the serial log until the report ends, the boot fails, QEMU exits, or time runs out."""
-    report, text = {}, ""
+    report, text, why = {}, "", None
     while time.monotonic() < deadline:
         time.sleep(2)
         if os.path.exists(serial):
@@ -152,13 +152,15 @@ def watch(serial, qemu, deadline):
         for key, value in re.findall(r"(?m)^SMOKE ([\w-]+)=(\S+)", text):
             report[key] = value
         if "SMOKE-END" in text:
-            return report, re.findall(r"(?m)^SMOKE failed-unit (.*)$", text), None
+            return report, re.findall(r"(?m)^SMOKE failed-unit (.*)$", text), why
         fatal = FATAL.search(text)
         if fatal:
-            return report, [], f"first boot failed: serial shows {fatal.group(0)!r}"
+            # The report follows within seconds (its loop stops on emergency mode); a minute at most.
+            deadline = min(deadline, time.monotonic() + 60)
+            why = f"first boot failed: serial shows {fatal.group(0)!r}"
         if qemu.poll() is not None:
             return report, [], f"the machine stopped (QEMU exit {qemu.returncode})"
-    return report, [], "no report before the time limit"
+    return report, [], why or "no report before the time limit"
 
 
 def main():
