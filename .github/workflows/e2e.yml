@@ -1,6 +1,12 @@
 # End-to-end journeys: the Playwright suite in medbrains/apps/web/e2e, run against a real
 # server and a real PostgreSQL on the runner (no Docker, per the OS rule).
 #
+# When it runs: every merge group (the queue tests each queued pull request once, on the
+# branch it would merge as), pushes to main and release/**, the nightly, a manual run, and a
+# pull request only while it carries the `run-e2e` label. A pull request without the label
+# still starts this workflow and skips every job, so a required check here reports as passing
+# instead of waiting for ever (a workflow that never starts leaves its checks pending).
+#
 # Report-only. Journeys that have never run in CI are expected to fail at first; the run
 # shows them (PR check + summary comment + HTML report artifact) without blocking a merge.
 # Make it a required check only once its failures are paid down — the owner's call.
@@ -9,7 +15,7 @@
 # is split across machines without compiling the server once per shard. The shards are cut
 # by measured duration (scripts/e2e_shards.py, apps/web/e2e/timings.json), not by test count.
 #
-# A pull request runs only the projects its changed paths need (scripts/e2e_select.py,
+# A pull request or merge group runs only the projects its changed paths need (scripts/e2e_select.py,
 # apps/web/e2e/path-projects.json; an unknown path runs everything, a docs-only change runs
 # nothing). Pushes to main and release/**, the nightly and a manual run take every project.
 # The build restores the dependency cache ci.yml's "Rust tests" job saves (same key and dev
@@ -23,8 +29,12 @@ name: E2E
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # `labeled`: adding `run-e2e` starts the suite without a push.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
     branches: [main, 'release/**', 'hotfix/**']
+  # A merge queue tests each queued pull request on a temporary branch and reads the required
+  # checks from this event; without it they never report and the queue stalls.
+  merge_group:
   push:
     branches: [main, 'release/**']
   schedule:
@@ -33,7 +43,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  # Any other label starts a run that skips every job; it gets a group of its own so it does
+  # not cancel a suite in flight. A merge-group run is never cancelled (its ref is its own).
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}${{
+    github.event.action == 'labeled' && github.event.label.name != 'run-e2e' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -45,8 +59,14 @@ env:
 
 jobs:
   select:
-    # A draft PR spends no build; marking it ready for review runs it.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    # A pull request runs the suite only when asked: it is not a draft and carries `run-e2e`
+    # (on a label event, only when that is the label just added). Every job below needs this
+    # one, so they skip with it.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (!github.event.pull_request.draft &&
+       ((github.event.action == 'labeled' && github.event.label.name == 'run-e2e') ||
+        (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-e2e'))))
     name: Choose the projects
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -60,12 +80,15 @@ jobs:
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # A merge group's base is its parent commit: the base branch, or the group ahead.
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
         run: |
           python3 medbrains/scripts/e2e_select.py --check
-          if [ "$EVENT" = pull_request ]; then
-            git diff --name-only "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" "$HEAD_SHA" > changed.txt
+          # A diff that cannot be computed runs every project.
+          if { [ "$EVENT" = pull_request ] || [ "$EVENT" = merge_group ]; } \
+             && base=$(git merge-base "$BASE_SHA" "$HEAD_SHA") \
+             && git diff --name-only "$base" "$HEAD_SHA" > changed.txt; then
             python3 medbrains/scripts/e2e_select.py select changed.txt > projects.txt
           else
             python3 medbrains/scripts/e2e_select.py all > projects.txt
@@ -194,8 +217,8 @@ jobs:
       # runs the server and Vite: with four workers, nine journeys timed out that pass locally.
       E2E_WORKERS: "3"
       # Browser coverage (e2e/helpers/coverage.ts) for SonarCloud, which reads main's nightly;
-      # a PR run skips the cost.
-      E2E_COVERAGE: ${{ github.event_name != 'pull_request' && '1' || '' }}
+      # a PR or merge-group run skips the cost.
+      E2E_COVERAGE: ${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
