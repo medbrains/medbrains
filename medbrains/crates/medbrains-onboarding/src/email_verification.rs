@@ -170,9 +170,14 @@ pub async fn resend(
     Ok(Json(VerifyEmailResponse { verified: false }))
 }
 
-/// Email verification routes.
+/// The public email-verification route: the link is opened before sign-in.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/auth/verify-email", post(verify_email))
-        .route("/api/auth/resend-verification", post(resend))
+    axum::Router::new().route("/api/auth/verify-email", post(verify_email))
+}
+
+/// The resend route, for the protected router: `resend` reads the signed-in
+/// user's `Claims`, which only the auth middleware inserts. Mounted public it
+/// answered 500 to everyone, signed in or not.
+pub fn protected_router() -> axum::Router<AppState> {
+    axum::Router::new().route("/api/auth/resend-verification", post(resend))
 }
