@@ -826,7 +826,9 @@ pub struct BackupHistory {
     pub completed_at: Option<DateTime<Utc>>,
     pub verification_at: Option<DateTime<Utc>>,
     pub retention_days: Option<i32>,
-    pub expires_at: Option<NaiveDate>,
+    /// When the backup's retention ends. `timestamptz` in `backup_history`:
+    /// the backup job writes `now() + retention_days`, an instant, not a date.
+    pub expires_at: Option<DateTime<Utc>>,
     pub error_message: Option<String>,
     pub created_at: DateTime<Utc>,
 }

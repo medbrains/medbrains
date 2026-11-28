@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(ABS(quantity)), 0)::BIGINT AS \"quantity!\",\n                  COALESCE(SUM(-total_price), 0) AS \"total!\",\n                  COALESCE(SUM(-cgst_amount), 0) AS \"cgst!\",\n                  COALESCE(SUM(-sgst_amount), 0) AS \"sgst!\",\n                  COALESCE(SUM(-igst_amount), 0) AS \"igst!\"\n           FROM invoice_items\n           WHERE tenant_id = $1 AND reversal_of_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "quantity!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "total!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 2,
+        "name": "cgst!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "sgst!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "igst!",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2a0ae6508949ab74f14d49b002e2f643bf190362ef0a02c355232845a98ac4be"
+}

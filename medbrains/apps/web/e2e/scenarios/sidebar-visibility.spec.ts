@@ -1,20 +1,19 @@
 /**
- * Sidebar visibility per role.
+ * What each role is offered, per role.
  *
- * Login as each role → load /dashboard → assert the rendered sidebar
- * contains the labels of allowed nav entries and does NOT contain
- * forbidden ones.
+ * Login as each role → the side panel on /dashboard lists the core
+ * screens (Dashboard), and the launcher (/home) offers a tile for each app
+ * the role may open and none for the rest. The launcher replaced the
+ * whole-menu sidebar, so "this role sees this module" is the app's tile
+ * (owner, 2026-11-23); which screens inside an app a role reaches is
+ * journeys/role-access.spec.ts.
  *
- * Mantine's `NavLink` renders the label as visible text inside an
- * anchor with `role="link"`, so we locate via `getByRole("link",
- * { name: label, exact: true })`.
- *
- * Labels come from `apps/web/public/locales/en/nav.json` — i18n keys
- * resolved client-side. Tests assume default locale (en).
+ * App names come from BRICK_MANIFESTS; "Dashboard" from
+ * `apps/web/public/locales/en/nav.json`. Tests assume default locale (en).
  */
-
 import { test, expect, type Page } from "@playwright/test";
 import { loginAsRole, routeApiDirect } from "../helpers";
+import { launcherAppNames } from "../helpers/launcher";
 import { getE2EIdentity } from "../helpers/e2e-identities";
 
 // Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
@@ -30,66 +29,45 @@ test.describe.configure({ mode: "parallel" });
 
 interface SidebarCase {
   role: string;
-  /** Labels expected to be rendered in the sidebar. */
-  visible: string[];
-  /** Labels that must NOT appear in the sidebar. */
-  hidden: string[];
+  /** Apps whose launcher tile the role is offered. */
+  apps: string[];
+  /** Apps the role must not be offered. */
+  hiddenApps: string[];
 }
+
+const LAB = "Laboratory (LIS)";
+const BILLING = "Billing & Finance";
+const STORES = "Inventory & Stores";
 
 const CASES: SidebarCase[] = [
   {
     role: "doctor",
-    visible: ["Dashboard", "Patients", "OPD Queue"],
-    hidden: ["Procurement", "Biomedical Engineering"],
+    apps: ["Patient Registration", "OPD / Outpatient"],
+    hiddenApps: ["Blood Bank", "Diet & Nutrition"],
   },
-  {
-    role: "lab_technician",
-    visible: ["Dashboard", "Lab"],
-    hidden: ["Pharmacy", "Billing", "Procurement"],
-  },
-  {
-    role: "pharmacist",
-    visible: ["Dashboard", "Pharmacy"],
-    hidden: ["Lab", "Billing", "Procurement"],
-  },
-  {
-    role: "billing_clerk",
-    visible: ["Dashboard", "Billing"],
-    hidden: ["Lab", "Pharmacy", "Procurement"],
-  },
-  {
-    role: "biomed_engineer",
-    visible: ["Dashboard", "Biomedical Engineering"],
-    hidden: ["Lab", "Pharmacy", "Billing"],
-  },
-  {
-    role: "procurement_officer",
-    visible: ["Dashboard", "Procurement"],
-    hidden: ["Lab", "Pharmacy", "Billing"],
-  },
-  {
-    role: "blood_bank_tech",
-    visible: ["Dashboard", "Blood Bank"],
-    hidden: ["Lab", "Pharmacy", "Billing"],
-  },
+  { role: "lab_technician", apps: [LAB], hiddenApps: ["Pharmacy", BILLING, STORES] },
+  { role: "pharmacist", apps: ["Pharmacy"], hiddenApps: [LAB, BILLING] },
+  { role: "billing_clerk", apps: [BILLING], hiddenApps: [LAB, STORES] },
+  // Biomedical engineering and procurement are screens of the stores app.
+  { role: "biomed_engineer", apps: [STORES], hiddenApps: [LAB, "Pharmacy", BILLING] },
+  { role: "procurement_officer", apps: [STORES], hiddenApps: [LAB, "Pharmacy", BILLING] },
+  { role: "blood_bank_tech", apps: ["Blood Bank"], hiddenApps: [LAB, "Pharmacy", BILLING] },
   {
     role: "super_admin",
-    // bypass — every nav surfaces. Pick a sample of every-section labels.
-    visible: ["Dashboard", "Patients", "Lab", "Pharmacy", "Billing"],
-    hidden: [],
+    // bypass — every app is offered. A sample across the board.
+    apps: ["Patient Registration", LAB, "Pharmacy", BILLING],
+    hiddenApps: [],
   },
 ];
 
-async function expectLink(page: Page, label: string, present: boolean) {
+/** The Dashboard link in the side panel, which lists the core screens on /dashboard. */
+async function expectDashboardLink(page: Page) {
   // Scope strictly to the sidebar Navbar so we don't pick up
   // page-content or Spotlight-search matches of the same text.
   const sidebar = page.locator('[data-testid="app-sidebar"]');
-  const link = sidebar.getByText(label, { exact: true });
-  if (present) {
-    await expect(link.first()).toBeVisible({ timeout: 10_000 });
-  } else {
-    await expect(link).toHaveCount(0, { timeout: 5_000 });
-  }
+  await expect(sidebar.getByText("Dashboard", { exact: true }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 }
 
 for (const c of CASES) {
@@ -102,15 +80,19 @@ for (const c of CASES) {
       await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
     });
 
-    for (const label of c.visible) {
-      test(`shows "${label}"`, async ({ page }) => {
-        await expectLink(page, label, true);
+    test(`shows "Dashboard"`, async ({ page }) => {
+      await expectDashboardLink(page);
+    });
+
+    for (const app of c.apps) {
+      test(`offers the "${app}" app`, async ({ page }) => {
+        expect(await launcherAppNames(page)).toContain(app);
       });
     }
 
-    for (const label of c.hidden) {
-      test(`hides "${label}"`, async ({ page }) => {
-        await expectLink(page, label, false);
+    for (const app of c.hiddenApps) {
+      test(`does not offer the "${app}" app`, async ({ page }) => {
+        expect(await launcherAppNames(page)).not.toContain(app);
       });
     }
   });

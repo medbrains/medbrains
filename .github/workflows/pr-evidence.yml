@@ -1,0 +1,58 @@
+# PR evidence (docs/AI-SDLC.md, check 3): the pull request body must carry what the lifecycle
+# asks for, or this job fails. "Not verified" first, a risk class, screen proof for a UI
+# change, a linked issue. The rules and their self-test are in
+# medbrains/scripts/check_pr_evidence.py; the section names are the pull request template's.
+#
+# Not a required check until the owner adds "PR evidence" to the ruleset. Bots are exempt.
+# Editing the body reruns it (`edited`); so does adding or removing the `no-issue` label.
+name: PR evidence
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  # To list the changed paths.
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: PR evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 medbrains/scripts/check_pr_evidence.py --self-test
+      - name: Check the pull request body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          # Passed as data, never placed in the script text.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+        run: |
+          gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
+          python3 medbrains/scripts/check_pr_evidence.py < "$RUNNER_TEMP/changed.txt"
+      - run: python3 medbrains/scripts/check_pr_size.py --self-test
+      - name: Check the pull request size
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+        # numstat lines from the API (added, removed, path); bots are exempt.
+        run: |
+          [ "$PR_AUTHOR_TYPE" = Bot ] && exit 0
+          gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | "\(.additions)\t\(.deletions)\t\(.filename)"' > "$RUNNER_TEMP/numstat.txt"
+          python3 medbrains/scripts/check_pr_size.py < "$RUNNER_TEMP/numstat.txt"
