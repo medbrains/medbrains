@@ -2,11 +2,12 @@
 // split from opd.tsx (pure move).
 
 import { Group, Stack, Text } from "@mantine/core";
-import type { FieldAccessLevel, QueueEntry } from "@medbrains/types";
-import { IconHeartbeat, IconHeartOff } from "@tabler/icons-react";
+import { type FieldAccessLevel, type QueueEntry, TOKEN_PRIORITY_LABEL } from "@medbrains/types";
+import { IconArrowBigUpLines, IconHeartbeat, IconHeartOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components";
 import { PatientPrintMenu } from "@/components/Print/PatientPrintMenu";
+import { Badge } from "@/components/ui";
 import {
   appointmentSlotLabel,
   appointmentStatusLabel,
@@ -14,10 +15,42 @@ import {
   appointmentStatusTone,
   appointmentTypeLabel,
   protectedOpdQueueIdentity,
+  queueTokenLabel,
   queueVisitTypeLabel,
   queueVisitTypeShape,
   queueVisitTypeTone,
 } from "./shared";
+
+/**
+ * The token a patient is called by and its lane in words. The "moved up"
+ * arrow and the desk's reason show only when the desk raised the token, not
+ * for a lane the patient arrived in (an appointment, a carried-over visit).
+ */
+export function QueueTokenCell({ row }: { row: QueueEntry }) {
+  const priority = row.token_priority ?? "normal";
+  return (
+    <Stack gap={2}>
+      <Text size="sm" fw={700} ff="var(--mb-font-mono, monospace)" style={{ whiteSpace: "nowrap" }}>
+        {queueTokenLabel(row)}
+      </Text>
+      {priority !== "normal" && (
+        <Badge
+          tone={priority === "stat" ? "danger" : "warning"}
+          leftSection={
+            row.token_priority_escalated && <IconArrowBigUpLines aria-label="Moved up" size={12} />
+          }
+        >
+          {TOKEN_PRIORITY_LABEL[priority] ?? priority}
+        </Badge>
+      )}
+      {row.token_priority_escalated && row.token_priority_reason && (
+        <Text size="xs" lineClamp={2}>
+          {row.token_priority_reason}
+        </Text>
+      )}
+    </Stack>
+  );
+}
 
 export function QueuePatientCell({
   access,

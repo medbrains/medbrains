@@ -83,8 +83,9 @@ export function TokenEscalateModal({
         />
 
         <Alert tone="info">
-          This can only move a patient up, never down, and never ahead of a more urgent case. The
-          reason is shown on the board so the queue order can be explained.
+          This can only move a patient up, never down, and never ahead of a more urgent case. Staff
+          see the reason beside the token, here and on the OPD queue, so the order can be explained.
+          Public boards never show it.
         </Alert>
 
         <Button

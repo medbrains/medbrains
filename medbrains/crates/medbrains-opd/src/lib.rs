@@ -11,6 +11,7 @@ use std::{
 pub mod auto_close;
 pub mod consult_pricing;
 pub mod last_visit;
+pub mod queue;
 pub mod referral_lifecycle;
 pub mod reports;
 mod routes;
@@ -166,80 +167,6 @@ pub struct UpdateEncounterRequest {
     pub doctor_id: Option<Uuid>,
     pub notes: Option<String>,
     pub status: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct ListQueueQuery {
-    pub date: Option<NaiveDate>,
-    pub department_id: Option<Uuid>,
-    pub doctor_id: Option<Uuid>,
-    pub visit_type: Option<String>,
-    pub status: Option<String>,
-    pub search: Option<String>,
-    /// When true, restrict the result to entries where `doctor_id`
-    /// equals the calling user's id. Lets a doctor's UI ask for
-    /// "my queue today" without having to know the user's own
-    /// staff record. Combined with `doctor_id` it acts as an AND
-    /// (typical use is `mine=true` alone).
-    pub mine: Option<bool>,
-}
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct QueueEntry {
-    pub id: Uuid,
-    pub encounter_id: Uuid,
-    pub department_id: Uuid,
-    pub doctor_id: Option<Uuid>,
-    /// The legacy per-tenant integer. Kept because older surfaces still read
-    /// it, but it is not what anybody is called by: `sequences.OPD_TOKEN`
-    /// never resets by date, so it had climbed past 400 while the board was
-    /// calling T-001.
-    pub token_number: i32,
-    /// What the patient is actually called by -- the unified token's number,
-    /// resolved through the encounter id.
-    ///
-    /// The same string the token console and every board shows, and stable
-    /// across the whole visit: `number_for_visit` hands registration's number
-    /// to OPD and on to the lab, so one person keeps one number from the front
-    /// door to the pharmacy.
-    pub token_code: Option<String>,
-    /// The room or counter the token was last called to.
-    pub token_counter_label: Option<String>,
-    /// The queue the token belongs to -- a department, a room, or a station.
-    pub token_room: Option<String>,
-    pub token_priority: Option<String>,
-    pub status: String,
-    pub queue_date: NaiveDate,
-    pub called_at: Option<DateTime<Utc>>,
-    pub completed_at: Option<DateTime<Utc>>,
-    pub patient_id: Uuid,
-    pub patient_name: Option<String>,
-    pub uhid: Option<String>,
-    pub visit_type: Option<String>,
-    /// Carried from the encounter so the waiting list says why each patient is
-    /// here, not just that they are.
-    pub chief_complaint: Option<String>,
-    /// Whether anything has been recorded at the vitals counter yet. Lets the
-    /// counter show who is still waiting without fetching every patient's
-    /// vitals and diffing client-side.
-    pub has_vitals: bool,
-    pub camp_id: Option<Uuid>,
-    pub camp_name: Option<String>,
-    pub appointment_id: Option<Uuid>,
-    pub appointment_type: Option<String>,
-    pub appointment_status: Option<String>,
-    pub appointment_date: Option<NaiveDate>,
-    pub appointment_slot_start: Option<NaiveTime>,
-    pub appointment_slot_end: Option<NaiveTime>,
-    pub appointment_reason: Option<String>,
-    /// `primary`, `cross_consult` (a colleague's opinion) or `returned`.
-    pub kind: String,
-    /// For a referral row: who asked, and why.
-    pub referral_from_doctor: Option<String>,
-    pub referral_reason: Option<String>,
-    /// `auto_inactivity` when OPD closed the visit on its own
-    /// (`auto_close`); `None` when a person closed it, or it is still open.
-    pub close_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1244,192 +1171,13 @@ pub async fn update_encounter(
 pub async fn list_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(params): Query<ListQueueQuery>,
-) -> Result<Json<Vec<QueueEntry>>, AppError> {
+    Query(params): Query<queue::ListQueueQuery>,
+) -> Result<Json<Vec<queue::QueueEntry>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::queue::LIST)?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let rows = queue_rows(&mut tx, &claims, &params).await?;
+    let rows = queue::queue_rows(&mut tx, &claims, &params).await?;
     tx.commit().await?;
     Ok(Json(rows))
-}
-
-/// The OPD queue for `params.date`, or the tenant's today when it is absent.
-///
-/// Filtered as the desk asks; patient identity is shown only to callers who may
-/// see it. Shared by `GET /api/opd/queue` and the `opd.queue.today` action.
-pub async fn queue_rows(
-    conn: &mut sqlx::PgConnection,
-    claims: &Claims,
-    params: &ListQueueQuery,
-) -> Result<Vec<QueueEntry>, AppError> {
-    // The redaction below does not fire for anybody today: opd.queue.* is held
-    // by audit_officer, doctor, mrd_officer, nurse and receptionist, and all
-    // five also hold patients.view. Correct code, inert control — see
-    // list_verbal_orders in this file for the same test coming out the other
-    // way, where quality_officer holds the code and not patients.view.
-    let can_view_patient_identity = kernel::authz::is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|permission| permission == permissions::patients::VIEW);
-
-    let queue_date = if let Some(date) = params.date {
-        date
-    } else {
-        tenant_local_today(&mut *conn, claims.tenant_id).await?
-    };
-
-    let mut conditions = vec![
-        "q.tenant_id = $1".to_owned(),
-        "q.queue_date = $2".to_owned(),
-        // A deleted visit leaves the waiting room.
-        "q.deleted_at IS NULL".to_owned(),
-        "e.deleted_at IS NULL".to_owned(),
-    ];
-    let mut bind_idx: usize = 4;
-
-    #[allow(clippy::items_after_statements)]
-    struct Bind {
-        uuid_val: Option<Uuid>,
-        string_val: Option<String>,
-    }
-    let mut binds: Vec<Bind> = Vec::new();
-
-    if let Some(dept) = params.department_id {
-        conditions.push(format!("q.department_id = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: Some(dept),
-            string_val: None,
-        });
-        bind_idx += 1;
-    }
-    if let Some(doc) = params.doctor_id {
-        conditions.push(format!("q.doctor_id = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: Some(doc),
-            string_val: None,
-        });
-        bind_idx += 1;
-    }
-    if params.mine.unwrap_or(false) {
-        conditions.push(format!("q.doctor_id = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: Some(claims.sub),
-            string_val: None,
-        });
-        bind_idx += 1;
-    }
-    if let Some(visit_type) = params
-        .visit_type
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        conditions.push(format!("e.visit_type::text = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: None,
-            string_val: Some(visit_type.to_owned()),
-        });
-        bind_idx += 1;
-    }
-    if let Some(search) = params
-        .search
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        let search_condition = if can_view_patient_identity {
-            format!(
-                "(q.token_number::text ILIKE ${bind_idx} \
-                  OR p.uhid ILIKE ${bind_idx} \
-                  OR p.phone ILIKE ${bind_idx} \
-                  OR CONCAT(p.first_name, ' ', p.last_name) ILIKE ${bind_idx})"
-            )
-        } else {
-            format!(
-                "(q.token_number::text ILIKE ${bind_idx} \
-                  OR q.status::text ILIKE ${bind_idx} \
-                  OR e.visit_type::text ILIKE ${bind_idx} \
-                  OR COALESCE(e.attributes->>'camp_name', '') ILIKE ${bind_idx})"
-            )
-        };
-        conditions.push(search_condition);
-        binds.push(Bind {
-            uuid_val: None,
-            string_val: Some(format!("%{search}%")),
-        });
-        bind_idx += 1;
-    }
-    if let Some(ref status) = params.status {
-        conditions.push(format!("q.status::text = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: None,
-            string_val: Some(status.clone()),
-        });
-    }
-
-    let where_clause = conditions.join(" AND ");
-
-    let sql = format!(
-        "SELECT q.id, q.encounter_id, q.department_id, q.doctor_id, q.token_number, \
-                q.status::text AS status, q.queue_date, q.called_at, q.completed_at, \
-                e.close_reason, \
-                tok.number AS token_code, \
-                tok.counter_label AS token_counter_label, \
-                tok.scope_label AS token_room, \
-                tok.priority AS token_priority, \
-                e.patient_id, \
-                CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', p.last_name) ELSE NULL END AS patient_name, \
-                CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
-                e.visit_type::text AS visit_type, \
-                e.chief_complaints AS chief_complaint, \
-                EXISTS (SELECT 1 FROM vitals v WHERE v.encounter_id = e.id) AS has_vitals, \
-                NULLIF(e.attributes->>'camp_id', '')::uuid AS camp_id, \
-                e.attributes->>'camp_name' AS camp_name, \
-                a.id AS appointment_id, \
-                a.appointment_type::text AS appointment_type, \
-                a.status::text AS appointment_status, \
-                a.appointment_date, \
-                a.slot_start AS appointment_slot_start, \
-                a.slot_end AS appointment_slot_end, \
-                a.reason AS appointment_reason, \
-                q.kind, \
-                rfu.full_name AS referral_from_doctor, \
-                rf.reason AS referral_reason \
-         FROM opd_queues q \
-         JOIN encounters e ON e.id = q.encounter_id \
-         JOIN patients p ON p.id = e.patient_id \
-         LEFT JOIN appointments a ON a.tenant_id = q.tenant_id AND a.encounter_id = e.id \
-         LEFT JOIN referrals rf ON rf.id = q.referral_id \
-         LEFT JOIN users rfu ON rfu.id = rf.from_doctor_id \
-         LEFT JOIN LATERAL ( \
-             SELECT t.number, t.counter_label, t.scope_label, t.priority \
-               FROM tokens t \
-              WHERE t.tenant_id = q.tenant_id AND t.module = 'opd' \
-                AND ((q.kind = 'primary' AND t.entity_type = 'encounter' \
-                      AND t.entity_id = q.encounter_id) \
-                  OR (t.entity_type = 'opd_queue' AND t.entity_id = q.id)) \
-                AND t.token_date = q.queue_date \
-              ORDER BY t.created_at LIMIT 1 \
-         ) tok ON TRUE \
-         WHERE {where_clause} \
-         ORDER BY q.token_number ASC LIMIT 5000"
-    );
-
-    let mut query = sqlx::query_as::<_, QueueEntry>(&sql)
-        .bind(claims.tenant_id)
-        .bind(queue_date)
-        .bind(can_view_patient_identity);
-    for b in &binds {
-        if let Some(u) = b.uuid_val {
-            query = query.bind(u);
-        }
-        if let Some(ref s) = b.string_val {
-            query = query.bind(s.clone());
-        }
-    }
-
-    Ok(query.fetch_all(conn).await?)
 }
 
 // ══════════════════════════════════════════════════════════

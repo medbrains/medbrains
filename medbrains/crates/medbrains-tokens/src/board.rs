@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use axum::{
     Extension, Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
 };
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
@@ -20,7 +20,7 @@ use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Token;
+use crate::{EscalateInput, Token};
 
 /// Whether the caller reads the board as a desk (names) or as a display. The
 /// camp team working a camp's stations is that queue's desk.
@@ -110,6 +110,36 @@ pub async fn board_config(
             announce_repeat: queue.announce_repeat,
         },
     )))
+}
+
+/// `PUT /api/tokens/{id}/priority`, then a nudge to the clinic's open screens.
+///
+/// The OPD queue sorts by token priority and refreshes on queue signals, not
+/// on a poll like the console: without the nudge a doctor's open list kept
+/// the old order until somebody reloaded it.
+pub async fn escalate_and_nudge(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    id: Path<Uuid>,
+    body: Json<EscalateInput>,
+) -> Result<Json<Token>, AppError> {
+    let tenant_id = claims.tenant_id;
+    let escalated = crate::escalate_priority(State(state.clone()), Extension(claims), id, body);
+    let Json(token) = escalated.await?;
+    if token.module == "opd"
+        && token.scope == "department"
+        && let Some(department_id) = token.scope_id
+    {
+        medbrains_notifications::publish_board_signal(
+            &state,
+            tenant_id,
+            department_id,
+            "opd.queue.changed",
+            "token",
+            token.id,
+        );
+    }
+    Ok(Json(token))
 }
 
 #[cfg(test)]

@@ -4,13 +4,7 @@ import { setupApi } from "@medbrains/api/modules/setup";
 import { stationsApi } from "@medbrains/api/modules/stations";
 import { tokensApi } from "@medbrains/api/modules/tokens";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
-import {
-  type ModuleToken,
-  P,
-  SERVICE_TIME_MIN_SAMPLES,
-  TOKEN_PRIORITY_LABEL,
-  TOKEN_PRIORITY_REASON,
-} from "@medbrains/types";
+import { type ModuleToken, P, SERVICE_TIME_MIN_SAMPLES } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,12 +12,12 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { TokenCollectButton } from "@/components/payments/collect/TokenCollectButton";
 import { TransferVisitModal } from "@/components/Queues/TransferVisitModal";
-import { Alert, Badge, Button, Select, Tooltip, toast } from "@/components/ui";
+import { Alert, Badge, Button, Select, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
-import { formatWaited, hasAged } from "@/lib/token-ageing";
 import { TokenEscalateModal } from "./token-escalate-modal";
+import { TokenPriorityCell } from "./token-priority-cell";
 
 const MODULE_VALUES = [
   "registration",
@@ -225,39 +219,7 @@ export function TokenConsolePage() {
     {
       key: "priority",
       label: "Priority",
-      // A patient ahead of the queue for a reason nobody at the desk witnessed
-      // looks like a queue-jump, and the desk is who has to explain it. So the
-      // badge says why on hover, and never shows a raw database value.
-      // Waiting is now itself a reason to be ahead — migration 1006 ages a
-      // token one step per 30 minutes — so the same rule applies to it: the
-      // desk must be able to say why, or an aged patient reads as a queue-jump.
-      render: (row) => {
-        const aged = hasAged(row.priority, row.created_at);
-        const badge =
-          row.priority === "normal" ? null : (
-            <Tooltip
-              label={
-                TOKEN_PRIORITY_REASON[row.priority] ??
-                `${row.priority_label ?? row.priority} — a lane this queue offers`
-              }
-            >
-              <Badge tone={row.priority === "carried_over" ? "accent" : "warning"}>
-                {row.priority_label ?? TOKEN_PRIORITY_LABEL[row.priority] ?? row.priority}
-              </Badge>
-            </Tooltip>
-          );
-        if (!aged) return badge ?? "—";
-        return (
-          <Group gap={4} wrap="nowrap">
-            {badge}
-            <Tooltip
-              label={`Waiting ${formatWaited(row.created_at)} — moved up the queue, never ahead of an emergency`}
-            >
-              <Badge tone="info">{formatWaited(row.created_at)}</Badge>
-            </Tooltip>
-          </Group>
-        );
-      },
+      render: (row) => <TokenPriorityCell row={row} />,
     },
     {
       key: "actions",

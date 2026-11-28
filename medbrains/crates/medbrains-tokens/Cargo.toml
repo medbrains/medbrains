@@ -6,6 +6,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
+medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
