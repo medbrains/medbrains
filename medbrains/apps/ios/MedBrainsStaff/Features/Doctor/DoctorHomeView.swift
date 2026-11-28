@@ -12,10 +12,10 @@ enum DoctorRoute: Hashable {
     case myClinic
 }
 
-/// The doctor's front door: the queue count, then the actions the role
-/// holds. "Start consultation" goes through the queue on purpose — a
-/// consultation is written against a patient, and the queue is where the
-/// doctor picks one.
+/// The doctor's front door: the queue count (shown, and fetched, only for a
+/// role that may read the queue), then the actions the role holds. "Start
+/// consultation" goes through the queue on purpose — a consultation is
+/// written against a patient, and the queue is where the doctor picks one.
 struct DoctorHomeView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(\.apiClient) private var client
@@ -26,18 +26,17 @@ struct DoctorHomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
                     Eyebrow("Module")
-                    Text("Consultations, prescriptions, clinical notes.").font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary)
+                    Text("Consultations and clinical notes.").font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
-                HStack(spacing: 1) {
+                if canListQueue {
                     StatTile(eyebrow: "Queue", count: queue.value.map { $0.count(in: TokenStatus.waiting) }, title: "OPD queue (today)")
-                    StatTile(eyebrow: "Vitals", count: nil, title: "Pending review")
+                        .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
                 CarbonSectionTitle("Actions")
                 let who = auth.identity
-                action("queue", "OPD queue", "Call next, view tokens, mark consult complete.", "person.3.sequence", .queue, allowed: who?.can("opd.queue.list") ?? false)
+                action("queue", "OPD queue", "Call next, view tokens, mark consult complete.", "person.3.sequence", .queue, allowed: canListQueue)
                 action("visit", "Start consultation", "Pick a patient from the queue and record the SOAP note.", "square.and.pencil", .queue, allowed: who?.can("opd.visit.update") ?? false)
                 action("ipd-rounds", "IPD rounds", "Ward patients with mini EMR review context.", "bed.double", .ipdRounds, allowed: who?.can("ipd.admissions.list") ?? false)
                 action("appointments", "Appointments", "View today's schedule and reschedule.", "calendar", .myClinic, allowed: who?.can("opd.appointment.list") ?? false)
@@ -57,10 +56,13 @@ struct DoctorHomeView: View {
         }
         .abdmRecordsDestinations()
         .task {
-            guard let client else { return }
+            guard let client, canListQueue else { return }
             await queue.load { try await TokenApi(client: client, module: .opd).worklist(.mine) }
         }
     }
+
+    /// The queue route needs `opd.queue.list`: without it the tile is not shown and never fetched.
+    private var canListQueue: Bool { auth.identity?.can("opd.queue.list") ?? false }
 
     @ViewBuilder
     private func action(_ id: String, _ label: String, _ detail: String, _ symbol: String, _ route: DoctorRoute, allowed: Bool) -> some View {
