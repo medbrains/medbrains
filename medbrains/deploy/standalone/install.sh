@@ -66,7 +66,8 @@ Attach tier (host already runs other applications):
   Picks free ports, never touches 80/443, never stops another proxy.
 
 Backup key (the hospital's own; backups are sealed to it):
-  BACKUP_AGE_RECIPIENT=age1…   public key made offline (recommended).
+  BACKUP_AGE_RECIPIENT=age1pq1…  post-quantum public key made offline
+                               (age-keygen -pq; recommended).
   Unset on a first install: a keypair is made here and its private key
   must be moved offline. See README.md, "Encrypted off-site backups".
 
@@ -541,51 +542,13 @@ install -m 0644 "$DEPLOY_DIR/medbrains-daily-report.timer" /etc/systemd/system/
 for bin in medbrains-send-mail medbrains-backup-report medbrains-daily-report; do
     install -m 0755 "$DEPLOY_DIR/$bin" "/usr/local/bin/$bin"
 done
-# Backup public keys. Every backup is sealed to them, so they must belong to
-# whoever runs this install: the hospital, never the project. Order:
-#   1. BACKUP_AGE_RECIPIENT (one age1… key per line) — set it to rotate.
-#   2. the file a previous install left — kept as it is.
-#   3. neither: a keypair made here for this hospital. Its private key is
-#      printed as a path to move offline; until it is moved, root here can
-#      read the backups.
+# Backup public keys (backup-key.sh). Every backup is sealed to them, so they
+# must belong to whoever runs this install: the hospital, never the project.
+# shellcheck source=./backup-key.sh
+. "$DEPLOY_DIR/backup-key.sh"
 RECIPIENTS=/etc/medbrains/backup-recipients.txt
-BACKUP_IDENTITY=/root/medbrains-backup-identity.txt
-if [[ -n "${BACKUP_AGE_RECIPIENT:-}" ]]; then
-    printf '%s\n' "$BACKUP_AGE_RECIPIENT" > "$RECIPIENTS" && chmod 0644 "$RECIPIENTS"
-elif [[ ! -s "$RECIPIENTS" && -s "$BACKUP_IDENTITY" ]]; then
-    # The key this install made earlier is still here but its public half is
-    # gone. Never make a new one over it: re-derive the public key from it.
-    echo "    NOTE: $RECIPIENTS is missing but $BACKUP_IDENTITY exists."
-    if command -v age-keygen >/dev/null && age-keygen -y "$BACKUP_IDENTITY" > "$RECIPIENTS"; then
-        chmod 0644 "$RECIPIENTS"
-        echo "          Restored the public key from it; the private key is untouched."
-    else
-        rm -f "$RECIPIENTS"
-        echo "    ERROR: could not read the public key from $BACKUP_IDENTITY. Restore" >&2
-        echo "           $RECIPIENTS (the age1… line, from your offline copy) or set" >&2
-        echo "           BACKUP_AGE_RECIPIENT, then re-run. The key file was not changed." >&2
-        exit 1
-    fi
-elif [[ ! -s "$RECIPIENTS" ]]; then
-    if command -v age-keygen >/dev/null; then
-        (umask 077 && age-keygen -o "$BACKUP_IDENTITY" 2>/dev/null)
-        age-keygen -y "$BACKUP_IDENTITY" > "$RECIPIENTS" && chmod 0644 "$RECIPIENTS"
-        echo "    ****************************************************************"
-        echo "    A backup key was made for this hospital: $BACKUP_IDENTITY"
-        echo "    Every backup is sealed to it and NOTHING ELSE can open them."
-        echo "    Copy it to two offline places now (USB in a safe, password"
-        echo "    manager), then remove it from this server:"
-        echo "        shred -u $BACKUP_IDENTITY"
-        echo "    ****************************************************************"
-    else
-        echo "    WARNING: no backup key — set BACKUP_AGE_RECIPIENT=age1… or install age." >&2
-        echo "             medbrains-pg-backup refuses to run until $RECIPIENTS exists." >&2
-    fi
-fi
-if [[ -s "$RECIPIENTS" ]] && command -v age >/dev/null && ! age -R "$RECIPIENTS" </dev/null >/dev/null; then
-    echo "ERROR: $RECIPIENTS holds no valid age public key (age1…)" >&2
-    exit 1
-fi
+ensure_age_pq || echo "    WARNING: no age with post-quantum keys (age $AGE_PQ_VERSION could not be installed)" >&2
+setup_backup_key "$RECIPIENTS" /root/medbrains-backup-identity.txt "${BACKUP_AGE_RECIPIENT:-}" || exit 1
 if [[ "$HAVE_EDGE" == "1" ]]; then
     install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
 fi

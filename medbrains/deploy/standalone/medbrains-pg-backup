@@ -109,7 +109,9 @@ fi
 command -v age >/dev/null 2>&1 || { echo "ERROR: $RECIPIENTS is set but age is not installed" >&2; exit 1; }
 # A malformed recipients file would otherwise surface only after the
 # whole database had been dumped into a pipe that refuses it.
-age -R "$RECIPIENTS" </dev/null >/dev/null || { echo "ERROR: $RECIPIENTS holds no valid age recipient" >&2; exit 1; }
+age -R "$RECIPIENTS" </dev/null >/dev/null || {
+    echo "ERROR: $RECIPIENTS holds no valid age recipient (age1pq1… keys need age 1.3+," >&2
+    echo "       and post-quantum and classic keys cannot be mixed in one file)" >&2; exit 1; }
 
 # The MedBrains project's own key, which kits before 3.33.1 installed on
 # every host. A hospital cannot open a backup sealed to it. The run still
@@ -123,6 +125,13 @@ if [[ "${BACKUP_PROJECT_KEY_IS_OURS:-0}" != "1" ]] \
     && grep -qE "^[[:space:]]*${PROJECT_KEY}[[:space:]]*$" "$RECIPIENTS"; then
     NOTICE="Sealed to the MedBrains project key, which this hospital does not hold. Rotate to your own key: deploy/standalone/README.md, 'Rotate the backup key'."
     echo "WARNING: $NOTICE" >&2
+fi
+# A classic (X25519) key only: a copy harvested today opens on a future
+# quantum computer. Sealed anyway (no backup is worse), and said on every run.
+if grep -qvE '^[[:space:]]*(#|$|age1pq1)' "$RECIPIENTS"; then
+    CLASSIC="Sealed to a classic backup key, not a post-quantum one. Rotate to an age1pq1… key: Admin guide, Backups, 'Rotate the backup key'."
+    echo "WARNING: $CLASSIC" >&2
+    NOTICE="${NOTICE:+$NOTICE }$CLASSIC"
 fi
 # install.sh makes a keypair here when no key was given. While its private
 # half stays on this host, root here can read every backup. The path only,

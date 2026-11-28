@@ -6,6 +6,8 @@
 #
 #   bash deploy/standalone/test-backup-drill-e2e.sh
 #
+# Keys are post-quantum (age-keygen -pq, age 1.3+); section 8 restores a
+# backup sealed to an older classic key.
 # Proves: the object that leaves the host is age ciphertext (no pg_dump
 # magic, no secret values, pg_restore cannot read it, the wrong key cannot
 # open it); S3 refuses to be used without a key; each run is recorded in
@@ -29,9 +31,12 @@ for tool in age age-keygen pg_dump pg_restore psql "$PG_BIN/initdb" "$PG_BIN/pg_
 done
 
 # ── fixtures ──────────────────────────────────────────────────────────
-age-keygen -o "$TMP/key.txt" 2>/dev/null
+age-keygen -pq -o "$TMP/key.txt" 2>/dev/null || { echo "SKIP: this age has no -pq (needs 1.3+)"; exit 0; }
 age-keygen -y "$TMP/key.txt" > "$TMP/recipients.txt"
-age-keygen -o "$TMP/wrong.txt" 2>/dev/null
+age-keygen -pq -o "$TMP/wrong.txt" 2>/dev/null
+# A key from before post-quantum sealing: its backups must still restore.
+age-keygen -o "$TMP/old-classic.txt" 2>/dev/null
+age-keygen -y "$TMP/old-classic.txt" > "$TMP/old-recipients.txt"
 mkdir -p "$TMP/etc/medbrains" "$TMP/s3" "$TMP/bin"
 echo "MEDBRAINS_IDENTIFIER_HMAC_KEY=e2e-secret-value-do-not-leak" > "$TMP/etc/medbrains/env"
 
@@ -132,6 +137,7 @@ drill="$(PATH="$TMP/bin:$PATH" bash "$HERE/medbrains-restore-drill" --from "$TMP
     --identity "$TMP/key.txt" --target-url "$SERVER/postgres" \
     --secrets-from "$TMP/s3/secrets-backups/$host" --counts-out "$TMP/restored.tsv" 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$drill" == *"RESTORE DRILL PASSED"* ]] && ok "drill passes" || bad "drill passes (rc=$rc): $drill"
+[[ "$drill" == *"ok   sealed post-quantum"* ]] && ok "drill reports the backup sealed post-quantum" || bad "drill seal line: $drill"
 # backup_history gains a row after each dump, so it differs by design.
 if diff <(counts "$SRC" | grep -v '^backup_history') <(grep -v '^backup_history' "$TMP/restored.tsv") >/dev/null; then
     ok "restored row counts identical to the source ($(wc -l < "$TMP/restored.tsv" | tr -d ' ') tables)"
@@ -158,5 +164,18 @@ printf 'X' | dd of="$TMP/tampered.dump.age" bs=1 seek=$((size - 100)) conv=notru
 PATH="$TMP/bin:$PATH" bash "$HERE/medbrains-restore-drill" --from "$TMP/tampered.dump.age" \
     --identity "$TMP/key.txt" --target-url "$SERVER/postgres" >/dev/null 2>&1 \
     && bad "tampered object passed the drill" || ok "tampered object fails the drill"
+
+# ── 8. an old classic backup still restores, with both keys in one file ─
+# After a rotation the operator keeps the old identity beside the new one.
+old_out="$(backup BACKUP_AGE_RECIPIENTS_FILE="$TMP/old-recipients.txt")"
+old="$(find "$TMP/s3/pg-backups/$host" -name '*.dump.age' -newer "$daily" | head -1)"
+cat "$TMP/key.txt" "$TMP/old-classic.txt" > "$TMP/both-keys.txt"
+drill="$(PATH="$TMP/bin:$PATH" bash "$HERE/medbrains-restore-drill" --from "$old" \
+    --identity "$TMP/both-keys.txt" --target-url "$SERVER/postgres" 2>&1)"; rc=$?
+if [[ -n "$old" && $rc -eq 0 && "$drill" == *"RESTORE DRILL PASSED"* && "$drill" == *"ok   sealed classic"* ]]; then
+    ok "old classic backup restores with the old + new identity file"
+else bad "old classic backup (rc=$rc): $old_out // $drill"; fi
+age -d -i "$TMP/key.txt" "$old" >/dev/null 2>&1 && bad "the new key opened a classic backup" \
+    || ok "the new pq key alone cannot open the old backup (keep the old one)"
 
 exit "$fail"
