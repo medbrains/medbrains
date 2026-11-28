@@ -5548,6 +5548,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "medbrains-abdm-fake-gateway"
+version = "3.35.6"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "openssl",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "medbrains-adapter-sdk"
 version = "3.35.6"
 dependencies = [
@@ -8256,6 +8268,7 @@ dependencies = [
  "ipnet",
  "jsonwebtoken",
  "medbrains-abdm",
+ "medbrains-abdm-fake-gateway",
  "medbrains-adapter-sdk",
  "medbrains-admin",
  "medbrains-ai",

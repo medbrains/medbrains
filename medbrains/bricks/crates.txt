@@ -14,6 +14,7 @@
 # Changing a line changes what the check forbids, so it needs the owner.
 kanidm-softkey                      native-os
 medbrains-abdm                      not-yet-brick:abdm
+medbrains-abdm-fake-gateway         tooling
 medbrains-adapter-sdk               native-os
 medbrains-admin                     base
 medbrains-agent                     native-os

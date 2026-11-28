@@ -29,6 +29,7 @@ members = [
     "crates/medbrains-db",
     "crates/medbrains-db-migrations",
     "crates/medbrains-abdm",
+    "crates/medbrains-abdm-fake-gateway",
     "crates/medbrains-loadtest",
     "crates/medbrains-adapter-sdk",
     "crates/medbrains-integration-hub",
