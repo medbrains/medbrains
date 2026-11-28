@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // machine and wrong the moment the application stops being a superuser.
     let worker_pool = match std::env::var("WORKER_DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => {
-            let pool = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            let pool = medbrains_server::worker_pool::connect(&url, &pool_config).await?;
             tracing::info!("background workers have their own pool");
             pool
         }
@@ -474,7 +474,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_infra_settings::preflight::record(findings);
 
     if !bootstrap_pool.is_closed() && std::env::var("MIGRATION_DATABASE_URL").is_ok() {
-        bootstrap_pool.close().await;
+        // Not `close()` alone: that left the connection the checks above had just used open.
+        medbrains_db::pool::close_fully(&bootstrap_pool).await;
     }
 
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey
@@ -802,18 +803,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown: stop accepting new connections on SIGTERM/SIGINT
     // and let in-flight requests (and their transactions) finish instead
-    // of aborting mid-write on every deploy restart.
-    // Not `axum::serve(listener, app)`: that form copies the whole route table for every
-    // connection (DECISIONS, 2026-11-04), and gives handlers no connecting address, leaving them
-    // only headers that a client can write.
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
-
-    tracing::info!("shutdown complete — all in-flight requests drained");
+    // of aborting mid-write on every deploy restart; but only for
+    // `DRAIN_DEADLINE`, so a stream held open by a browser tab cannot keep
+    // the process up until the supervisor kills it.
+    let deadline = medbrains_server_core::shutdown::DRAIN_DEADLINE;
+    medbrains_server_core::shutdown::serve_until(listener, app, shutdown_signal(), deadline)
+        .await?;
     Ok(())
 }
 
@@ -846,6 +841,7 @@ async fn run_preflight(config: &AppConfig) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Resolves on SIGTERM or SIGINT: the moment the server stops accepting and starts draining.
 async fn shutdown_signal() {
     let ctrl_c = async {
         if let Err(error) = tokio::signal::ctrl_c().await {
