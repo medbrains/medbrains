@@ -2366,7 +2366,6 @@ pub async fn get_lab_report_full_print_data(
         comments: row.comments,
         pathologist_name: row.pathologist_name.unwrap_or_default(),
         pathologist_registration_number: row.pathologist_reg_number,
-        pathologist_signature_url: None,
         technician_name: row.technician_name,
         verified_at: row
             .verified_at

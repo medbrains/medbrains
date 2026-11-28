@@ -208,9 +208,12 @@ pub struct PrintSignatureData {
     pub signed_at: String,
     /// Display name of signer ("Dr. Sharma") if resolvable.
     pub signer_name: Option<String>,
-    /// URL of scanned signature image — print template stamps this
-    /// at the signature box. Null = no image stored, fall back to
-    /// rendered cursive `signer_name`.
+    /// The signer's registration number (medical council), when their
+    /// profile has one: printed in the words used when there is no image.
+    pub signer_registration: Option<String>,
+    /// The signer's own signature image, stamped at the signature box.
+    /// Null = signed with no image: the print says "Digitally signed by",
+    /// in words. Never a name drawn in a script font.
     pub display_image_url: Option<String>,
     /// Pre-rendered text block printed below image:
     /// "Digitally signed by Dr. X on YYYY-MM-DD HH:MM • Verify: …"
@@ -2491,7 +2494,6 @@ pub struct LabReportFullPrintData {
     pub comments: Option<String>,
     pub pathologist_name: String,
     pub pathologist_registration_number: Option<String>,
-    pub pathologist_signature_url: Option<String>,
     pub technician_name: Option<String>,
     pub verified_at: Option<String>,
     pub nabl_accredited: bool,

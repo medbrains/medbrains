@@ -953,7 +953,18 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
       {% endif %}
     </td>
     <td class="right">
-      {% if lab.pathologist_signature_url %}<img src="{{ lab.pathologist_signature_url }}" alt="">{% endif %}
+      {# The signature area never prints empty: the signer's own image, the
+         words a signature with no image carries, or "Not signed". One line a
+         signer: a report's results are signed one by one. #}
+      {% for s in lab.signatures | default(value=[]) | unique(attribute="signer_name") %}
+        {% if s.display_image_url %}
+          <img src="{{ s.display_image_url }}" alt="Signature of {{ s.signer_name | default(value="the signer") }}">
+        {% else %}
+          <div class="who">Digitally signed by {{ s.signer_name | default(value="the signer") }}{% if s.signer_registration %}, Reg. no. {{ s.signer_registration }}{% endif %}, {% set at = s.signed_at | split(pat=":") %}{{ at.0 | replace(from="T", to=" ") }}:{{ at.1 }} UTC</div>
+        {% endif %}
+      {% else %}
+        <div class="who">Not signed</div>
+      {% endfor %}
       {% if lab.pathologist_name %}
         <div class="who">{{ lab.pathologist_name }}</div>
         {% if lab.pathologist_registration_number %}
@@ -1014,7 +1025,7 @@ const LAB_REPORT_SAMPLE: &str = r#"{
     "technician_name": "K. Anitha",
     "pathologist_name": "Dr. Vijay, M.D (Pathology)",
     "pathologist_registration_number": "89171",
-    "pathologist_signature_url": null,
+    "signatures": [],
     "verified_at": "21-08-2026 11:22",
     "amendments": [
       {"parameter_name": "Potassium", "original_value": "4.2", "amended_value": "6.9",
@@ -1198,6 +1209,7 @@ const CASHLESS_CLAIM_SAMPLE: &str = r#"{
 }"#;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -1227,6 +1239,42 @@ mod tests {
                 panic!("{}: {why}", template.code);
             }
         }
+    }
+
+    /// The lab report as HTML, its sample carrying `signatures`.
+    fn lab_report_signed_by(signatures: serde_json::Value) -> String {
+        let template = find_template("lab_report").expect("the lab report template");
+        let mut context = sample_with_branding(template);
+        context["lab"]["signatures"] = signatures;
+        crate::engine::render_html(template.html, &context).expect("the lab report renders")
+    }
+
+    /// An empty signature area reads as signed to whoever is handed the paper.
+    /// Unsigned says so; a signature with no image is words, with the signer's
+    /// registration number and the time; an image is the signer's own.
+    #[test]
+    fn the_lab_report_signature_area_never_prints_empty() {
+        let unsigned = lab_report_signed_by(serde_json::json!([]));
+        assert!(unsigned.contains("Not signed"), "{unsigned}");
+
+        let signer = serde_json::json!({
+            "signed_at": "2026-08-21T11:22:00+00:00", "signer_name": "Dr. Vijay",
+            "signer_registration": "89171", "display_image_url": null,
+            "verify_ref": "r1", "legal_class": "clinical"
+        });
+        let words = lab_report_signed_by(serde_json::json!([signer, signer]));
+        let line = "Digitally signed by Dr. Vijay, Reg. no. 89171, 2026-08-21 11:22 UTC";
+        assert_eq!(words.matches(line).count(), 1, "once a signer: {words}");
+        assert!(!words.contains("Not signed"));
+
+        let mut with_image = signer;
+        with_image["display_image_url"] = "data:image/png;base64,AAAA".into();
+        let image = lab_report_signed_by(serde_json::json!([with_image]));
+        // The engine escapes the slash in the attribute; a browser reads it back.
+        let stamped = image.contains(r#"<img src="data:image"#)
+            && image.contains(r#"alt="Signature of Dr. Vijay""#);
+        assert!(stamped, "{image}");
+        assert!(!image.contains("Digitally signed by") && !image.contains("Not signed"));
     }
 
     /// The queue token slip exists to be handed to a patient, so the number,
