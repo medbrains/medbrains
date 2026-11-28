@@ -7,6 +7,8 @@
 //! - Announcements
 
 use axum::routing::{get, post};
+mod hospital_date;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -601,7 +603,7 @@ pub async fn create_token(
 ) -> Result<Json<CreateTokenResponse>, (StatusCode, String)> {
     let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
-    let today = Utc::now().date_naive();
+    let today = hospital_date::today(&mut conn, claims.tenant_id, None).await?;
     let priority = req.priority.as_deref().unwrap_or("normal");
 
     // Get department code for token prefix
@@ -705,7 +707,7 @@ pub async fn list_tokens(
 ) -> Result<Json<Vec<QueueToken>>, (StatusCode, String)> {
     let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
-    let date = query.date.unwrap_or_else(|| Utc::now().date_naive());
+    let date = hospital_date::today(&mut conn, claims.tenant_id, query.date).await?;
 
     let tokens = sqlx::query_as::<_, QueueToken>(
         r"
@@ -863,7 +865,7 @@ pub async fn get_queue_state(
     // while the display and token handlers beside them were gated in an
     // earlier pass.
     require_board_read(&claims)?;
-    let today = Utc::now().date_naive();
+    let today = hospital_date::today(&mut conn, claims.tenant_id, None).await?;
 
     // Get department name
     let dept: (String,) =
@@ -1043,11 +1045,10 @@ async fn broadcast_queue_update(
 ) {
     // Nothing to return and nobody to tell: a screen that misses one update
     // gets the next one a moment later.
-    let Ok(mut conn) = medbrains_db::pool::tenant_conn(db, &tenant_id).await else {
+    let Some((mut conn, today)) = hospital_date::conn_and_today(db, tenant_id).await else {
         tracing::warn!(%tenant_id, %department_id, "queue broadcast skipped — no connection");
         return;
     };
-    let today = Utc::now().date_naive();
 
     // Get current queue state
     let waiting = get_queue_tokens(db, tenant_id, department_id, today, "waiting")
@@ -2039,7 +2040,7 @@ pub async fn get_queue_analytics(
 ) -> Result<Json<QueueAnalytics>, (StatusCode, String)> {
     let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require_board_read(&claims)?;
-    let today = Utc::now().date_naive();
+    let today = hospital_date::today(&mut conn, claims.tenant_id, None).await?;
 
     // Get department name
     let dept: Option<(String,)> =
@@ -2125,7 +2126,7 @@ pub async fn get_queue_metrics(
 ) -> Result<Json<QueueMetrics>, (StatusCode, String)> {
     let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require_board_read(&claims)?;
-    let today = Utc::now().date_naive();
+    let today = hospital_date::today(&mut conn, claims.tenant_id, None).await?;
 
     // Get current waiting count
     let waiting: (i64,) = sqlx::query_as(
