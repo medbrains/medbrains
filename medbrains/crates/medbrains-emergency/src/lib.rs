@@ -3,6 +3,7 @@
 pub mod alerts;
 pub mod mlc_injuries;
 pub mod mlc_record;
+pub mod mlc_suspicion;
 
 use axum::{
     Extension, Json,
@@ -626,7 +627,7 @@ pub async fn list_visits(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(query): Query<ListVisitsQuery>,
-) -> Result<Json<Vec<ErVisit>>, AppError> {
+) -> Result<Json<Vec<mlc_suspicion::ErVisitView>>, AppError> {
     require_any_permission(
         &claims,
         &[
@@ -646,7 +647,7 @@ pub async fn list_visits(
     .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, ErVisit>(
+    let rows = sqlx::query_as::<_, mlc_suspicion::ErVisitView>(
         "SELECT * FROM er_visits
          WHERE deleted_at IS NULL AND tenant_id = $1
            AND ($2::uuid IS NULL OR patient_id = $2)
@@ -660,7 +661,7 @@ pub async fn list_visits(
     tx.commit().await?;
     Ok(Json(
         rows.into_iter()
-            .map(|row| filter_er_visit_response(row, &claims))
+            .map(|row| row.for_caller(&claims))
             .collect(),
     ))
 }
@@ -669,7 +670,7 @@ pub async fn get_visit(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<ErVisit>, AppError> {
+) -> Result<Json<mlc_suspicion::ErVisitView>, AppError> {
     require_any_permission(
         &claims,
         &[
@@ -715,14 +716,15 @@ pub async fn get_visit(
     .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row =
-        sqlx::query_as::<_, ErVisit>("SELECT * FROM er_visits WHERE id = $1 AND tenant_id = $2")
-            .bind(id)
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let row = sqlx::query_as::<_, mlc_suspicion::ErVisitView>(
+        "SELECT * FROM er_visits WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
-    Ok(Json(filter_er_visit_response(row, &claims)))
+    Ok(Json(row.for_caller(&claims)))
 }
 
 // No record check on the patient named in the body, deliberately. Opening an
@@ -751,7 +753,9 @@ pub async fn create_visit(
         body.notes.as_deref(),
         body.arrival_mode.as_deref(),
     ]);
-    let is_mlc = body.is_mlc.unwrap_or(false) || inferred_mlc_case_type.is_some();
+    // Only a declared MLC is the doctor's act. A complaint that merely reads
+    // like one saves for anyone at the desk and is flagged below.
+    let is_mlc = body.is_mlc.unwrap_or(false);
     if is_mlc {
         require_permission(&claims, permissions::emergency::mlc::CREATE)?;
     }
@@ -799,6 +803,8 @@ pub async fn create_visit(
             row.chief_complaint.as_deref().or(row.notes.as_deref()),
         )
         .await?;
+    } else if let Some(case_type) = inferred_mlc_case_type {
+        mlc_suspicion::flag_suspected(&mut tx, &claims, row.id, case_type, "er_visit").await?;
     }
 
     // ER visits are encounter-backed so every charge for the visit
@@ -1061,9 +1067,6 @@ pub async fn create_triage(
         body.disability_assessment.as_deref(),
         body.notes.as_deref(),
     ]);
-    if inferred_mlc_case_type.is_some() {
-        require_permission(&claims, permissions::emergency::mlc::CREATE)?;
-    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1110,30 +1113,7 @@ pub async fn create_triage(
         .await?;
 
     if let Some(case_type) = inferred_mlc_case_type {
-        let visit = sqlx::query!(
-            "UPDATE er_visits
-             SET is_mlc = true, updated_at = now()
-             WHERE id = $1 AND tenant_id = $2
-             RETURNING patient_id, chief_complaint, notes",
-            visit_id,
-            claims.tenant_id,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        auto_create_mlc_case_for_visit(
-            &mut tx,
-            &claims.tenant_id,
-            visit_id,
-            visit.patient_id,
-            claims.sub,
-            case_type,
-            body.chief_complaint
-                .as_deref()
-                .or(visit.chief_complaint.as_deref())
-                .or(visit.notes.as_deref()),
-        )
-        .await?;
+        mlc_suspicion::flag_suspected(&mut tx, &claims, visit_id, case_type, "triage").await?;
     }
 
     tx.commit().await?;

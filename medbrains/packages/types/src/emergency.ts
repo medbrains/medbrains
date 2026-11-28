@@ -131,6 +131,12 @@ export interface ErVisit {
   arrival_time: string;
   chief_complaint: string | null;
   is_mlc: boolean;
+  /** "suspected" until a doctor confirms or dismisses a possible MLC. Sent on the list and the visit page. */
+  mlc_suspicion?: "suspected" | "confirmed" | "dismissed" | null;
+  mlc_suspected_type?: string | null;
+  mlc_suspicion_reason?: string | null;
+  mlc_suspicion_decided_by?: string | null;
+  mlc_suspicion_decided_at?: string | null;
   is_brought_dead: boolean;
   triage_level: TriageLevel | null;
   attending_doctor_id: string | null;
