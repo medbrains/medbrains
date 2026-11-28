@@ -172,7 +172,7 @@ fn main() -> anyhow::Result<()> {
     // so its logs stay off. Nothing logged here carries either.
     let filter = tracing_subscriber::EnvFilter::new("medbrains_front=info,pingora=off");
     tracing_subscriber::fmt().with_env_filter(filter).init();
-    rustls::crypto::ring::default_provider()
+    rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .map_err(|_| anyhow::anyhow!("the TLS provider was already set"))?;
     let config = Config::load(&config_path()?)?;
