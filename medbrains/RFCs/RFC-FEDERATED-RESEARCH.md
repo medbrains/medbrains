@@ -198,6 +198,31 @@ sequenceDiagram
   Co->>Q: combined aggregate (industry: after access-committee review)
 ```
 
+### 7a. Study sandbox and de-identification (owner, 2026-11-28: federated first)
+
+A researcher who needs their own analysis code, not only the restricted query language, gets a
+**study sandbox**. The owner chose the federated form first: **the sandbox runs on each hospital's
+box, and the code travels to the data**. A central sandbox holding linked data from several
+hospitals (run by the custodian, section 5) is deferred until counsel signs it off and the custodian
+exists; it would be the only way to follow one patient across hospitals.
+
+| Brick | Does | Never |
+|---|---|---|
+| `research-access` | application, certificate uploads (ethics committee registration and approval, protocol, signed data use agreement, investigator identity and affiliation), human review, expiry, per-study approval listing the exact variables, hospitals and period | starts a study without every certificate current; renews itself |
+| `research-deidentify` | builds the study's extract on the box: drops direct identifiers (name, IDs, phone, address, photo); a **per-study pseudonym** (keyed hash, key per study, held on the box); per-patient date shift; ages and places in bands; free text removed unless the study is approved for scrubbed text; a uniqueness check that refuses the extract while any record is unique on its quasi-identifiers | reuses a pseudonym across studies, so two studies cannot be joined; leaves the box |
+| `research-sandbox` | one isolated workspace per study on the box: its own process with memory, CPU and time limits, no network, read-only on that study's extract only, R and Python with a fixed package set, every command logged | sees the live database, another study, or the internet; writes anywhere but its output folder |
+| `research-release` | every output file goes through the release checker (section 10) and a person's click before the outbox; only aggregates leave | releases a row, a pseudonym, a date or free text |
+
+The restricted query language stays the default: most studies need only counts, rates and models,
+and those never need a sandbox. The sandbox is for approved academic studies that need their own
+code, and it is never offered to the industry tier.
+
+De-identified is not anonymous: linked dates, places and rare diagnoses can identify a person. That
+is why the sandbox never exports and the release checker, not de-identification alone, is the
+control. Build order: `research-access` (no patient data) → `research-deidentify` on synthetic data
+→ `research-sandbox` and `research-release` on synthetic data → real data only after section 17's
+answers.
+
 ## 8. Data model
 
 **Map to OMOP CDM v5.4 locally**, as a view over our own tables, not a second database. v5.4 is the
