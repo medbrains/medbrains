@@ -64,9 +64,7 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
       toast.success(t("vitalsCounter.recorded"), { title: t("vitalsCounter.recordedTitle") });
       setActive(null);
     },
-    onError: () => {
-      toast.error(t("vitalsCounter.recordFailed"), { title: t("common.error") });
-    },
+    onError: () => toast.error(t("vitalsCounter.recordFailed"), { title: t("common.error") }),
   });
 
   const columns = [

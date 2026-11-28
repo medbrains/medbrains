@@ -1,29 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Switch, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CampScreeningFormInput } from "@medbrains/schemas";
 import { campScreeningFormSchema, isBloodPressureValid } from "@medbrains/schemas";
-import type {
-  CampRegistration,
-  CreateCampScreeningRequest,
-  CreateVitalRequest,
-} from "@medbrains/types";
+import type { CreateCampScreeningRequest, CreateVitalRequest } from "@medbrains/types";
 import {
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
   P,
 } from "@medbrains/types";
 import { IconArrowLeft, IconStethoscope } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -34,7 +21,6 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
-import { VitalsRecorder } from "@/components/Clinical/VitalsRecorder";
 import { Alert, Button } from "@/components/ui";
 import {
   campHistoryAnswer,
@@ -46,7 +32,9 @@ import {
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { campService } from "@/services/camp.service";
 import { CampScreeningHistoryFields, CampScreeningTestFields } from "./screening-history-fields";
-import { campRegistrationOptionLabel, campWorkPath } from "./shared";
+import { CampScreeningVitals } from "./screening-vitals";
+import { campWorkPath } from "./shared";
+import { useCampRegistrationChoices } from "./use-camp-registration-choices";
 
 /**
  * Recording a camp screening — vitals, medical history, bedside tests,
@@ -86,26 +74,10 @@ function CampScreeningCreatePageInner() {
 
   const backToList = () => navigate(campWorkPath(campId ?? "", contextPatientId, "screenings"));
 
-  const { data: registrations = [] } = useQuery({
-    queryKey: ["camp-registrations", campId ?? null, "screening-selector"],
-    queryFn: () => campService.listCampRegistrations({ camp_id: campId ?? "" }),
-    enabled: Boolean(campId),
+  const { registrationsById, registrationOptions } = useCampRegistrationChoices(campId, {
+    name: campNameAccess,
+    phone: campPhoneAccess,
   });
-  const registrationsById = useMemo(
-    () => new Map(registrations.map((r: CampRegistration) => [r.id, r])),
-    [registrations],
-  );
-  const registrationOptions = useMemo(
-    () =>
-      registrations.map((registration: CampRegistration) => ({
-        value: registration.id,
-        label: campRegistrationOptionLabel(registration, {
-          name: campNameAccess,
-          phone: campPhoneAccess,
-        }),
-      })),
-    [campNameAccess, campPhoneAccess, registrations],
-  );
   const referralUrgencyOptions = useMemo(
     () => [
       { value: "routine", label: t("screenings.referralUrgency.routine") },
@@ -289,12 +261,7 @@ function CampScreeningCreatePageInner() {
               />
             )}
           />
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              {t("screenings.form.vitals")}
-            </Text>
-            <VitalsRecorder onChange={setScreeningVitals} showActions={false} showNotes={false} />
-          </Stack>
+          <CampScreeningVitals onChange={setScreeningVitals} />
           <Controller
             control={screeningControl}
             name="blood_sugar_random"

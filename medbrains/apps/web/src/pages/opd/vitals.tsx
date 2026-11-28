@@ -2,16 +2,12 @@
 
 import { Group, Modal, Stack, Text, Timeline } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasAllPermissions } from "@medbrains/stores";
 import type { CreateVitalRequest, Vital, VitalHistoryPoint } from "@medbrains/types";
-import { P } from "@medbrains/types";
 import { IconHeartbeat, IconPlus } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { useClinicalEmit, VitalsRecorder } from "@/components";
 import { Badge, Button } from "@/components/ui";
 import { useVitalsSource } from "@/hooks/useVitalsSource";
-import { opdService } from "@/services/opd.service";
+import { usePatientVitalsTimeline } from "./use-patient-vitals-timeline";
 import { bloodPressureSeverity, severityTone, spo2Severity } from "./vitals-thresholds";
 
 export function VitalsTab({
@@ -30,18 +26,7 @@ export function VitalsTab({
   // automatically when a tenant turns on tenant_settings.clinical.
   // offline_mode + provides an edge_url. No code change here.
   const { records: vitals, append, unsyncedOps } = useVitalsSource({ encounterId });
-  const canReadHistory = useHasAllPermissions([P.OPD.VITALS_LIST, P.PATIENTS.VIEW]);
-  const { data: patientVitals = [] } = useQuery({
-    queryKey: ["patient-vitals-history", patientId, "timeline"],
-    queryFn: () => opdService.listPatientVitalsHistory(patientId),
-    // The endpoint needs both: the visit's vitals and the patient's record.
-    enabled: canReadHistory,
-  });
-  const patientVitalsTimeline = useMemo(
-    () =>
-      [...patientVitals].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at)).slice(0, 12),
-    [patientVitals],
-  );
+  const patientVitalsTimeline = usePatientVitalsTimeline(patientId);
 
   const handleSubmit = (data: CreateVitalRequest) => {
     append(data);
