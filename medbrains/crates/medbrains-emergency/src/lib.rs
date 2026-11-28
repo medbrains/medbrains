@@ -3239,7 +3239,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/emergency/visits/{visit_id}/triage",
-            get(list_triage).post(create_triage),
+            get(list_triage).post(medbrains_clinical_scores::checked_vitals(create_triage)),
         )
         .route(
             "/api/emergency/visits/{visit_id}/observation-notes",

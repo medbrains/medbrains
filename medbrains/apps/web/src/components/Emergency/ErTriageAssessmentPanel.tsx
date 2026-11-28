@@ -9,9 +9,11 @@ import { Alert, Badge, Button, Input, NumberField, Select, TextArea, toast } fro
 import { triageInfo } from "@/pages/emergency/shared";
 import { emergencyService } from "@/services/emergency.service";
 import {
+  ER_TRIAGE_NUMBERS,
   type ErTriageFormValues,
   erTriageSchema,
   TRIAGE_LEVELS,
+  TRIAGE_NUMBER_INPUT,
   toCreateTriageRequest,
 } from "./er-triage-form";
 
@@ -25,14 +27,6 @@ const LEVEL_OPTIONS = TRIAGE_LEVELS.map((level) => ({
   value: level,
   label: triageInfo(level).label,
 }));
-
-const NUMBERS = [
-  { name: "pulse_rate", label: "Pulse (bpm)", max: 300 },
-  { name: "respiratory_rate", label: "Resp. rate (/min)", max: 80 },
-  { name: "spo2", label: "SpO₂ %", max: 100 },
-  { name: "gcs_score", label: "GCS (3–15)", max: 15 },
-  { name: "pain_score", label: "Pain (0–10)", max: 10 },
-] as const;
 
 function summary(a: ErTriageAssessment): string {
   return [
@@ -124,7 +118,7 @@ export function ErTriageAssessmentPanel({
               emptyValue={undefined}
             />
             <SimpleGrid cols={{ base: 2, sm: 5 }} spacing="sm">
-              {NUMBERS.map((n) => (
+              {ER_TRIAGE_NUMBERS.map((n) => (
                 <Controller
                   key={n.name}
                   control={control}
@@ -134,9 +128,9 @@ export function ErTriageAssessmentPanel({
                       label={n.label}
                       value={field.value ?? ""}
                       onChange={(v) => field.onChange(typeof v === "number" ? v : undefined)}
-                      min={0}
+                      min={n.min}
                       max={n.max}
-                      allowDecimal={false}
+                      {...TRIAGE_NUMBER_INPUT}
                       error={fieldState.error?.message}
                     />
                   )}

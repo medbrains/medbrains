@@ -61,11 +61,13 @@ export function getTemperatureConfig(tempUnit: TemperatureUnit): VitalUnitConfig
   };
 }
 
+/** The weight field's limits in the hospital's unit; both stay inside the server's 0.5 to 500 kg. */
 export function getWeightConfig(weightUnit: WeightUnit): VitalUnitConfig {
   if (weightUnit === "lbs") {
     return {
       unit: "lbs",
-      min: 1,
+      // 0.5 kg, the server's floor, is 1.10 lbs; 1 lb (0.45 kg) was accepted here and refused on save.
+      min: 1.2,
       max: 1100,
       step: 0.01,
       precision: 2,
@@ -86,12 +88,14 @@ export function getWeightConfig(weightUnit: WeightUnit): VitalUnitConfig {
   };
 }
 
+/** The height field's limits in the hospital's unit; both stay inside the server's 20 to 300 cm. */
 export function getHeightConfig(heightUnit: HeightUnit): VitalUnitConfig {
   if (heightUnit === "in") {
     return {
       unit: "in",
       min: 8,
-      max: 120,
+      // 300 cm, the server's ceiling, is 118.11 in; 120 in (304.8 cm) was accepted here and refused on save.
+      max: 118.1,
       step: 0.1,
       precision: 1,
       normalRange: [0, 9999],

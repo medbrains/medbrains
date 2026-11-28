@@ -116,8 +116,19 @@ describe("unit configs", () => {
     expect(kgToLbs(getWeightConfig("kg").max)).toBeCloseTo(1102.31, 1);
 
     expect(getHeightConfig("cm").max).toBe(300);
-    expect(getHeightConfig("in").max).toBe(120);
     expect(cmToIn(getHeightConfig("cm").max)).toBeCloseTo(118.11, 1);
+  });
+
+  it("an imperial limit never lets through a reading the server refuses", () => {
+    // The server stores metric and refuses weight outside 0.5 to 500 kg and
+    // height outside 20 to 300 cm (medbrains-clinical-scores vital_ranges.rs).
+    // 120 in is 304.8 cm: the field accepted it and the save then failed.
+    const height = getHeightConfig("in");
+    expect(heightToCm(height.max, "in")).toBeLessThanOrEqual(300);
+    expect(heightToCm(height.min, "in")).toBeGreaterThanOrEqual(20);
+    const weight = getWeightConfig("lbs");
+    expect(weightToKg(weight.max, "lbs")).toBeLessThanOrEqual(500);
+    expect(weightToKg(weight.min, "lbs")).toBeGreaterThanOrEqual(0.5);
   });
 
   it("weight and height carry no clinical normal range, unlike temperature", () => {

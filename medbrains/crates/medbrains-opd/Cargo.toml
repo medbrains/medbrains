@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 medbrains-health-services = { path = "../medbrains-health-services" }
 medbrains-notifications = { path = "../medbrains-notifications" }
+medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }
