@@ -20,6 +20,7 @@
 //! - [`stock`] — Batch-level stock movement between store locations
 
 pub mod audit;
+mod audit_chain;
 pub mod pool;
 pub mod sequence;
 pub mod stock;
