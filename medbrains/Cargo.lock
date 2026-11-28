@@ -7613,6 +7613,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "medbrains-server-services",
  "medbrains-workflow",

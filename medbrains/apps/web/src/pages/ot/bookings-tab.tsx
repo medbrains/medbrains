@@ -107,7 +107,7 @@ function CreateBookingDrawer({
       reset(defaultValues);
       setSite(null);
     },
-    onError: () => toast.error("Failed to create booking", { title: "Error" }),
+    onError: (error: Error) => toast.error(error.message, { title: "Booking not made" }),
   });
 
   return (

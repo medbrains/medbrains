@@ -18,6 +18,9 @@
 
 mod billing;
 pub mod blood_gate;
+mod clash;
+#[cfg(test)]
+mod clash_tests;
 pub mod consent;
 pub mod consent_link;
 pub mod emergency_consent;
@@ -671,33 +674,18 @@ pub async fn create_booking(
         }
     }
 
-    // Prevent double-booking a theatre: no other active booking in the same room
-    // may overlap this window. The advisory lock serialises concurrent bookings for
-    // the room+date so the check-then-insert can't race (ot_bookings has no
-    // exclusion constraint).
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))")
-        .bind(body.ot_room_id)
-        .bind(body.scheduled_date)
-        .execute(&mut *tx)
-        .await?;
-    let room_conflict = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM ot_bookings \
-         WHERE tenant_id = $1 AND ot_room_id = $2 AND scheduled_date = $3 \
-           AND status <> 'cancelled' \
-           AND scheduled_start < $5 AND scheduled_end > $4)",
-    )
-    .bind(claims.tenant_id)
-    .bind(body.ot_room_id)
-    .bind(body.scheduled_date)
-    .bind(body.scheduled_start)
-    .bind(body.scheduled_end)
-    .fetch_one(&mut *tx)
-    .await?;
-    if room_conflict {
-        return Err(AppError::Conflict(
-            "That theatre is already booked for an overlapping time.".to_owned(),
-        ));
-    }
+    // No room, surgeon or anaesthetist in two cases at once (see `clash`).
+    let mut people = vec![body.primary_surgeon_id];
+    people.extend(body.anesthetist_id);
+    people.extend(clash::assistant_ids(body.assistant_surgeons.as_ref()));
+    let slot = clash::Slot {
+        room: body.ot_room_id,
+        start: body.scheduled_start,
+        end: body.scheduled_end,
+        people,
+        exclude: None,
+    };
+    clash::refuse_clash(&mut tx, claims.tenant_id, &slot).await?;
 
     // Credential gate — a REVOKED registration can't operate (hard block); EXPIRED is a
     // soft gate (override reason, logged). Same rule as prescribing.
@@ -799,6 +787,14 @@ pub async fn update_booking(
         consent::audit(&mut tx, &claims, "ot.blood_arranged.blocked", id, &values).await?;
         tx.commit().await?;
         return Err(AppError::BadRequest(reason.to_owned()));
+    }
+
+    if body.ot_room_id.is_some()
+        || body.anesthetist_id.is_some()
+        || body.scheduled_start.is_some()
+        || body.scheduled_end.is_some()
+    {
+        clash::refuse_moved_clash(&mut tx, claims.tenant_id, id, &body).await?;
     }
 
     let row = sqlx::query_as::<_, OtBooking>(
