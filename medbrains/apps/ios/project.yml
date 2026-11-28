@@ -91,6 +91,8 @@ targets:
       path: MedBrainsPatient/Resources/Info.plist
       properties:
         CFBundleDisplayName: MedBrains
+        # The server this build was made for (MB_SERVER_URL below).
+        MBServerURL: $(MB_SERVER_URL)
         # From the build settings, which scripts/app_version.sh fills (release.yml, make native-ios).
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
@@ -119,6 +121,22 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
+        # A shipped patient app has no other way to find its hospital, so a Release
+        # build takes MB_SERVER_URL=https://<hospital server> and refuses to build
+        # without one; Debug talks to the developer's machine.
+        MB_SERVER_URL: ""
+      configs:
+        Debug:
+          MB_SERVER_URL: http://127.0.0.1:3000
+    preBuildScripts:
+      - name: Require an https server for Release
+        basedOnDependencyAnalysis: false
+        script: |
+          [ "$CONFIGURATION" != Release ] && exit 0
+          case "$MB_SERVER_URL" in
+            https://?*) exit 0 ;;
+            *) echo "error: a patient Release build needs MB_SERVER_URL=https://<hospital server>, not '$MB_SERVER_URL'"; exit 1 ;;
+          esac
   MedBrainsPatientUITests:
     type: bundle.ui-testing
     platform: iOS

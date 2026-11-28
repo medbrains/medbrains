@@ -30,17 +30,34 @@ struct PatientApp: App {
     }
 }
 
-/// Where the hospital lives, and which hospital. `-baseURL` and
-/// `-hospitalCode` on launch override; the defaults are the local dev server
-/// and its seeded tenant.
+/// Where the hospital lives, and which hospital. The server is the one this
+/// build was made for (`MB_SERVER_URL`, which a Release build refuses to go
+/// without unless it is https). `-baseURL` and `-hospitalCode` on launch
+/// override in Debug builds only: in a shipped app anything that can launch it
+/// could otherwise point the patient's session at its own server.
 enum AppConfig {
-    static func argument(_ name: String) -> String? {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
-        return args[i + 1]
+    /// The hospital server; a build that names none stops here rather than guess.
+    static var baseURL: URL {
+        let built = Bundle.main.object(forInfoDictionaryKey: "MBServerURL") as? String
+        guard
+            let url = chooseServerURL(
+                debugOverride: debugArgument("-baseURL"), boundApiBase: nil, buildDefault: built)
+        else { fatalError("This build names no server: set MB_SERVER_URL") }
+        return url
     }
-    static var baseURL: URL { URL(string: argument("-baseURL") ?? "http://127.0.0.1:3000")! }
-    static var hospitalCode: String { argument("-hospitalCode") ?? "DEFAULT" }
+    /// The hospital's code: the seeded tenant unless a Debug launch names another.
+    static var hospitalCode: String { debugArgument("-hospitalCode") ?? "DEFAULT" }
+
+    /// The value after `name` in the launch arguments, read in Debug builds only.
+    private static func debugArgument(_ name: String) -> String? {
+        #if DEBUG
+            let args = ProcessInfo.processInfo.arguments
+            guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
+            return args[i + 1]
+        #else
+            return nil
+        #endif
+    }
 }
 
 private struct PortalApiKey: EnvironmentKey {

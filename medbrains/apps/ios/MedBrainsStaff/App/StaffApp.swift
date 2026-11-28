@@ -81,17 +81,28 @@ final class StaffShell {
     }
 }
 
-/// Where the hospital lives. `-baseURL` on launch overrides (simulator runs
-/// and UI tests); then the hospital this app is bound to; else the local dev server.
+/// Where the hospital lives. `-baseURL` on launch overrides in Debug builds
+/// only (simulator runs and UI tests); then the hospital this app is bound to;
+/// else the local dev server, which an unbound shipped app cannot reach anyway.
 enum AppConfig {
     static let devServer = URL(string: "http://127.0.0.1:3000")!
 
+    /// The server for this launch, given the hospital the device is bound to.
     static func baseURL(binding: HospitalBinding?) -> URL {
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-baseURL"), i + 1 < args.count, let url = URL(string: args[i + 1]) {
-            return url
-        }
-        return binding.flatMap { URL(string: $0.apiBase) } ?? devServer
+        chooseServerURL(
+            debugOverride: debugBaseURL(), boundApiBase: binding?.apiBase, buildDefault: nil)
+            ?? devServer
+    }
+
+    /// The `-baseURL` launch argument, read in Debug builds only.
+    private static func debugBaseURL() -> String? {
+        #if DEBUG
+            let args = ProcessInfo.processInfo.arguments
+            guard let i = args.firstIndex(of: "-baseURL"), i + 1 < args.count else { return nil }
+            return args[i + 1]
+        #else
+            return nil
+        #endif
     }
 }
 
