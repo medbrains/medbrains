@@ -384,6 +384,7 @@ struct DisposalRecordRow {
 
 /// Quarter totals come from `nabh_bmw_disposal_log`, which mirrors every
 /// `biowaste_records` row; the manifest number lives on the source record.
+/// Prints every entry of the period; it used to stop at 5,000 without a word.
 pub async fn get_spcb_bmw_returns_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -413,6 +414,8 @@ pub async fn get_spcb_bmw_returns_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    // Every entry of the period: a statutory register is never cut short. The
+    // period (at most a year, `period_bounds`) is the bound.
     let disposal_records = sqlx::query_as::<_, DisposalRecordRow>(
         "SELECT l.disposal_date, l.waste_category AS category, \
                 l.quantity_kg::float8 AS quantity_kg, b.manifest_number \
@@ -421,7 +424,7 @@ pub async fn get_spcb_bmw_returns_print_data(
            AND l.source_module = 'biowaste_records' AND b.deleted_at IS NULL \
          WHERE l.deleted_at IS NULL AND l.disposal_date >= $1 AND l.disposal_date < $2 \
            AND l.tenant_id = $3 \
-         ORDER BY l.disposal_date LIMIT 5000",
+         ORDER BY l.disposal_date",
     )
     .bind(start)
     .bind(end)
@@ -1008,6 +1011,7 @@ struct BirthRegisterEntryRow {
 
 /// Reads `mrd_birth_register`, whose `patient_id` is the mother and whose
 /// `birth_type` is the delivery mode (normal / cesarean / assisted ...).
+/// Prints every entry of the period; it used to stop at 5,000 without a word.
 pub async fn get_birth_register_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1021,6 +1025,8 @@ pub async fn get_birth_register_print_data(
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // Every entry of the period: a statutory register is never cut short. The
+    // period (at most a year, `period_bounds`) is the bound.
     let entries = sqlx::query_as::<_, BirthRegisterEntryRow>(
         "SELECT \
            ROW_NUMBER() OVER (ORDER BY b.birth_date, b.birth_time NULLS LAST, \
@@ -1042,7 +1048,7 @@ pub async fn get_birth_register_print_data(
          LEFT JOIN users u ON u.id = b.attending_doctor_id \
          WHERE b.deleted_at IS NULL AND b.birth_date >= $1 AND b.birth_date < $2 \
            AND b.tenant_id = $3 \
-         ORDER BY b.birth_date, b.birth_time NULLS LAST, b.register_number LIMIT 5000",
+         ORDER BY b.birth_date, b.birth_time NULLS LAST, b.register_number",
     )
     .bind(start)
     .bind(end)
@@ -1133,6 +1139,7 @@ struct DeathRegisterEntryRow {
 }
 
 /// Reads the MRD death register (`mrd_death_register`).
+/// Prints every entry of the period; it used to stop at 5,000 without a word.
 pub async fn get_death_register_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1147,6 +1154,8 @@ pub async fn get_death_register_print_data(
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // Every entry of the period: a statutory register is never cut short. The
+    // period (at most a year, `period_bounds`) is the bound.
     let entries = sqlx::query_as::<_, DeathRegisterEntryRow>(
         "SELECT \
            ROW_NUMBER() OVER (ORDER BY dr.death_date, dr.death_time NULLS LAST, \
@@ -1168,7 +1177,7 @@ pub async fn get_death_register_print_data(
          LEFT JOIN users u ON u.id = dr.certifying_doctor_id \
          WHERE dr.deleted_at IS NULL AND dr.death_date >= $1 AND dr.death_date < $2 \
            AND dr.tenant_id = $3 \
-         ORDER BY dr.death_date, dr.death_time NULLS LAST, dr.register_number LIMIT 5000",
+         ORDER BY dr.death_date, dr.death_time NULLS LAST, dr.register_number",
     )
     .bind(start)
     .bind(end)
@@ -1260,6 +1269,7 @@ struct MlcSummaryEntryRow {
 
 /// The MLC register for a period (`YYYY`, `YYYY-MM` or `YYYY-Qn`), dated by the
 /// register date the desk entered, else the moment the case was registered.
+/// Prints every entry of the period; it used to stop at 5,000 without a word.
 pub async fn get_mlc_register_summary_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1274,6 +1284,8 @@ pub async fn get_mlc_register_summary_print_data(
     // Before the queries: `registered_at::date` must be the hospital's date.
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // Every entry of the period: a statutory register is never cut short. The
+    // period (at most a year, `period_bounds`) is the bound.
     let entries = sqlx::query_as::<_, MlcSummaryEntryRow>(
         "SELECT \
            ROW_NUMBER() OVER (ORDER BY COALESCE(m.registration_date, m.registered_at::date), \
@@ -1295,7 +1307,7 @@ pub async fn get_mlc_register_summary_print_data(
          WHERE m.deleted_at IS NULL AND m.tenant_id = $3 \
            AND COALESCE(m.registration_date, m.registered_at::date) >= $1 \
            AND COALESCE(m.registration_date, m.registered_at::date) < $2 \
-         ORDER BY serial_number LIMIT 5000",
+         ORDER BY serial_number",
     )
     .bind(start)
     .bind(end)
