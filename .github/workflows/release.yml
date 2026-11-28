@@ -334,6 +334,8 @@ jobs:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           PROFILE_STAFF: ${{ steps.sign.outputs.profile_staff }}
           PROFILE_PATIENT: ${{ steps.sign.outputs.profile_patient }}
+          # As on Android: the patient app is built only for a named https server (project.yml).
+          PATIENT_SERVER_URL: ${{ vars.PATIENT_SERVER_URL }}
         run: |
           out="$GITHUB_WORKSPACE/ios"; mkdir -p "$out"
           # One version for every app (scripts/app_version.sh); a tag naming another version fails.
@@ -341,10 +343,15 @@ jobs:
           read -r version build <<< "$(../../scripts/app_version.sh ${tag:+"$tag"})"
           for pair in staff:Staff patient:Patient; do
             app=${pair%%:*} scheme=MedBrains${pair#*:}
+            if [[ "$app" == patient && -z "$PATIENT_SERVER_URL" ]]; then
+              echo "::notice::iOS patient app left out: set the PATIENT_SERVER_URL repository variable to build it"
+              continue
+            fi
             archive="$RUNNER_TEMP/$scheme.xcarchive"
             base=(-project MedBrains.xcodeproj -scheme "$scheme" -configuration Release
                   -destination generic/platform=iOS -archivePath "$archive"
-                  MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build")
+                  MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build"
+                  ${PATIENT_SERVER_URL:+"MB_SERVER_URL=$PATIENT_SERVER_URL"})
             if [ "$SIGNED" != true ]; then
               xcodebuild archive "${base[@]}" CODE_SIGNING_ALLOWED=NO
               ditto -c -k --keepParent "$archive" "$out/medbrains-$app-ios-unsigned.xcarchive.zip"
