@@ -133,15 +133,15 @@ private fun EmptyRole(auth: AuthStore) {
     }
 }
 
-/** A module home not yet converted: says so, and shows what the role will get. */
+/** A module home not on the phone yet: points to the web app, and shows what the role will get. */
 @Composable
-fun PlaceholderModuleHome(module: AppModule, phase: Int) {
+fun PlaceholderModuleHome(module: AppModule) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             CarbonTile(Modifier.padding(16.dp)) {
-                Eyebrow("Converting in phase $phase")
+                Eyebrow("Not on the phone yet")
                 Text(
-                    "${module.displayName} keeps running on the current app until this screen lands natively.",
+                    "${module.displayName} is not on this app yet. Use it on the web app, at your hospital's MedBrains address.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

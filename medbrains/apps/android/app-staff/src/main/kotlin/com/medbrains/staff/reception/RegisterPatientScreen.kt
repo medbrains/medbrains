@@ -254,6 +254,7 @@ fun RegisterPatientScreen(
             val title = if (onReview) "Review" else catalogue.steps[stepIndex].title
             Column(Modifier.testTag("register-step-title")) { CarbonPageHeader(camp?.name ?: "Reception", "Register a patient", "Step ${stepIndex + 1} of $stepCount · $title") }
             LinearProgressIndicator(progress = { (stepIndex + 1).toFloat() / stepCount }, modifier = Modifier.fillMaxWidth())
+            UnloadedListsNotice(session)
             val done = registered
             if (done != null) {
                 RegisteredCard(nav, done, camp != null, campNumber, ::nextWalkIn)

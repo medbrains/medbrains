@@ -66,8 +66,9 @@ class ReceptionSession {
     var source by mutableStateOf("walk_in")
     var referredByName by mutableStateOf("")
     val departments = mutableStateListOf<DepartmentRow>()
-    /** The department list could not be loaded — an outage, never an empty hospital. */
-    var departmentsFailed by mutableStateOf(false)
+    /** The picker lists that could not be loaded: an outage the screens say, never an empty hospital. */
+    val unloadedLists = mutableStateListOf<String>()
+    val departmentsFailed: Boolean get() = "departments" in unloadedLists
     val doctors = mutableStateListOf<DoctorRow>()
     /** Camps a registration can name, for a desk allowed to list them. */
     val camps = mutableStateListOf<CampSummary>()
@@ -82,16 +83,21 @@ class ReceptionSession {
 /**
  * The pickers' rows for a registration desk: departments, doctors, and the
  * open camps and running campaigns when the role may list them (`can` is the
- * signed-in identity's permission check). An unloadable department list is
- * an outage, never an empty hospital.
+ * signed-in identity's permission check). A list that could not be loaded is
+ * named in [ReceptionSession.unloadedLists].
  */
 suspend fun ReceptionSession.load(api: ReceptionApi, can: (String) -> Boolean) {
-    runCatching { api.departments() }
-        .onSuccess { departments.clear(); departments.addAll(it); departmentsFailed = false }
-        .onFailure { departmentsFailed = true }
-    runCatching { api.doctors() }.getOrNull()?.let { doctors.clear(); doctors.addAll(it) }
-    if (can("camp.list")) runCatching { api.camps() }.getOrNull()?.let { camps.clear(); camps.addAll(it.filter { c -> c.isOpen }) }
-    if (can("marketing.campaigns.lookup")) runCatching { api.campaigns() }.getOrNull()?.let { campaigns.clear(); campaigns.addAll(it) }
+    val missing = mutableListOf<String>()
+    refill("departments", departments, missing) { api.departments() }
+    refill("doctors", doctors, missing) { api.doctors() }
+    if (can("camp.list")) refill("camps", camps, missing) { api.camps().filter { it.isOpen } }
+    if (can("marketing.campaigns.lookup")) refill("campaigns", campaigns, missing) { api.campaigns() }
+    unloadedLists.clear(); unloadedLists.addAll(missing)
+}
+
+/** Replaces [rows] with what [fetch] returns, or adds [name] to [missing] when it fails. */
+private suspend fun <T> refill(name: String, rows: MutableList<T>, missing: MutableList<String>, fetch: suspend () -> List<T>) {
+    runCatching { fetch() }.onSuccess { rows.clear(); rows.addAll(it) }.onFailure { missing += name }
 }
 
 @Composable

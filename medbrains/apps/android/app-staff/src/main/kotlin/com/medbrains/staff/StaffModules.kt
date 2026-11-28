@@ -48,17 +48,17 @@ object StaffModules {
         AppModule(id = "reception", displayName = "Reception", requiredPermissions = listOf("front_office.queue.list"), appCodes = listOf("Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin", "Mobile-Security"), icon = Icons.Filled.SupportAgent) { ReceptionModule() },
         // Beside reception, never before it: the desk lands on its own work, and a front-office role without the registration queue still gets Scan & Share.
         AppModule(id = "scan-share", displayName = "Scan & Share", requiredPermissions = listOf(AbdmPermission.SCAN_SHARE_VIEW), appCodes = listOf("Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin"), icon = Icons.Filled.QrCodeScanner) { ScanShareModule() },
-        module("pharmacy", "Pharmacy", Icons.Filled.Medication, listOf("pharmacy.prescriptions.list"), listOf("Mobile-Pharmacist"), 5),
+        module("pharmacy", "Pharmacy", Icons.Filled.Medication, listOf("pharmacy.prescriptions.list"), listOf("Mobile-Pharmacist")),
         AppModule(id = "deliveries", displayName = "Deliveries", requiredPermissions = listOf("pharmacy.deliveries.view", "pharmacy.deliveries.complete"), appCodes = listOf("Mobile-Pharmacist"), icon = Icons.Filled.LocalShipping) { DeliveriesModule() },
-        module("lab", "Lab", Icons.Filled.Science, listOf("lab.orders.list"), listOf("Mobile-LabTech", "Mobile-Phlebo"), 5),
-        module("blood-bank", "Blood Bank", Icons.Filled.Bloodtype, listOf("blood_bank.inventory.list"), listOf("Mobile-LabTech", "Mobile-Nurse", "Mobile-Doctor"), 5),
-        module("billing", "Billing", Icons.Filled.AccountBalanceWallet, listOf("billing.invoices.list"), listOf("Mobile-Admin", "Desktop-Workstation"), 5),
-        module("bme", "BME", Icons.Filled.Build, listOf("bme.equipment.list"), listOf("Mobile-BME", "Desktop-DeviceBridge", "Mobile-Vendor"), 5),
-        module("facilities", "Facilities", Icons.Filled.Apartment, listOf("facilities.work_orders.list"), listOf("Mobile-BME", "Mobile-Housekeeping", "TV-Wayfinding"), 5),
-        module("housekeeping", "Housekeeping", Icons.Filled.CleaningServices, listOf("housekeeping.cleaning.list"), listOf("Mobile-Housekeeping", "TV-Ward"), 5),
+        module("lab", "Lab", Icons.Filled.Science, listOf("lab.orders.list"), listOf("Mobile-LabTech", "Mobile-Phlebo")),
+        module("blood-bank", "Blood Bank", Icons.Filled.Bloodtype, listOf("blood_bank.inventory.list"), listOf("Mobile-LabTech", "Mobile-Nurse", "Mobile-Doctor")),
+        module("billing", "Billing", Icons.Filled.AccountBalanceWallet, listOf("billing.invoices.list"), listOf("Mobile-Admin", "Desktop-Workstation")),
+        module("bme", "BME", Icons.Filled.Build, listOf("bme.equipment.list"), listOf("Mobile-BME", "Desktop-DeviceBridge", "Mobile-Vendor")),
+        module("facilities", "Facilities", Icons.Filled.Apartment, listOf("facilities.work_orders.list"), listOf("Mobile-BME", "Mobile-Housekeeping", "TV-Wayfinding")),
+        module("housekeeping", "Housekeeping", Icons.Filled.CleaningServices, listOf("housekeeping.cleaning.list"), listOf("Mobile-Housekeeping", "TV-Ward")),
         // Any of: a gate-only guard still gets the scanner, an auditor only the incident register.
         AppModule(id = "security", displayName = "Security", requiredPermissions = emptyList(), requiredAnyPermissions = listOf(SecurityPermission.VERIFY_PASS, SecurityPermission.LIST_INCIDENTS), appCodes = listOf("Mobile-Security", "TV-Emergency"), icon = Icons.Filled.Security) { SecurityModule() },
-        module("hr", "HR", Icons.Filled.Groups, listOf("hr.attendance.list"), listOf("Mobile-Admin"), 5),
+        module("hr", "HR", Icons.Filled.Groups, listOf("hr.attendance.list"), listOf("Mobile-Admin")),
         // Any role that answers patients' apps: an ambulance driver or blood-bank technician lands here, everyone else on their own desk first.
         AppModule(id = "uhi", displayName = "UHI requests", requiredPermissions = listOf(UhiRequests.Permission.VIEW), appCodes = listOf("Mobile-Admin", "Desktop-Workstation", "Mobile-LabTech"), icon = Icons.Filled.SettingsInputAntenna) { UhiModule() },
         // Last of the working modules: doctors, nurses and pharmacists also hold camp.queue.manage and must still open on their own desk.
@@ -66,13 +66,14 @@ object StaffModules {
         // Cross-cutting: nearly every role holds notes.use, so it sits after every desk and never decides where anyone lands.
         AppModule(id = "notes", displayName = "Notes", requiredPermissions = listOf(StickyNotes.Permission.USE), icon = Icons.Filled.PushPin) { NotesModule() },
         // Phase 6 defines this module's own permission; until then the pairing roster gates the placeholder.
-        module("device-sync", "Device sync", Icons.Filled.Sync, listOf("devices.pairing.paired_list"), listOf("Mobile-Admin"), 6),
+        module("device-sync", "Device sync", Icons.Filled.Sync, listOf("devices.pairing.paired_list"), listOf("Mobile-Admin")),
     )
 
-    private fun module(id: String, name: String, icon: ImageVector, all: List<String>, apps: List<String>, phase: Int): AppModule {
+    /** A module not on the phone yet: its home is the placeholder pointing to the web app. */
+    private fun module(id: String, name: String, icon: ImageVector, all: List<String>, apps: List<String>): AppModule {
         lateinit var self: AppModule
         self = AppModule(id = id, displayName = name, requiredPermissions = all, appCodes = apps, icon = icon) {
-            PlaceholderModuleHome(self, phase)
+            PlaceholderModuleHome(self)
         }
         return self
     }
