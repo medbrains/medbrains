@@ -28,14 +28,13 @@ struct CampFullRegistrationView: View {
         .task { await load() }
     }
 
+    /// The desk's lists through the session, so a list that failed is named on
+    /// the form, then this station's camp (open or not) when the role may list camps.
     private func load() async {
         guard let client, !loaded else { return }
         let api = ReceptionApi(client: client)
-        async let departments = try? api.departments()
-        async let doctors = try? api.doctors()
         async let camps = (auth.identity?.can("camp.list") ?? false) ? try? api.camps() : nil
-        session.departments = await departments ?? []
-        session.doctors = await doctors ?? []
+        await session.load(api, identity: auth.identity)
         camp = await camps?.first { $0.id == station.campId }
         loaded = true
     }

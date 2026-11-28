@@ -23,6 +23,7 @@ struct StartVisitView: View {
             VStack(alignment: .leading, spacing: 16) {
                 CarbonPageHeader(eyebrow: "Start visit", title: patient.fullName, subtitle: patient.identifiers)
                 lastVisitRow
+                UnloadedListsNotice()
                 CarbonPicker("Department", options: session.departments.map { .init(id: $0.id, label: $0.name) }, selection: $departmentId, placeholder: "Choose a department", error: failure == nil || departmentId != nil ? nil : "Choose a department")
                     .accessibilityIdentifier("picker-department")
                 CarbonPicker("Consultant", options: session.doctors.map { .init(id: $0.id, label: $0.fullName) }, selection: $doctorId, placeholder: "Any consultant")

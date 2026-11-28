@@ -212,6 +212,7 @@ struct BookAppointmentView: View {
                     }
                     Button("Done") { dismiss() }.buttonStyle(.carbonPrimary).accessibilityIdentifier("booked-done")
                 } else {
+                    UnloadedListsNotice()
                     CarbonPicker("Doctor", options: session.doctors.map { .init(id: $0.id, label: $0.fullName) }, selection: $doctorId, placeholder: "Choose a doctor")
                         .accessibilityIdentifier("picker-doctor")
                     CarbonPicker("Department", options: session.departments.map { .init(id: $0.id, label: $0.name) }, selection: $departmentId, placeholder: "Choose a department")

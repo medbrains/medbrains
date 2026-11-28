@@ -61,6 +61,7 @@ struct RegisterPatientView: View {
                     CarbonPageHeader(eyebrow: camp?.name ?? "Reception", title: "Register a patient", subtitle: "Step \(stepIndex + 1) of \(stepCount) · \(stepTitle)")
                         .accessibilityIdentifier("register-step-title")
                     ProgressView(value: Double(stepIndex + 1), total: Double(stepCount)).tint(MedBrainsTheme.interactive)
+                    UnloadedListsNotice()
                     if let registered {
                         RegisteredCard(patient: registered, atCamp: camp != nil, campNumber: campNumber, onNext: nextWalkIn)
                         if let shareFailure { CarbonNotification(kind: .warning, title: "Scan & Share still waiting", message: shareFailure) }
