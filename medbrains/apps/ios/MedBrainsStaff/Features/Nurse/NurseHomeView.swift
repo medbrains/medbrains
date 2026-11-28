@@ -19,9 +19,10 @@ enum NurseRoute: Hashable {
 enum BedsideMode: String, Hashable { case vitals, io, pain, fallRisk }
 
 /// The nurse's front door: two numbers that are the reason to open the
-/// module, then the actions the role holds. A tile shows an em dash where a
-/// number belongs when the count could not be fetched — "0 beds waiting"
-/// because the network dropped reads as a quiet ward.
+/// module, each shown (and fetched) only for a role its route allows, then
+/// the actions the role holds. A tile shows an em dash where a number belongs
+/// when the count could not be fetched — "0 beds waiting" because the network
+/// dropped reads as a quiet ward.
 struct NurseHomeView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(\.apiClient) private var client
@@ -41,8 +42,8 @@ struct NurseHomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 HStack(spacing: 1) {
-                    StatTile(eyebrow: "Due", count: admissions.value?.count, title: "Active admissions")
-                    StatTile(eyebrow: "Calls", count: calls.value?.calls.count, title: "Beds waiting on a call")
+                    if canListAdmissions { StatTile(eyebrow: "Due", count: admissions.value?.count, title: "Active admissions") }
+                    if canSeeCalls { StatTile(eyebrow: "Calls", count: calls.value?.calls.count, title: "Beds waiting on a call") }
                 }
                 .padding(.horizontal, 16)
                 CarbonSectionTitle("Actions")
@@ -50,7 +51,7 @@ struct NurseHomeView: View {
                 action("mar", "My shift", "Assigned beds with bedside MAR, vitals, I/O and risk actions.", "bed.double", .admissions, allowed: who?.can("nurse.dashboard.view") ?? false)
                 action("vitals", "Record vitals", "Select a patient, then capture BP, HR, SpO2 and temperature.", "waveform.path.ecg", .admissions, allowed: who?.can("nurse.vitals.record") ?? false)
                 action("code-blue", "Code blue", "Arrests in progress. Answer the page here.", "bolt.heart", .codeBlue, allowed: who?.can("nurse.code_blue.view") ?? false)
-                action("calls", "Open calls", "Every bed still waiting on a call, oldest first.", "bell.badge", .calls, allowed: who?.can("bedside.calls.board") ?? false)
+                action("calls", "Open calls", "Every bed still waiting on a call, oldest first.", "bell.badge", .calls, allowed: canSeeCalls)
                 action("handoff", "SBAR handoff", "Structured handoff for shift change.", "arrow.left.arrow.right", .admissions, allowed: who?.can("nurse.handoff.record") ?? false)
                 action("io", "Intake / output", "Fluid balance and drain output capture.", "drop", .admissions, allowed: who?.can("nurse.intake_output.record") ?? false)
                 action("fall-risk", "Fall risk assessment", "Morse scale + interventions.", "figure.fall", .admissions, allowed: who?.can("nurse.fall_risk.record") ?? false)
@@ -72,12 +73,21 @@ struct NurseHomeView: View {
             }
         }
         .abdmRecordsDestinations()
-        .task {
-            guard let api else { return }
-            async let a: () = admissions.load { try await api.listActiveAdmissions() }
-            async let c: () = calls.load { try await api.listNurseCalls() }
-            _ = await (a, c)
-        }
+        .task { await loadCounts() }
+    }
+
+    /// `GET /api/ipd/admissions` needs `ipd.admissions.list`.
+    private var canListAdmissions: Bool { auth.identity?.can("ipd.admissions.list") ?? false }
+    /// `GET /api/bedside/nurse-calls/active` needs `bedside.calls.board`.
+    private var canSeeCalls: Bool { auth.identity?.can("bedside.calls.board") ?? false }
+
+    /// Fetches each count the role may read, side by side; one it may not is never asked for.
+    private func loadCounts() async {
+        guard let api else { return }
+        let (readAdmissions, readCalls) = (canListAdmissions, canSeeCalls)
+        async let a: () = readAdmissions ? admissions.load { try await api.listActiveAdmissions() } : ()
+        async let c: () = readCalls ? calls.load { try await api.listNurseCalls() } : ()
+        _ = await (a, c)
     }
 
     @ViewBuilder

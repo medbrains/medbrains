@@ -80,19 +80,22 @@ fun NurseModule() {
 }
 
 /**
- * The nurse's front door: two numbers that are the reason to open the
- * module, then the actions the role holds. A tile shows an em dash where a
- * number belongs when the count could not be fetched.
+ * The nurse's front door: two numbers that are the reason to open the module, each shown (and
+ * fetched) only for a role its route allows, then the actions the role holds. A tile shows an em
+ * dash where a number belongs when the count could not be fetched.
  */
 @Composable
 fun NurseHome(nav: NavHostController, api: NurseApi) {
     val identity = LocalIdentity.current
     val admissions = remember { Remote<List<AdmissionRow>>() }
     val calls = remember { Remote<NurseCallBoard>() }
-    LaunchedEffect(Unit) {
+    // GET /api/ipd/admissions needs ipd.admissions.list; GET /api/bedside/nurse-calls/active needs bedside.calls.board.
+    val canListAdmissions = identity?.can("ipd.admissions.list") == true
+    val canSeeCalls = identity?.can("bedside.calls.board") == true
+    LaunchedEffect(canListAdmissions, canSeeCalls) {
         coroutineScope {
-            async { admissions.load { api.listActiveAdmissions() } }
-            async { calls.load { api.listNurseCalls() } }
+            if (canListAdmissions) async { admissions.load { api.listActiveAdmissions() } }
+            if (canSeeCalls) async { calls.load { api.listNurseCalls() } }
         }
     }
     val a by admissions.state.collectAsState()
@@ -101,9 +104,9 @@ fun NurseHome(nav: NavHostController, api: NurseApi) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("module-home-nurse")) {
         CarbonPageHeader("Module", "Nurse", "MAR, vitals, handoff, intake/output.")
         Row(Modifier.padding(horizontal = 16.dp)) {
-            CarbonStatTile("Due", a.value?.size, "Active admissions", Modifier.weight(1f))
-            Spacer(Modifier.width(1.dp))
-            CarbonStatTile("Calls", c.value?.calls?.size, "Beds waiting on a call", Modifier.weight(1f))
+            if (canListAdmissions) CarbonStatTile("Due", a.value?.size, "Active admissions", Modifier.weight(1f))
+            if (canListAdmissions && canSeeCalls) Spacer(Modifier.width(1.dp))
+            if (canSeeCalls) CarbonStatTile("Calls", c.value?.calls?.size, "Beds waiting on a call", Modifier.weight(1f))
         }
         CarbonSectionTitle("Actions")
         val actions = listOf(

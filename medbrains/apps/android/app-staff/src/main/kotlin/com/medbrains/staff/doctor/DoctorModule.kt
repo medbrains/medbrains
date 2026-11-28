@@ -5,12 +5,9 @@ import com.medbrains.staff.shared.tokens.QueueSlice
 import com.medbrains.staff.shared.tokens.TokenModule
 import com.medbrains.staff.shared.tokens.TokenApi
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -79,15 +76,16 @@ fun DoctorModule() {
 private data class Action(val id: String, val label: String, val detail: String, val icon: ImageVector, val route: String, val permission: String)
 
 /**
- * The doctor's front door. "Start consultation" goes through the queue on
- * purpose: a consultation is written against a patient, and the queue is
- * where the doctor picks one.
+ * The doctor's front door: the queue count (shown, and fetched, only for a role that may read
+ * the queue), then the actions the role holds. "Start consultation" goes through the queue on
+ * purpose: a consultation is written against a patient, and the queue is where the doctor picks one.
  */
 @Composable
 fun DoctorHome(nav: NavHostController, tokens: TokenApi) {
     val identity = LocalIdentity.current
     val queue = remember { Remote<List<WorklistToken>>() }
-    LaunchedEffect(Unit) { queue.load { tokens.worklist(QueueSlice.Mine) } }
+    val canListQueue = identity?.can("opd.queue.list") == true
+    LaunchedEffect(canListQueue) { if (canListQueue) queue.load { tokens.worklist(QueueSlice.Mine) } }
     val q by queue.state.collectAsState()
     val actions = listOf(
         Action("queue", "OPD queue", "Call next, view tokens, mark consult complete.", Icons.Filled.Groups, "queue", "opd.queue.list"),
@@ -98,12 +96,10 @@ fun DoctorHome(nav: NavHostController, tokens: TokenApi) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("module-home-doctor")) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
             Eyebrow("Module")
-            Text("Consultations, prescriptions, clinical notes.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Consultations and clinical notes.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(Modifier.padding(horizontal = 16.dp)) {
-            CarbonStatTile("Queue", q.value?.count { it.status == "waiting" }, "OPD queue (today)", Modifier.weight(1f))
-            Spacer(Modifier.width(1.dp))
-            CarbonStatTile("Vitals", null, "Pending review", Modifier.weight(1f))
+        if (canListQueue) {
+            CarbonStatTile("Queue", q.value?.count { it.status == "waiting" }, "OPD queue (today)", Modifier.padding(horizontal = 16.dp).fillMaxWidth())
         }
         CarbonSectionTitle("Actions")
         actions.filter { identity?.can(it.permission) == true }.forEach { act ->
