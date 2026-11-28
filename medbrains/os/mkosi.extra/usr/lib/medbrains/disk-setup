@@ -31,7 +31,10 @@ HANDOFF="$RUN/medbrains-recovery-key"
 SIGNED_PCRS=11
 MIN_PIN_LENGTH=6
 SETTLE_S=30
-NOTICE_AFTER_S=20
+NOTICE_AFTER_S="${MEDBRAINS_NOTICE_AFTER_S:-20}"
+# crypttab's token-timeout: how long systemd waits for a TPM the firmware reports but Linux has not found yet.
+TOKEN_WAIT_S=120
+FIRMWARE_TPM="${MEDBRAINS_FIRMWARE_TPM:-/sys/firmware/acpi/tables/TPM2}"
 RECOVERY_KEY_SHAPE='^[a-z]+(-[a-z]+){7}$'
 RECOVERY_KEY_GROUPS=8
 # The TPM's dictionary-attack limits (OS-KEYS.md, "TPM lockout"). A PIN-sealed key counts every wrong PIN, and the
@@ -151,6 +154,10 @@ notice() {
         [[ -e "$MAPPED" ]] && return 0
         sleep 1
     done
+    if [[ ! -e "$TPM_DEVICE" ]]; then
+        missing_tpm_notice
+        return 0
+    fi
     if tpm_in_lockout; then
         cat <<'TEXT'
 
@@ -172,6 +179,29 @@ or security chip changed, or its boot files were changed. Patient data stays loc
 If it asks for a PIN, type your hospital's PIN. After two wrong tries it asks for the
 recovery key instead; restart to try the PIN again. If it asks for the recovery key,
 type what was written down at setup. Then press Enter. Typed characters are not shown.
+
+TEXT
+}
+
+# Says why the disk waits, then asks, on a machine whose TPM is missing. systemd waits for a chip the firmware
+# still reports (token-timeout in crypttab) and asks at once for one it does not. Nothing can be typed while
+# systemd waits: the prompt comes after.
+missing_tpm_notice() {
+    local waited
+    if [[ -e "$FIRMWARE_TPM" ]]; then
+        printf '\nMedBrains: waiting up to %s minutes for the security chip (TPM). If it was removed or turned\noff in the firmware (BIOS) settings, the recovery key is asked for after that.\n' $((TOKEN_WAIT_S / 60))
+        for ((waited = NOTICE_AFTER_S; waited < TOKEN_WAIT_S; waited++)); do
+            [[ -e "$MAPPED" || -e "$TPM_DEVICE" ]] && return 0
+            sleep 1
+        done
+    fi
+    cat <<'TEXT'
+
+MedBrains: security chip (TPM) not found, so the data disk did not open by itself.
+
+Type the recovery key that was written down at setup, then press Enter. Typed characters
+are not shown. Or turn the machine off, refit the chip or turn it on in the firmware (BIOS)
+settings, and start it again.
 
 TEXT
 }

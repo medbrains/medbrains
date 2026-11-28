@@ -76,6 +76,15 @@ check_prepare() {
 check_prepare "prepare adds and shows the recovery key, sealed with the PCR key the TPM loads" 2048 1
 check_prepare "prepare seals without a PCR key the TPM cannot load" 3072 0
 
+# The owner's ask (2026-11-28): a missing TPM is named on the screen, not left as "did not open".
+notice_text="$(MEDBRAINS_TPM_DEVICE="$WORK/none" MEDBRAINS_FIRMWARE_TPM="$WORK/none" MEDBRAINS_NOTICE_AFTER_S=0 bash "$SCRIPT" notice 2>&1)"
+if grep -q 'security chip (TPM) not found' <<<"$notice_text" && ! grep -q 'waiting up to' <<<"$notice_text"; then
+    echo "pass  a missing TPM is named on the screen"
+else
+    echo "FAIL  a missing TPM is named on the screen: $notice_text"
+    FAILED=1
+fi
+
 # A local variable named in an exit trap is unbound by the time the trap runs, which turned a finished
 # re-seal into a failure and left the key file behind.
 if grep -nE "^ +local .*KEY_FILE|trap .*key_file" "$SCRIPT"; then
