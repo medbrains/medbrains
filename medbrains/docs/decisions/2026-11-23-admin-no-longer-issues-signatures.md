@@ -22,6 +22,11 @@ not only the default.
 Credentials an administrator issued before this stay valid and keep signing. Nothing is
 invalidated or migrated.
 
+A hospital's own (non-system) role that signs (`doctor.signature.sign` or `nurse.signature.sign`)
+gets `signatures.own.manage` once, from migration 1498, so its holders can set the signature an
+administrator used to issue (owner decision, 2026-11-28). From then on it is an ordinary grant that
+an administrator adds or removes per role in the role editor; built-in roles get it from code.
+
 ## Why
 
 Owner decision, 2026-11-23: nobody, an administrator or the system, may create, upload or draw
