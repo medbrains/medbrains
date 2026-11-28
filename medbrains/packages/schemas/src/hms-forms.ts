@@ -5020,13 +5020,6 @@ export const linkedDoctorUserFormSchema = z.object({
   qualification: z.string(),
 });
 
-export const signatureCredentialIssueFormSchema = z.object({
-  display_image_url: z.string().refine((value) => {
-    if (value.trim().length === 0) return true;
-    return value.startsWith("data:image/") || /^https?:\/\/.+/i.test(value.trim());
-  }, "Enter a valid image URL or uploaded image"),
-});
-
 export const bookAppointmentFormSchema = z.object({
   patient_id: requiredNullableString("Patient is required"),
   doctor_id: requiredNullableString("Doctor is required"),
@@ -5689,7 +5682,7 @@ export type EditRoleFormInput = z.infer<typeof editRoleFormSchema>;
 export type AdminCreateRoleFormInput = z.infer<typeof adminCreateRoleFormSchema>;
 export type DoctorProfileFormInput = z.infer<typeof doctorProfileFormSchema>;
 export type LinkedDoctorUserFormInput = z.infer<typeof linkedDoctorUserFormSchema>;
-export type SignatureCredentialIssueFormInput = z.infer<typeof signatureCredentialIssueFormSchema>;
+
 export type BookAppointmentFormInput = z.infer<typeof bookAppointmentFormSchema>;
 export type CancelAppointmentFormInput = z.infer<typeof cancelAppointmentFormSchema>;
 export type RescheduleAppointmentFormInput = z.infer<typeof rescheduleAppointmentFormSchema>;

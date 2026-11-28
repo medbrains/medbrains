@@ -71,6 +71,22 @@ describe("SignatureSetupModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it("tells the signer when and why an administrator withdrew their signature", async () => {
+    mocks.credentials.mockResolvedValue([
+      {
+        id: "c0",
+        is_default: false,
+        valid_until: null,
+        revoked_at: "2026-11-20T09:00:00Z",
+        revoked_reason: "Reported copied",
+      },
+    ]);
+    render(<SignatureSetupModal opened onClose={vi.fn()} />);
+    const said = await screen.findByText(/Your signature was withdrawn on/);
+    expect(said).toHaveTextContent("Reported copied. Set a new one.");
+    expect(screen.queryByText(/You have no signature yet/)).not.toBeInTheDocument();
+  });
+
   it("refuses a wrong upload on the field, naming the limit", async () => {
     render(<SignatureSetupModal opened onClose={vi.fn()} />);
     await userEvent.click(await screen.findByRole("radio", { name: "Upload" }));

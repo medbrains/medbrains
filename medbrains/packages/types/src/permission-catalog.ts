@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1262 permissions, one per constant in the Rust source. */
+/** 1261 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6186,12 +6186,6 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "admin.signature_credentials.list",
     label: "List Signature Credentials",
     description: "Admin list signature credentials",
-    module: "admin",
-  },
-  {
-    code: "admin.signature_credentials.issue",
-    label: "Issue Signature Credential",
-    description: "Admin issue Ed25519 keypair for a doctor",
     module: "admin",
   },
   {

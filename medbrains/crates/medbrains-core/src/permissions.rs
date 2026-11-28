@@ -3852,7 +3852,6 @@ pub mod admin {
 
     pub mod signature_credentials {
         pub const LIST: &str = "admin.signature_credentials.list";
-        pub const ISSUE: &str = "admin.signature_credentials.issue";
         pub const REVOKE: &str = "admin.signature_credentials.revoke";
     }
 

@@ -56,7 +56,6 @@ fn every_carried_code_is_a_read_or_a_named_config_edit() {
 fn no_grant_makes_a_credential() {
     never_granted(&[
         "admin.api_keys.create",
-        "admin.signature_credentials.issue",
         "admin.tv_displays.tokens",
         "admin.tv_displays.create",
         "devices.pairing.token.create",

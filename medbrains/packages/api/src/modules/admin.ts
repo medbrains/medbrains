@@ -29,7 +29,6 @@ import type {
   ErrorTrackingSummary,
   InfraStatus,
   Invitation,
-  IssueCredentialRequest,
   IssueDeviceBindingCodeInput,
   IssuedDeviceBindingCode,
   KanidmPerson,
@@ -246,11 +245,6 @@ export const adminApi = {
     const q = qs.toString();
     return request<SignatureCredential[]>(`/admin/signature-credentials${q ? `?${q}` : ""}`);
   },
-  adminIssueSignatureCredential: (data: IssueCredentialRequest) =>
-    request<{ credential: SignatureCredential }>("/admin/signature-credentials", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
   adminRevokeSignatureCredential: (id: string, data: RevokeCredentialRequest) =>
     request<{ revoked: boolean }>(`/admin/signature-credentials/${encodeURIComponent(id)}/revoke`, {
       method: "POST",

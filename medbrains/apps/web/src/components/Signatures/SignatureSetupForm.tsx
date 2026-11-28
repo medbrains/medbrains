@@ -4,6 +4,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useState } from "react";
 import { Alert, Button, Checkbox, SegmentedControl, SignaturePad } from "@/components/ui";
+import { useOwnSignature } from "@/hooks/useOwnSignature";
 import { SignaturePrintPreview } from "./SignaturePrintPreview";
 import { SignatureUploadField } from "./SignatureUploadField";
 
@@ -36,6 +37,7 @@ export function SignatureSetupForm({
 }: SignatureSetupFormProps) {
   const canManage = useHasPermission(P.SIGNATURES.OWN.MANAGE);
   const { online } = useNetwork();
+  const { withdrawn } = useOwnSignature();
   const [source, setSource] = useState<Source>("draw");
   const [drawn, setDrawn] = useState<string | null>(null);
   const [uploaded, setUploaded] = useState<string | null>(null);
@@ -49,8 +51,10 @@ export function SignatureSetupForm({
   return (
     <Stack gap="md">
       <Text size="sm">
-        You have no signature yet. Set it up once and it is printed on the records you sign. The
-        record you were signing is saved, and stays unsigned until you sign it.
+        {withdrawn?.revoked_at
+          ? `Your signature was withdrawn on ${new Date(withdrawn.revoked_at).toLocaleDateString()}: ${withdrawn.revoked_reason ?? "no reason given"}. Set a new one.`
+          : "You have no signature yet. Set it up once and it is printed on the records you sign."}{" "}
+        The record you were signing is saved, and stays unsigned until you sign it.
       </Text>
       <SegmentedControl
         aria-label="How to add your signature"
