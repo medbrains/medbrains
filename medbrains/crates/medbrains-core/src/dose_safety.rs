@@ -2,23 +2,298 @@
 //! frequency, and compare it against the catalogue's `max_dose_per_day`.
 //!
 //! Pure and dependency-free so it can be unit-tested and reused on both the CDS
-//! advisory path (`routes/cds.rs`) and the prescribe-time backstop
-//! (`routes/opd.rs::create_prescription`). It is deliberately conservative: it
-//! only flags an exceedance when both amounts parse cleanly, their **units
-//! match**, and a fixed daily dose is derivable — otherwise it stays silent
-//! rather than raise a false alarm.
+//! advisory path (`cds::check_drug_safety`) and the prescribe-time backstop
+//! (`medbrains-opd::create_prescription`). Amounts are normalised before they
+//! are compared — mcg / mg / g to one mass unit, mL / L to one volume unit —
+//! so "1 g" four times a day is caught against a 3000 mg maximum. A line that
+//! cannot be compared (unreadable amount, mass against volume, a frequency we
+//! do not know) is reported as **not checked**, never as within the limit: an
+//! unknown is not a pass (ENGINEERING.md, "a fault is not a refusal").
+
+use crate::mar_schedule;
 
 /// A confirmed daily-dose overage for one prescription line.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DoseExceedance {
-    /// Prescribed total for the day (per-dose amount × doses/day).
+    /// Prescribed total for the day, in the maximum's unit.
     pub total_per_day: f64,
-    /// Shared unit of the per-dose amount and the catalogue maximum.
+    /// The unit the catalogue maximum is written in (e.g. "mg").
     pub unit: String,
-    /// Catalogue maximum daily dose, in the same unit.
+    /// Catalogue maximum daily dose, in `unit`.
     pub max_per_day: f64,
     /// `total_per_day / max_per_day` (> 1.0 when exceeded).
     pub ratio: f64,
+    /// Doses per day the total was derived from (1 for an as-needed line).
+    pub doses_per_day: u32,
+}
+
+/// Why a line's daily dose could not be compared with the catalogue maximum.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DoseNotChecked {
+    /// The per-dose amount has no readable number and unit.
+    UnreadableDose,
+    /// The catalogue maximum has no readable number and unit.
+    UnreadableMaximum,
+    /// The dose and the maximum measure different things (e.g. mL against mg).
+    UnitsDiffer { dose_unit: String, max_unit: String },
+    /// The frequency is not one we can turn into doses per day.
+    UnknownFrequency,
+    /// As needed: one dose is within the daily maximum, but the day's total
+    /// depends on how often it is given. `max_doses` doses keep within it.
+    AsNeeded { max_doses: u32 },
+}
+
+impl DoseNotChecked {
+    /// The sentence the prescriber sees for this line, saying what to fix.
+    #[must_use]
+    pub fn reason(&self) -> String {
+        match self {
+            Self::UnreadableDose => {
+                "Dose could not be read; write it as an amount and unit, e.g. 500 mg".to_owned()
+            }
+            Self::UnreadableMaximum => "The catalogue maximum could not be read".to_owned(),
+            Self::UnitsDiffer {
+                dose_unit,
+                max_unit,
+            } => format!("Dose is in {dose_unit}, the catalogue maximum is in {max_unit}"),
+            Self::UnknownFrequency => {
+                "Frequency not recognised, so the daily total is unknown".to_owned()
+            }
+            Self::AsNeeded { max_doses } => {
+                format!("As needed: up to {max_doses} doses a day stay within the maximum")
+            }
+        }
+    }
+}
+
+/// The three outcomes of a max-dose check. `NotChecked` is never "safe".
+#[derive(Debug, Clone, PartialEq)]
+pub enum MaxDoseOutcome {
+    /// The daily total is at or under the catalogue maximum.
+    Within,
+    /// The daily total is over the catalogue maximum.
+    Exceeded(DoseExceedance),
+    /// The line could not be compared; the prescriber must see that.
+    NotChecked(DoseNotChecked),
+}
+
+/// What an amount measures, so only like is compared with like.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Dimension {
+    /// Normalised to micrograms.
+    Mass,
+    /// Normalised to millilitres.
+    Volume,
+    /// Anything else (tab, puff, IU) — compared only with the same word.
+    Count(String),
+}
+
+/// A parsed amount: its value in the base unit of its dimension, plus how
+/// to turn it back into the unit it was written in.
+#[derive(Debug, Clone, PartialEq)]
+struct Quantity {
+    base: f64,
+    dimension: Dimension,
+    unit: String,
+    factor: f64,
+}
+
+/// Words that may follow the unit of a per-dose amount without changing it.
+const FORM_WORDS: &[&str] = &[
+    "tab",
+    "tabs",
+    "tablet",
+    "tablets",
+    "cap",
+    "caps",
+    "capsule",
+    "capsules",
+    "inj",
+    "injection",
+    "syrup",
+    "susp",
+    "suspension",
+    "sachet",
+    "oral",
+    "po",
+    "iv",
+    "im",
+    "sc",
+];
+/// Words that may follow the unit of a daily maximum ("3 g per day", "4 g/24h").
+const DAILY_WORDS: &[&str] = &[
+    "day", "daily", "per", "a", "in", "24", "24h", "24hr", "24hrs", "h", "hr", "hrs", "hour",
+    "hours", "d",
+];
+
+/// The base-unit factor for a unit word: micrograms for mass, millilitres for
+/// volume; `None` means a counted unit compared by name only.
+fn unit_factor(unit: &str) -> Option<(Dimension, f64)> {
+    let mass = |f| Some((Dimension::Mass, f));
+    let volume = |f| Some((Dimension::Volume, f));
+    match unit {
+        "mcg" | "µg" | "μg" | "ug" | "microgram" | "micrograms" => mass(1.0),
+        "mg" | "milligram" | "milligrams" => mass(1_000.0),
+        "g" | "gm" | "gms" | "gram" | "grams" => mass(1_000_000.0),
+        "ml" | "millilitre" | "millilitres" | "milliliter" | "milliliters" | "cc" => volume(1.0),
+        "l" | "litre" | "litres" | "liter" | "liters" => volume(1_000.0),
+        _ => None,
+    }
+}
+
+/// The numeric prefix of `text`, with thousands separators ("1,000") removed.
+/// A comma that is not a thousands separator ("1,5") is refused, not guessed.
+fn leading_number(text: &str) -> Option<(f64, &str)> {
+    let end = text
+        .find(|c: char| !(c.is_ascii_digit() || c == '.' || c == ','))
+        .unwrap_or(text.len());
+    let (digits, rest) = text.split_at(end);
+    let mut groups = digits.split(',');
+    let first = groups.next().filter(|g| !g.is_empty())?;
+    let mut plain = first.to_owned();
+    for group in groups {
+        if group.len() != 3 || !group.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        plain.push_str(group);
+    }
+    let value: f64 = plain.parse().ok()?;
+    (value.is_finite() && value > 0.0).then_some((value, rest))
+}
+
+/// Parse "500 mg", "1,000 mg tab", "3 g/day" into a normalised quantity.
+/// `daily` allows a per-day suffix (the catalogue maximum); any other
+/// trailing word or denominator ("mg/kg", "mg/5ml") makes it unreadable.
+fn parse_quantity(value: &str, daily: bool) -> Option<Quantity> {
+    let lower = value.trim().to_lowercase();
+    let (amount, rest) = leading_number(&lower)?;
+    let (unit_part, per) = match rest.split_once('/') {
+        Some((unit, per)) => (unit, Some(per.trim())),
+        None => (rest, None),
+    };
+    let allowed = |word: &str| FORM_WORDS.contains(&word) || (daily && DAILY_WORDS.contains(&word));
+    if per.is_some_and(|p| !(daily && p.split_whitespace().all(|w| DAILY_WORDS.contains(&w)))) {
+        return None;
+    }
+    let mut words = unit_part.split_whitespace();
+    let unit = words.next()?.to_owned();
+    if !words.all(allowed) {
+        return None;
+    }
+    let (dimension, factor) =
+        unit_factor(&unit).unwrap_or_else(|| (Dimension::Count(unit.clone()), 1.0));
+    Some(Quantity {
+        base: amount * factor,
+        dimension,
+        unit,
+        factor,
+    })
+}
+
+/// Dose units per day for a frequency, for the dose checks.
+///
+/// "Q4H" is 24/4 = 6 (every four hours round the clock), "2-0-2" is
+/// 2 + 0 + 2 = 4 units, then the eMAR codes ("TDS", "QID") and the "N×/day"
+/// form the prescription writer sends for 5+ doses. The eMAR's own count is
+/// not used for the first two forms:
+/// its round times skip the small hours and count a slot once whatever its
+/// strength, which under-counts the day's total. Scheduling is unchanged.
+#[must_use]
+pub fn daily_doses(frequency: &str) -> Option<u32> {
+    let compact: String = frequency
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>()
+        .to_lowercase();
+    if let Some(doses) = dash_units(&compact).or_else(|| every_n_hours(&compact)) {
+        return Some(doses);
+    }
+    if let Some(doses) = mar_schedule::doses_per_day(frequency) {
+        return Some(doses);
+    }
+    let count = ["/day", "perday", "aday"]
+        .iter()
+        .find_map(|suffix| compact.strip_suffix(suffix))?
+        .trim_end_matches(['x', '×']);
+    count.parse().ok().filter(|n| (1..=24).contains(n))
+}
+
+/// The units a day of an Indian "morning-noon-night(-bedtime)" pattern adds up
+/// to: "2-0-2" is 4. Whole numbers only; anything else is `None` (not checked).
+fn dash_units(compact: &str) -> Option<u32> {
+    let parts: Vec<&str> = compact.split('-').collect();
+    if !(3..=4).contains(&parts.len()) {
+        return None;
+    }
+    let mut total = 0u32;
+    for part in parts {
+        total = total.checked_add(part.parse::<u32>().ok()?)?;
+    }
+    (total > 0).then_some(total)
+}
+
+/// Doses a day for "every n hours" ("q4h", "q6hr"): 24 / n, round the clock.
+/// An interval that does not divide the day is `None` (not checked).
+fn every_n_hours(compact: &str) -> Option<u32> {
+    let hours = compact.strip_prefix('q')?;
+    let hours = hours
+        .strip_suffix("hr")
+        .or_else(|| hours.strip_suffix('h'))?;
+    let n: u32 = hours.parse().ok()?;
+    (n > 0 && 24 % n == 0).then(|| 24 / n)
+}
+
+/// Compare a per-dose amount at `frequency` with the catalogue maximum.
+///
+/// `max_per_day` is free text. As-needed and STAT lines are checked one dose
+/// against the daily maximum. Anything that cannot be compared is `NotChecked`.
+#[must_use]
+pub fn evaluate_max_dose(per_dose: &str, frequency: &str, max_per_day: &str) -> MaxDoseOutcome {
+    use MaxDoseOutcome::{Exceeded, NotChecked, Within};
+    let Some(dose) = parse_quantity(per_dose, false) else {
+        return NotChecked(DoseNotChecked::UnreadableDose);
+    };
+    let Some(max) = parse_quantity(max_per_day, true) else {
+        return NotChecked(DoseNotChecked::UnreadableMaximum);
+    };
+    if dose.dimension != max.dimension {
+        return NotChecked(DoseNotChecked::UnitsDiffer {
+            dose_unit: dose.unit,
+            max_unit: max.unit,
+        });
+    }
+    let as_needed = mar_schedule::is_prn(frequency);
+    let single = as_needed || mar_schedule::is_stat(frequency);
+    let doses = if single {
+        Some(1)
+    } else {
+        daily_doses(frequency)
+    };
+    let Some(doses) = doses else {
+        return NotChecked(DoseNotChecked::UnknownFrequency);
+    };
+    let total = dose.base * f64::from(doses);
+    if total > max.base {
+        return Exceeded(exceedance(total, &max, doses));
+    }
+    if as_needed {
+        // ponytail: f64 floor of a small positive ratio; saturates, never panics.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let max_doses = (max.base / dose.base).floor() as u32;
+        return NotChecked(DoseNotChecked::AsNeeded { max_doses });
+    }
+    Within
+}
+
+/// The overage of a daily `total` (base units) over `max`, in `max`'s unit.
+fn exceedance(total: f64, max: &Quantity, doses_per_day: u32) -> DoseExceedance {
+    DoseExceedance {
+        total_per_day: total / max.factor,
+        unit: max.unit.clone(),
+        max_per_day: max.base / max.factor,
+        ratio: total / max.base,
+        doses_per_day,
+    }
 }
 
 /// Parse a dose string like `"500 mg"`, `"5ml"`, `"2 puff"` into a numeric
@@ -46,36 +321,6 @@ pub fn parse_amount(value: &str) -> Option<(f64, String)> {
     let amount: f64 = trimmed[..split].parse().ok()?;
     let unit = trimmed[split..].trim().to_lowercase();
     Some((amount, unit))
-}
-
-/// Compare a per-dose amount taken `doses_per_day` times against the
-/// catalogue's free-text `max_per_day`. Returns `Some` only when the daily
-/// total strictly exceeds the maximum and the units agree.
-#[must_use]
-pub fn evaluate_max_dose(
-    per_dose: &str,
-    doses_per_day: u32,
-    max_per_day: &str,
-) -> Option<DoseExceedance> {
-    if doses_per_day == 0 {
-        return None;
-    }
-    let (dose_amount, dose_unit) = parse_amount(per_dose)?;
-    let (max_amount, max_unit) = parse_amount(max_per_day)?;
-    if dose_unit != max_unit || dose_unit.is_empty() || max_amount <= 0.0 {
-        return None;
-    }
-
-    let total = dose_amount * f64::from(doses_per_day);
-    if total <= max_amount {
-        return None;
-    }
-    Some(DoseExceedance {
-        total_per_day: total,
-        unit: dose_unit,
-        max_per_day: max_amount,
-        ratio: total / max_amount,
-    })
 }
 
 /// Direction of a weight-based dose deviation.
@@ -143,7 +388,7 @@ pub fn evaluate_weight_dose(
 
 #[cfg(test)]
 mod tests {
-    use super::{DoseDirection, evaluate_max_dose, evaluate_weight_dose, parse_amount};
+    use super::{DoseDirection, evaluate_weight_dose, parse_amount};
 
     #[test]
     fn parses_amount_and_unit() {
@@ -153,37 +398,6 @@ mod tests {
         assert_eq!(parse_amount("1 tab"), Some((1.0, "tab".to_owned())));
         assert_eq!(parse_amount("  "), None);
         assert_eq!(parse_amount("mg"), None);
-    }
-
-    #[test]
-    fn within_limit_is_silent() {
-        // 500 mg TID = 1500 mg/day, under 3000.
-        assert!(evaluate_max_dose("500 mg", 3, "3000 mg").is_none());
-        // Exactly at the limit is not an exceedance.
-        assert!(evaluate_max_dose("1000 mg", 3, "3000 mg").is_none());
-    }
-
-    #[test]
-    fn over_limit_flags_with_ratio() {
-        // 1000 mg QID = 4000 mg/day > 3000.
-        let hit = evaluate_max_dose("1000 mg", 4, "3000 mg").expect("should exceed");
-        assert!((hit.total_per_day - 4000.0).abs() < f64::EPSILON);
-        assert_eq!(hit.unit, "mg");
-        assert!((hit.max_per_day - 3000.0).abs() < f64::EPSILON);
-        assert!(hit.ratio > 1.3);
-    }
-
-    #[test]
-    fn unit_mismatch_is_silent() {
-        // ml per-dose vs mg max — cannot compare, do not guess.
-        assert!(evaluate_max_dose("5 ml", 4, "3000 mg").is_none());
-    }
-
-    #[test]
-    fn missing_or_zero_inputs_are_silent() {
-        assert!(evaluate_max_dose("1000 mg", 4, "").is_none());
-        assert!(evaluate_max_dose("1000 mg", 0, "3000 mg").is_none());
-        assert!(evaluate_max_dose("", 4, "3000 mg").is_none());
     }
 
     #[test]
@@ -211,5 +425,121 @@ mod tests {
         assert!(evaluate_weight_dose("100 mg", 3, 0.0, "15 mg").is_none());
         assert!(evaluate_weight_dose("100 mg", 3, 20.0, "").is_none());
         assert!(evaluate_weight_dose("5 ml", 3, 20.0, "15 mg").is_none());
+    }
+}
+
+#[cfg(test)]
+mod max_dose_tests {
+    use super::{DoseNotChecked, MaxDoseOutcome, evaluate_max_dose};
+
+    /// The shape of an outcome, for table rows.
+    #[derive(Debug, PartialEq)]
+    enum Want {
+        Within,
+        Exceeded,
+        NotChecked,
+    }
+
+    /// Reduce an outcome to its shape.
+    fn shape(outcome: &MaxDoseOutcome) -> Want {
+        match outcome {
+            MaxDoseOutcome::Within => Want::Within,
+            MaxDoseOutcome::Exceeded(_) => Want::Exceeded,
+            MaxDoseOutcome::NotChecked(_) => Want::NotChecked,
+        }
+    }
+
+    #[test]
+    fn table() {
+        let cases = [
+            // The audit's nine realistic overdoses, four times a day.
+            ("1000 mg", "QID", "3000 mg", Want::Exceeded),
+            ("1 g", "QID", "3000 mg", Want::Exceeded),
+            ("1 gm", "QID", "3 g", Want::Exceeded),
+            ("1,000 mg", "QID", "3000 mg", Want::Exceeded),
+            ("500 mcg", "QID", "1 mg", Want::Exceeded),
+            ("500 µg", "QID", "0.5 mg", Want::Exceeded),
+            ("1000 MG", "QID", "3000mg", Want::Exceeded),
+            ("1000 mg tab", "QID", "3000 mg", Want::Exceeded),
+            ("1000mg", "QID", "3 g/day", Want::Exceeded),
+            // Within, across units, and exactly at the limit.
+            ("500 mg", "TDS", "3 g", Want::Within),
+            ("1 g", "TDS", "3000 mg per day", Want::Within),
+            ("250 mcg", "1-0-1", "0.5 mg", Want::Within),
+            ("5 ml", "QID", "0.02 L", Want::Within),
+            ("2 tab", "BD", "8 tab", Want::Within),
+            ("1 g", "5×/day", "4 g", Want::Exceeded),
+            // As needed: one dose over the daily maximum is an overdose.
+            ("4 g", "SOS", "3 g", Want::Exceeded),
+            ("1 g", "PRN", "4 g", Want::NotChecked),
+            ("1 g", "STAT", "4 g", Want::Within),
+            // Cannot compare: say so, never pass silently.
+            ("5 ml", "QID", "3000 mg", Want::NotChecked),
+            ("1 g", "as directed", "3 g", Want::NotChecked),
+            ("1,5 mg", "OD", "3 mg", Want::NotChecked),
+            ("15 mg/kg", "TDS", "3 g", Want::NotChecked),
+            ("2 x 500 mg", "TDS", "3 g", Want::NotChecked),
+            ("1000 mg", "QID", "", Want::NotChecked),
+            ("", "QID", "3000 mg", Want::NotChecked),
+            ("1000", "QID", "3000 mg", Want::NotChecked),
+        ];
+        let wrong: Vec<_> = cases
+            .iter()
+            .filter(|(dose, freq, max, want)| shape(&evaluate_max_dose(dose, freq, max)) != *want)
+            .collect();
+        assert!(wrong.is_empty(), "wrong outcomes: {wrong:?}");
+    }
+
+    #[test]
+    fn exceedance_is_reported_in_the_maximum_unit() {
+        let outcome = evaluate_max_dose("1 g", "QID", "3000 mg");
+        assert!(
+            matches!(&outcome, MaxDoseOutcome::Exceeded(hit) if hit.unit == "mg"
+                && (hit.total_per_day - 4000.0).abs() < 1e-9
+                && (hit.max_per_day - 3000.0).abs() < 1e-9
+                && hit.doses_per_day == 4),
+            "{outcome:?}"
+        );
+    }
+
+    #[test]
+    fn as_needed_names_the_dose_ceiling() {
+        let outcome = evaluate_max_dose("500 mg", "SOS", "3 g");
+        assert_eq!(
+            outcome,
+            MaxDoseOutcome::NotChecked(DoseNotChecked::AsNeeded { max_doses: 6 })
+        );
+    }
+}
+
+#[cfg(test)]
+mod daily_dose_tests {
+    use super::daily_doses;
+
+    #[test]
+    fn counts_every_dose_unit_in_the_day() {
+        let cases = [
+            ("Q4H", Some(6)),
+            ("q 6 h", Some(4)),
+            ("Q8H", Some(3)),
+            ("Q12HR", Some(2)),
+            ("Q24H", Some(1)),
+            ("Q5H", None),
+            ("Q0H", None),
+            ("1-0-1", Some(2)),
+            ("2-0-2", Some(4)),
+            ("1-1-1-1", Some(4)),
+            ("0-0-0", None),
+            ("1/2-0-1/2", None),
+            ("TDS", Some(3)),
+            ("QID", Some(4)),
+            ("BD", Some(2)),
+            ("6x/day", Some(6)),
+            ("PRN", None),
+            ("whenever", None),
+        ];
+        for (frequency, want) in cases {
+            assert_eq!(daily_doses(frequency), want, "{frequency}");
+        }
     }
 }

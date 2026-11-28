@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useDictatedRxStore } from "@/components/Clinical/dictation/dictated-rx-store";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
-import { Alert, Card, Checkbox, SegmentedControl } from "@/components/ui";
+import { Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { ckbService } from "@/services/ckb.service";
@@ -23,14 +23,16 @@ import { matchDrugAllergy } from "@/utils/allergyMatch";
 import { DictatedPicks } from "./DictatedPicks";
 import { dictatedToRx } from "./dictatedRx";
 import classes from "./prescription.module.scss";
-import { RxDoctor, type RxSafety } from "./RxDoctor";
+import { RxDoctor } from "./RxDoctor";
 import { RxPrint } from "./RxPrint";
 import { RxRefillTerms } from "./RxRefillTerms";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
-import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
+import type { FormularyDrug, RxItem } from "./rxModel";
 import { NO_REFILLS, type RefillTerms, refillRequest } from "./rxRefills";
+import { doseOverageLabel, EMPTY_SAFETY, type RxSafety } from "./rxSafety";
 import { stewardshipCovers } from "./rxStewardship";
 import { type SafetyAnswers, type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
+import { SafetyUnavailableAlert } from "./SafetyUnavailableAlert";
 import { useLastPrescription } from "./useLastPrescription";
 
 interface Props {
@@ -62,17 +64,6 @@ function controlledNames(items: RxItem[], formularyById: Record<string, Formular
     })
     .map((it) => it.name);
 }
-
-const EMPTY_SAFETY: RxSafety = {
-  interactions: [],
-  allergy_conflicts: [],
-  weight_alerts: [],
-  renal_alerts: [],
-  hepatic_alerts: [],
-  ingredient_alerts: [],
-  pregnancy_alerts: [],
-  conclusion: { severity: "clear", summary: "", recommendation: "", issue_count: 0 },
-};
 
 /**
  * Embeddable, backend-wired prescription writer — the rx-suite composer + live
@@ -310,8 +301,8 @@ export function RxSuiteWriter({
         });
       }
       const drug = formularyById[it.id];
-      const hit = drug ? maxDoseExceeded(it, drug) : null;
-      if (hit) issues.push({ kind: "dose", name: it.name, detail: hit.totalLabel });
+      const hit = safety.dose_alerts.find((a) => a.drug_name === it.name);
+      if (hit) issues.push({ kind: "dose", name: it.name, detail: doseOverageLabel(hit) });
       // Antimicrobial stewardship and the formulary: the server holds both.
       if (drug?.aware === "Reserve" && !stewardshipCovers(drug, liveStewardship)) {
         issues.push({
@@ -442,13 +433,7 @@ export function RxSuiteWriter({
           </Stack>
         </Card>
       )}
-      {safetyUnavailable && (
-        <Alert tone="warning" title="Interaction check unavailable">
-          The drug-safety service could not be reached, so these drugs have not been screened for
-          interactions. Documented allergies and dose limits are still checked, and the server
-          re-checks both at save.
-        </Alert>
-      )}
+      {safetyUnavailable && <SafetyUnavailableAlert />}
       {askRefills && (
         <RxRefillTerms
           value={refillTerms}
@@ -482,6 +467,7 @@ export function RxSuiteWriter({
         saving={Boolean(isSaving)}
         editing={false}
         safety={safety}
+        safetyUnavailable={safetyUnavailable}
         signer={signer}
         templates={templates}
         templateToItems={templateToItems}
