@@ -16,6 +16,11 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::renal_check::{
+    HepaticAlert, RenalDoseAlert, RenalNotChecked, patient_latest_egfr,
+    renal_hepatic_alerts_for_items,
+};
+
 use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
@@ -64,21 +69,6 @@ pub struct WeightDoseAlert {
     pub prescribed_per_day_label: String,
     pub recommended_per_day_label: String,
     pub weight_kg: f64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct RenalDoseAlert {
-    pub drug_name: String,
-    pub egfr: f64,
-    pub threshold: f64,
-    /// Pharmacist-authored adjustment rule, e.g. "Reduce dose 50%" / "Avoid".
-    pub rule: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct HepaticAlert {
-    pub drug_name: String,
-    pub caution: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -135,10 +125,34 @@ pub struct DrugSafetyCheckResult {
     pub dose_alerts: Vec<DoseAlert>,
     pub weight_alerts: Vec<WeightDoseAlert>,
     pub renal_alerts: Vec<RenalDoseAlert>,
+    /// Lines with a renal rule that had no recent eGFR to check against.
+    pub renal_not_checked: Vec<RenalNotChecked>,
     pub hepatic_alerts: Vec<HepaticAlert>,
     pub ingredient_alerts: Vec<IngredientAlert>,
     pub pregnancy_alerts: Vec<PregnancyAlert>,
     pub conclusion: ClinicalConclusion,
+}
+
+/// The warning-rank dosing findings (max dose, paediatric weight, renal,
+/// hepatic), one message each, so the conclusion can rank them.
+fn dosing_advisories(result: &DrugSafetyCheckResult) -> Vec<String> {
+    let dose = result
+        .dose_alerts
+        .iter()
+        .map(|a| format!("over-max: {}", a.drug_name));
+    let weight = (result.weight_alerts.iter()).map(|a| format!("paeds dose: {}", a.drug_name));
+    let renal = result
+        .renal_alerts
+        .iter()
+        .map(|a| format!("renal: {}", a.drug_name));
+    let unchecked = (result.renal_not_checked.iter())
+        .map(|a| format!("renal dose not checked: {}", a.drug_name));
+    let hepatic = (result.hepatic_alerts.iter()).map(|a| format!("hepatic: {}", a.drug_name));
+    dose.chain(weight)
+        .chain(renal)
+        .chain(unchecked)
+        .chain(hepatic)
+        .collect()
 }
 
 /// Reach a single clinical conclusion from all detector outputs. **This is the
@@ -162,18 +176,7 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
         let rank = if a.kind == "incompatible" { 2 } else { 1 };
         issues.push((rank, a.label.clone()));
     }
-    for a in &result.dose_alerts {
-        issues.push((1, format!("over-max: {}", a.drug_name)));
-    }
-    for a in &result.weight_alerts {
-        issues.push((1, format!("paeds dose: {}", a.drug_name)));
-    }
-    for a in &result.renal_alerts {
-        issues.push((1, format!("renal: {}", a.drug_name)));
-    }
-    for a in &result.hepatic_alerts {
-        issues.push((1, format!("hepatic: {}", a.drug_name)));
-    }
+    issues.extend(dosing_advisories(result).into_iter().map(|m| (1, m)));
     for a in &result.pregnancy_alerts {
         // Category X (contraindicated) is critical; category D is a warning.
         let rank = if a.severity == "contraindicated" {
@@ -411,8 +414,8 @@ pub async fn check_drug_safety(
 
     // Renal (eGFR-based) + hepatic dosing advisory — pharmacist-seeded rules on
     // the catalogue. Advisory only; never gates prescribing.
-    let (renal_alerts, hepatic_alerts) = if body.items.is_empty() {
-        (Vec::new(), Vec::new())
+    let renal = if body.items.is_empty() {
+        crate::renal_check::RenalHepatic::default()
     } else {
         let egfr = match body.patient_id {
             Some(pid) => patient_latest_egfr(&mut tx, claims.tenant_id, pid).await?,
@@ -440,8 +443,9 @@ pub async fn check_drug_safety(
         allergy_conflicts,
         dose_alerts,
         weight_alerts,
-        renal_alerts,
-        hepatic_alerts,
+        renal_alerts: renal.renal,
+        renal_not_checked: renal.not_checked,
+        hepatic_alerts: renal.hepatic,
         ingredient_alerts,
         pregnancy_alerts,
         conclusion: ClinicalConclusion {
@@ -639,107 +643,6 @@ async fn ingredient_alerts_for_items(
         }
     }
     Ok(alerts)
-}
-
-/// Latest recorded eGFR (mL/min/1.73m²) for a patient from lab results, if any.
-async fn patient_latest_egfr(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    patient_id: Uuid,
-) -> Result<Option<f64>, AppError> {
-    let egfr = sqlx::query_scalar::<_, Option<f64>>(
-        // Verified only. Until now `numeric_value` was NULL on every row, so
-        // this returned None for everybody and no renal alert could fire.
-        // Filling the column arms this query, and without a status predicate
-        // it would begin dosing off whatever a technologist last typed --
-        // unverified, possibly mid-correction. A gap that alerted on nothing
-        // would have become a gate that answered from unreleased values.
-        "SELECT lr.numeric_value::float8 FROM lab_results lr \
-         JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
-         WHERE lr.tenant_id = $1 AND lo.patient_id = $2 AND lr.numeric_value IS NOT NULL \
-           AND lo.status = 'verified'::lab_order_status \
-           AND (lower(lr.parameter_name) LIKE '%egfr%' OR lower(lr.parameter_name) LIKE '%gfr%') \
-         ORDER BY lr.created_at DESC LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
-    Ok(egfr)
-}
-
-/// Renal + hepatic advisories for the given lines from the catalogue rules.
-async fn renal_hepatic_alerts_for_items(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    items: &[DoseCheckItem],
-    egfr: Option<f64>,
-) -> Result<(Vec<RenalDoseAlert>, Vec<HepaticAlert>), AppError> {
-    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
-    if catalog_ids.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
-    }
-
-    #[derive(sqlx::FromRow)]
-    struct RuleRow {
-        id: Uuid,
-        renal_adjust_egfr_threshold: Option<f64>,
-        renal_adjust_rule: Option<String>,
-        hepatic_caution: Option<String>,
-    }
-    let rows = sqlx::query_as::<_, RuleRow>(
-        "SELECT pc.id, \
-                COALESCE(pc.renal_adjust_egfr_threshold, ref.renal_adjust_egfr_threshold)::float8 \
-                    AS renal_adjust_egfr_threshold, \
-                COALESCE(pc.renal_adjust_rule, ref.renal_adjust_rule) AS renal_adjust_rule, \
-                COALESCE(pc.hepatic_caution, ref.hepatic_caution) AS hepatic_caution \
-         FROM pharmacy_catalog pc \
-         LEFT JOIN cds_drug_reference ref ON lower(ref.generic_name) = \
-             lower(COALESCE(NULLIF(pc.inn_name, ''), pc.generic_name, pc.name)) \
-         WHERE pc.tenant_id = $1 AND pc.id = ANY($2)",
-    )
-    .bind(tenant_id)
-    .bind(&catalog_ids)
-    .fetch_all(&mut **tx)
-    .await?;
-
-    let mut renal = Vec::new();
-    let mut hepatic = Vec::new();
-    for item in items {
-        let Some(catalog_id) = item.catalog_item_id else {
-            continue;
-        };
-        let Some(row) = rows.iter().find(|r| r.id == catalog_id) else {
-            continue;
-        };
-        if let Some(caution) = row
-            .hepatic_caution
-            .as_deref()
-            .filter(|c| !c.trim().is_empty())
-        {
-            hepatic.push(HepaticAlert {
-                drug_name: item.drug_name.clone(),
-                caution: caution.to_owned(),
-            });
-        }
-        if let (Some(egfr), Some(threshold), Some(rule)) = (
-            egfr,
-            row.renal_adjust_egfr_threshold,
-            row.renal_adjust_rule
-                .as_deref()
-                .filter(|r| !r.trim().is_empty()),
-        ) && egfr < threshold
-        {
-            renal.push(RenalDoseAlert {
-                drug_name: item.drug_name.clone(),
-                egfr,
-                threshold,
-                rule: rule.to_owned(),
-            });
-        }
-    }
-    Ok((renal, hepatic))
 }
 
 /// Latest recorded weight (kg) and current age (years) for a patient, when known.
@@ -1782,4 +1685,95 @@ pub async fn update_co_signature(
 
     tx.commit().await?;
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+}
+
+#[cfg(test)]
+mod egfr_db_tests {
+    #![allow(clippy::expect_used)]
+
+    use super::patient_latest_egfr;
+    use medbrains_db_migrations::testing::{add_patient, add_tenant, fresh_db};
+    use uuid::Uuid;
+
+    /// A verified result for `patient`, collected `days_ago`. Foreign keys
+    /// (order, test, user) are left dangling with triggers off: only the
+    /// rows the eGFR query reads matter here.
+    async fn result(
+        owner: &sqlx::PgPool,
+        ids: (Uuid, Uuid),
+        days_ago: i32,
+        (name, value, unit): (&str, &str, &str),
+    ) {
+        let mut conn = owner.acquire().await.expect("conn");
+        sqlx::query("SET session_replication_role = replica")
+            .execute(&mut *conn)
+            .await
+            .expect("triggers off");
+        let order: Uuid = sqlx::query_scalar(
+            "INSERT INTO lab_orders (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
+                 status, collected_at, verified_at) \
+             VALUES ($1, gen_random_uuid(), $2, gen_random_uuid(), gen_random_uuid(), \
+                 'verified', now() - make_interval(days => $3), now() - make_interval(days => $3)) \
+             RETURNING id",
+        )
+        .bind(ids.0)
+        .bind(ids.1)
+        .bind(days_ago)
+        .fetch_one(&mut *conn)
+        .await
+        .expect("order");
+        sqlx::query(
+            "INSERT INTO lab_results (tenant_id, order_id, parameter_name, value, unit, \
+                 numeric_value, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $4::numeric, now() - make_interval(days => $6))",
+        )
+        .bind(ids.0)
+        .bind(order)
+        .bind(name)
+        .bind(value)
+        .bind(unit)
+        .bind(days_ago)
+        .execute(&mut *conn)
+        .await
+        .expect("result");
+    }
+
+    /// What the renal check would dose from for a patient with these results.
+    async fn egfr_with(results: &[(i32, (&str, &str, &str))]) -> bool {
+        let db = fresh_db().await.expect("test database");
+        let owner = db.owner().await.expect("owner pool");
+        let tenant = add_tenant(&owner, "EGFR").await.expect("tenant");
+        let patient = add_patient(&owner, tenant, "UH-EGFR-1")
+            .await
+            .expect("patient");
+        for (days_ago, row) in results {
+            result(&owner, (tenant, patient), *days_ago, *row).await;
+        }
+        let mut tx = owner.begin().await.expect("tx");
+        patient_latest_egfr(&mut tx, tenant, patient)
+            .await
+            .expect("egfr")
+            .is_some()
+    }
+
+    #[tokio::test]
+    async fn a_stale_egfr_does_not_dose() {
+        assert!(
+            !egfr_with(&[(200, ("eGFR", "25", "mL/min/1.73m2"))]).await,
+            "a 200-day-old eGFR was used for renal dosing"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_egfr_in_another_unit_does_not_dose() {
+        assert!(
+            !egfr_with(&[(3, ("eGFR (Cockcroft-Gault)", "40", "mL/min"))]).await,
+            "a clearance in mL/min was read as an eGFR per 1.73 m²"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_recent_egfr_doses() {
+        assert!(egfr_with(&[(10, ("eGFR", "42", "mL/min/1.73 m²"))]).await);
+    }
 }
