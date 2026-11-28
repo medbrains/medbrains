@@ -502,6 +502,10 @@ jobs:
           rm -f "$RUNNER_TEMP/pcr.key"
           mkdir -p img
           raw=$(ls "$RUNNER_TEMP"/os/out-${{ matrix.arch }}/*.raw | head -1)
+          # Before anything is made from it: the unit rules, then the built image itself (every unit
+          # the postinst masks is masked in it). A FAIL stops the job, so no file of this image is uploaded.
+          medbrains/os/tests/check-units.sh
+          medbrains/os/tests/check-image.sh "$raw"
           name="medbrains-os-$version-${{ matrix.arch }}$suffix"
           zstd -T0 -19 "$raw" -o "img/$name.raw.zst"
           # The installer carries that same .raw.zst, so it writes exactly the image above.
