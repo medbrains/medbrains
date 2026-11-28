@@ -158,7 +158,7 @@ pub async fn mirror_transfusion_reaction(
          SELECT tr.tenant_id, tr.patient_id, tr.id, tr.component_id, bc.component_type::text, \
                 COALESCE(tr.reaction_reported_at, now()), \
                 CASE WHEN tr.reaction_reported_at IS NULL THEN NULL \
-                     ELSE EXTRACT(EPOCH FROM (tr.reaction_reported_at - tr.started_at))::int / 60 \
+                     ELSE round(EXTRACT(EPOCH FROM (tr.reaction_reported_at - tr.started_at)) / 60)::int \
                 END, \
                 COALESCE(NULLIF(tr.reaction_type, ''), 'other'), \
                 CASE COALESCE(tr.reaction_severity::text, 'moderate') \
@@ -250,7 +250,7 @@ pub async fn mirror_code_blue_ended(
              drugs_administered = e.medications, \
              defibrillation_count = jsonb_array_length(e.shocks), \
              cpr_duration_minutes = CASE WHEN e.ended_at IS NULL THEN n.cpr_duration_minutes \
-                 ELSE EXTRACT(EPOCH FROM (e.ended_at - e.started_at))::int / 60 END, \
+                 ELSE round(EXTRACT(EPOCH FROM (e.ended_at - e.started_at)) / 60)::int END, \
              initial_rhythm = COALESCE( \
                  (SELECT elem->>'rhythm' FROM jsonb_array_elements(e.ecg_rhythm_log) elem LIMIT 1), \
                  n.initial_rhythm \

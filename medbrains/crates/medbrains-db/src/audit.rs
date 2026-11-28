@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 /// `(id, hash, hash_input_canonical, prev_hash, created_at)`.
 type ChainRow = (Uuid, String, Option<String>, Option<String>, DateTime<Utc>);
 use sha2::{Digest, Sha256};
+
+use crate::audit_chain::{ChainWalk, LinkRow};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -221,9 +223,11 @@ impl AuditLogger {
     const VERIFY_CHAIN_PAGE: i64 = 1_000;
 
     /// Verify the SHA-256 hash chain for a single tenant.
-    /// Walks the `audit_log` rows for the tenant in `created_at` order and
-    /// recomputes each hash from `prev_hash` + payload. Returns the row
-    /// id at which the chain first breaks, if any.
+    /// Walks the `audit_log` rows for the tenant in `created_at` order,
+    /// recomputes each hash from its canonical input, and checks each row's
+    /// `prev_hash` links to the row before it (`audit_chain`), so a deleted
+    /// or inserted row is caught too. Returns the row id at which the chain
+    /// first breaks, if any.
     pub async fn verify_chain_for_tenant(
         pool: &PgPool,
         tenant_id: Uuid,
@@ -238,10 +242,10 @@ impl AuditLogger {
         tenant_id: Uuid,
         since: Option<DateTime<Utc>>,
     ) -> Result<ChainVerificationResult, sqlx::Error> {
-        let mut broken_at: Option<Uuid> = None;
-        let mut head: Option<String> = None;
-        let mut rows_checked: i64 = 0;
-        let mut rows_legacy_skipped: i64 = 0;
+        let mut walk = ChainWalk::starting_at(match since {
+            Some(at) => Self::hash_before(pool, tenant_id, at).await?,
+            None => String::new(),
+        });
         // Uuid::nil() sorts first, so the first page starts at `since` itself.
         let mut cursor: Option<(DateTime<Utc>, Uuid)> = since.map(|at| (at, Uuid::nil()));
 
@@ -292,36 +296,58 @@ impl AuditLogger {
                 cursor = Some((last.4, last.0));
             }
 
-            for (id, stored_hash, canonical_opt, _stored_prev, _created_at) in &page {
-                let Some(canonical) = canonical_opt else {
-                    rows_legacy_skipped += 1;
-                    // Track legacy chain head so subsequent rows can still be
-                    // verified (their prev_hash links into stored_hash even
-                    // though we cannot recompute the legacy row itself).
-                    head = Some(stored_hash.clone());
-                    continue;
+            for (id, hash, canonical, prev_hash, _) in &page {
+                let row = LinkRow {
+                    id: *id,
+                    hash,
+                    canonical: canonical.as_deref(),
+                    prev_hash: prev_hash.as_deref(),
                 };
-                let mut hasher = Sha256::new();
-                hasher.update(canonical.as_bytes());
-                let computed = hex::encode(hasher.finalize());
-
-                if &computed != stored_hash {
-                    broken_at = Some(*id);
+                if !walk.push(&row) {
                     break 'pages;
                 }
-                rows_checked += 1;
-                head = Some(computed);
             }
         }
+        let walk = walk.finish();
 
         Ok(ChainVerificationResult {
             tenant_id,
-            rows_checked,
-            rows_legacy_skipped,
-            head_hash: head,
-            broken_at,
-            valid: broken_at.is_none(),
+            rows_checked: walk.rows_checked,
+            rows_legacy_skipped: walk.rows_legacy_skipped,
+            head_hash: Some(walk.head().to_owned()).filter(|h| !h.is_empty()),
+            broken_at: walk.broken_at,
+            valid: walk.broken_at.is_none(),
         })
+    }
+
+    /// The hash a partial walk from `since` must link its first row to: the
+    /// last row before `since` in chain order, or `""` when there is none.
+    ///
+    /// ponytail: if that row is itself a late writer (rare: its transaction
+    /// outlived the hour boundary) the hourly walk reports a false break; the
+    /// nightly full walk is the authority.
+    async fn hash_before(
+        pool: &PgPool,
+        tenant_id: Uuid,
+        since: DateTime<Utc>,
+    ) -> Result<String, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        // allow-raw-sql: audit-context bootstrap (set_config GUC, no tenant data)
+        sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+            .bind(tenant_id.to_string())
+            .execute(&mut *tx)
+            .await?;
+        let hash: Option<String> = sqlx::query_scalar(
+            "SELECT hash FROM audit_log \
+             WHERE tenant_id = $1 AND hash IS NOT NULL AND created_at < $2 \
+             ORDER BY created_at DESC, id DESC LIMIT 1",
+        )
+        .bind(tenant_id)
+        .bind(since)
+        .fetch_optional(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(hash.unwrap_or_default())
     }
 
     /// List all tenants that have `audit_log` rows. Used by the verify-chain cron.
