@@ -2,7 +2,10 @@
 # Builds the MedBrains OS installer .iso: boots from a USB stick or a DVD (UEFI, x86-64 or arm64) and
 # writes the release image to a disk the operator names (os/installer/).
 #
-#   ./build-iso.sh --arch x86-64|arm64 --image medbrains-os-<ver>-<arch>.raw.zst --out <file.iso>
+#   ./build-iso.sh --arch x86-64|arm64 --image medbrains-os-<ver>-<arch>.raw.zst --out <file.iso> [--debug]
+#
+# --debug marks the medium as a test one, for a debug image (build.sh --debug): on a machine with no TPM it warns
+# and goes on, where a release medium stops before offering a disk. Never for a release.
 #
 # The image goes onto the ISO as it is, so the disk the installer writes is the release .raw byte for byte,
 # with its PCR-signed boot file untouched. The installer itself is one boot file built by mkosi (Format=uki).
@@ -16,11 +19,13 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ARCH=""
 IMAGE=""
 OUT=""
+DEBUG_MEDIUM=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --arch) ARCH="$2"; shift 2 ;;
         --image) IMAGE="$2"; shift 2 ;;
         --out) OUT="$2"; shift 2 ;;
+        --debug) DEBUG_MEDIUM=1; shift ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -53,6 +58,7 @@ assemble() {
     mkdir -p "$work/iso/medbrains"
     ln "$image" "$work/iso/medbrains/medbrains-os.raw.zst" 2>/dev/null || cp "$image" "$work/iso/medbrains/medbrains-os.raw.zst"
     printf '%s %s\n' "$size" "$sha" > "$work/iso/medbrains/image.info"
+    if [[ "$DEBUG_MEDIUM" == 1 ]]; then : > "$work/iso/medbrains/debug-image"; fi
     # The EFI partition: the installer's boot file at the removable-media path, with room to spare.
     esp_mib=$(( $(stat -c %s "$work/out/medbrains-installer.efi") / 1048576 + 8 ))
     truncate -s "${esp_mib}M" "$work/esp.img"
@@ -81,7 +87,7 @@ else
         -f "$HERE/builder.Dockerfile" "$HERE" >/dev/null
     docker run --rm --privileged --platform "$PLATFORM" -v /var/tmp \
         -v "$HERE/installer:/src:ro" -v "$IMAGE:/image.raw.zst:ro" -v "$OUT_DIR:/out" -v "$CACHE:/cache" \
-        ${SB_MOUNTS[@]+"${SB_MOUNTS[@]}"} -e ARCH="$ARCH" -e BOOT_FILE="$BOOT_FILE" \
+        ${SB_MOUNTS[@]+"${SB_MOUNTS[@]}"} -e ARCH="$ARCH" -e BOOT_FILE="$BOOT_FILE" -e DEBUG_MEDIUM="$DEBUG_MEDIUM" \
         "medbrains-os-builder:${PLATFORM#linux/}" \
         bash -c "set -euo pipefail; $(declare -f assemble); assemble /src /image.raw.zst /out \"\$0\" /cache \"\$@\"" \
         "$OUT_NAME" ${SB_ARGS[@]+"${SB_ARGS[@]}"}

@@ -43,15 +43,18 @@ In the machine's firmware settings (often F2, F10, F12 or Del at power on):
 
 Start the machine from the stick (from the UEFI boot menu).
 
-1. The installer reads the whole stick and checks its SHA-256. A damaged
+1. The installer shows whether Secure Boot is on and checks for a TPM 2.0.
+   With no TPM it says so and offers no disk: turn the TPM on in the BIOS
+   (it may be called PTT, fTPM or Security Device) and start again.
+2. It reads the whole stick and checks its SHA-256. A damaged
    stick is refused here, before any disk is offered.
-2. It lists the machine's disks with size, model, bus and serial number.
+3. It lists the machine's disks with size, model, bus and serial number.
    Type the disk's name, for example `nvme0n1`.
-3. Type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes
+4. Type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes
    back to the list.
-4. It writes the image, reads it back and compares the checksum. Then it
+5. It writes the image, reads it back and compares the checksum. Then it
    makes that disk the first boot entry, called **MedBrains OS**.
-5. **Expected:** it says it will restart in 15 seconds. Take the stick out.
+6. **Expected:** it says it will restart in 15 seconds. Take the stick out.
 
 The installer also works on a serial console (`ttyS0`, or `ttyAMA0` on arm64).
 
@@ -74,6 +77,7 @@ setup screen. Go on to [first boot and the recovery key](/admin/first-boot/).
 | What you see | What to do |
 |---|---|
 | The machine does not start from the stick | Pick the stick in the UEFI boot menu. Check the firmware is in UEFI mode. On Windows, rewrite the stick in Rufus **DD** mode, not ISO mode |
+| It says this machine has no security chip | Turn on TPM 2.0 in the BIOS (PTT, fTPM or Security Device), or use a machine that has one. Nothing was written |
 | The installer refuses the medium | The stick is damaged or the copy is incomplete. Rewrite it, or use another stick |
 | Your disk is not listed | It is in use (part of RAID, LVM or encryption), read-only, or smaller than 4.5 GB. Disks inside a hardware RAID show as one disk |
 | `Security Violation` at start | Secure Boot is on. Turn it off |

@@ -47,9 +47,10 @@ whose name ends in `-unsigned` is for trials only.
 
 ## Two settings to get right first
 
-- **TPM 2.0 on.** Without it, setup stops before it stores anything and asks
-  whether to carry on unencrypted. Turn the TPM on, or give the virtual
-  machine a virtual TPM, before the first start.
+- **TPM 2.0 on.** Without it, the installer offers no disk and setup stops
+  before it stores anything; MedBrains OS does not store patient data
+  unencrypted. Turn the TPM on, or give the virtual machine a virtual TPM,
+  before the first start.
 - **Secure Boot off.** The image is not yet signed for Secure Boot. Decide
   before the first start: the disk is sealed to the boot settings then, and
   changing Secure Boot later makes the machine ask for the recovery key.

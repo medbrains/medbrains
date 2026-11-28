@@ -124,7 +124,10 @@ os/formats.sh <image.raw> <name> x86-64 <out-dir>                       # qcow2,
 
 Write the `.iso` to a USB stick (`dd if=<name>.iso of=/dev/sdX bs=4M conv=fsync` on Linux, or an image
 writer in disk-image mode, such as Rufus's DD mode), or burn it to a DVD, and start the machine from it (UEFI boot menu). The installer runs from
-memory. It first reads the whole image on the medium and checks its SHA-256; a damaged stick or DVD
+memory. It first shows whether Secure Boot is on and checks for a TPM 2.0: with none, a release medium says to
+turn it on in the BIOS (PTT, fTPM or Security Device) and offers no disk, because the system would refuse to
+store data there (`docs/decisions/2026-11-28-no-unencrypted-release-os.md`); a test medium (`build-iso.sh
+--debug`, for a debug image) warns and goes on. It then reads the whole image on the medium and checks its SHA-256; a damaged stick or DVD
 is refused there, before any disk is offered, so it can never leave a disk erased and empty. That check (the
 hash in `medbrains/image.info` on the medium) proves integrity only, not where the image came from: anyone
 can make a medium with a matching file. Authenticity is the signed `SHA256SUMS` (and its `.sigstore.json`) that
@@ -145,7 +148,8 @@ screen and on the serial console (`ttyS0`, `ttyAMA0` on arm64); only one of them
 then holds the release `.raw` byte for byte, so its signed boot file and PCR 11 signature are the ones released;
 first boot grows the data partition into the rest of the disk. Built by `os/installer/` (mkosi, `Format=uki`)
 and wrapped by xorriso as a hybrid ISO: El Torito for a DVD, a GPT with an EFI partition for a stick.
-`os/tests/installer-test.py <iso> <raw>` proves it in QEMU.
+`os/tests/installer-test.py <iso> <raw> [x86-64|arm64] [debug|release]` proves it in QEMU, with and without swtpm
+on x86-64 (arm64 has no TPM driver for QEMU's device, so only without).
 
 ### Proxmox, KVM, libvirt (.qcow2)
 

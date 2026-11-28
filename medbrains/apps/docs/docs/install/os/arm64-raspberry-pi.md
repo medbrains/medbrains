@@ -40,8 +40,8 @@ support is partial. Until a Pi image ships, this path is for trials only.
    it.
 
 **NVMe only.** SD cards are not supported for data: a database wears them
-out, and a worn card corrupts clinical records. The Pi 5 has no TPM, so setup
-will ask whether to carry on unencrypted unless you fit a TPM module.
+out, and a worn card corrupts clinical records. The Pi 5 has no TPM, so MedBrains OS
+stops at setup and stores nothing on it until a TPM module is supported.
 
 ## Check it worked
 
