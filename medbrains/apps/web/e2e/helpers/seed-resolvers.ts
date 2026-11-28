@@ -118,13 +118,19 @@ export async function getFirstDrug(ctx: AuthContext): Promise<CatalogRow> {
   return c.drug;
 }
 
+/**
+ * Whether a catalogue drug can be the shared journey drug: stocked, and behind
+ * none of the dispense gates. Schedule H counts as gated: since #5244 an H drug
+ * dispenses only on a doctor-signed prescription, which the journey helpers do
+ * not sign, so an H drug another spec stocked made them fail by run order.
+ */
 function isSafeE2eDrug(drug: CatalogRow): boolean {
   const schedule = drug.drug_schedule?.toLowerCase() ?? "";
   const formulary = drug.formulary_status?.toLowerCase() ?? "approved";
   return (
     (drug.current_stock ?? 0) >= 100 &&
     drug.is_controlled !== true &&
-    !["ndps", "x", "h1"].includes(schedule) &&
+    !["ndps", "x", "h1", "h"].includes(schedule) &&
     drug.is_lasa !== true &&
     formulary !== "restricted" &&
     !drug.black_box_warning

@@ -14,17 +14,9 @@ for network in 80-wired 81-wireless 10-medbrains-fixed 50-medbrains-preferred; d
 done
 networkctl reload
 
-install -d -m 0755 /run/systemd/resolved.conf.d
-printf '[Resolve]\nMulticastDNS=yes\n' > /run/systemd/resolved.conf.d/20-main-machine.conf
-systemctl restart systemd-resolved
-
-install -d -m 0755 /run/medbrains-role
-# Loopback too: the agent relays its nodes' clocks to this chrony from there.
-cat > /run/medbrains-role/lan-time.conf <<'CHRONY'
-allow 127.0.0.1
-allow 10.0.0.0/8
-allow 172.16.0.0/12
-allow 192.168.0.0/16
-allow fc00::/7
-CHRONY
-systemctl restart chrony
+# Serving the LAN its time and announcing medbrains.local: time-role wrote both files before chrony
+# and resolved started, unless setup made this a main machine during this boot. Each is restarted
+# only if its file changed just now, so a normal boot restarts neither.
+changed="$(/usr/lib/medbrains/time-role main)"
+if grep -q '^/run/systemd/resolved.conf.d/' <<<"$changed"; then systemctl restart systemd-resolved; fi
+if grep -q '^/run/medbrains-role/' <<<"$changed"; then systemctl restart chrony; fi
