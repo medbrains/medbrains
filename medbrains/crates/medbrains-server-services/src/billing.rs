@@ -428,16 +428,16 @@ async fn charge_in_savepoint(
         }
     };
 
-    let total =
-        unit_price * Decimal::from(input.quantity) * (Decimal::ONE + tax_pct / Decimal::from(100));
-
     // 4. Insert item — including batch_number + expiry_date when the
-    // source carries them (pharmacy dispense). Migration 0109.
+    // source carries them (pharmacy dispense). Migration 0109. The line total
+    // is its amount and its tax, each rounded to the paisa once (PostgreSQL's
+    // round() is half away from zero), so the header's sums add up.
     let item_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO invoice_items \
          (tenant_id, invoice_id, charge_code, description, source, source_id, \
           quantity, unit_price, tax_percent, total_price, batch_number, expiry_date) \
-         VALUES ($1, $2, $3, $4, $5::charge_source, $6, $7, $8, $9, $10, $11, $12) \
+         VALUES ($1, $2, $3, $4, $5::charge_source, $6, $7, $8, $9, \
+                 round($8 * $7, 2) + round($8 * $7 * $9 / 100, 2), $10, $11) \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -449,7 +449,6 @@ async fn charge_in_savepoint(
     .bind(input.quantity)
     .bind(unit_price)
     .bind(tax_pct)
-    .bind(total)
     .bind(&batch.batch_number)
     .bind(batch.expiry_date)
     .fetch_one(&mut **tx)
@@ -500,21 +499,31 @@ pub async fn generate_invoice_number(
 //  Recalculate invoice totals
 // ══════════════════════════════════════════════════════════
 
+/// Write the invoice header from its stored lines, so it always adds up.
+///
+/// The total is the sum of the lines' stored totals and the tax the sum of
+/// each original line's tax rounded to the paisa once, over the quantity left
+/// after its returns (a return row is grouped with the line it reverses); the
+/// subtotal is what is left, so subtotal + tax = total on every invoice.
+/// Summing unrounded tax beside rounded totals left about a third of invoices
+/// a paisa out, and rounding each return on its own left a paisa of tax on a
+/// fully returned line. Deleted lines do not count.
 pub async fn recalculate_invoice_totals(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     invoice_id: Uuid,
     tenant_id: Uuid,
 ) -> Result<(), AppError> {
     sqlx::query!(
-        "UPDATE invoices SET \
-         subtotal = COALESCE((SELECT SUM(unit_price * quantity) FROM invoice_items \
-           WHERE invoice_id = $1 AND tenant_id = $2), 0), \
-         tax_amount = COALESCE((SELECT SUM(unit_price * quantity * tax_percent / 100) \
-           FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2), 0), \
-         total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items \
-           WHERE invoice_id = $1 AND tenant_id = $2), 0), \
+        "UPDATE invoices i SET \
+         subtotal = s.total - s.tax, tax_amount = s.tax, total_amount = s.total, \
          updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2",
+         FROM (SELECT COALESCE(SUM(line.tax), 0) AS tax, COALESCE(SUM(line.total), 0) AS total \
+                 FROM (SELECT round(unit_price * SUM(quantity) * tax_percent / 100, 2) AS tax, \
+                              SUM(total_price) AS total \
+                         FROM invoice_items \
+                        WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+                        GROUP BY COALESCE(reversal_of_id, id), unit_price, tax_percent) line) s \
+         WHERE i.id = $1 AND i.tenant_id = $2",
         invoice_id,
         tenant_id,
     )
