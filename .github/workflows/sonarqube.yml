@@ -187,6 +187,8 @@ jobs:
       contents: read
       # Only to download the nightly run's Rust coverage on a main push.
       actions: read
+      # Codecov upload signs in with the run's OIDC token, so no Codecov secret is stored.
+      id-token: write
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
@@ -313,6 +315,15 @@ jobs:
             extra="$extra -Dsonar.javascript.lcov.reportPaths=medbrains/apps/web/coverage/lcov.info,$e2e"
           fi
           echo "rust=$extra" >> "$GITHUB_OUTPUT"
+      # The same coverage files, sent to Codecov for the per-PR coverage comment. Informational:
+      # an upload failure never fails the run (codecov.yml keeps its statuses non-blocking too).
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        if: env.SONAR_TOKEN != ''
+        with:
+          use_oidc: true
+          fail_ci_if_error: false
+          disable_search: true
+          files: rust-coverage/lcov.info,medbrains/apps/web/coverage/lcov.info,android-coverage/report.xml
       - uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
         if: env.SONAR_TOKEN != ''
         with:
