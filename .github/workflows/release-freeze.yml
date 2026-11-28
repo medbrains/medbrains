@@ -1,0 +1,42 @@
+# Release freeze (docs/AI-SDLC.md, check 4): from the moment a release bump PR opens until its
+# tag is pushed, nothing else merges into that branch. This job fails for a pull request whose
+# base branch has an open PR labelled `release:bump`, unless it is that bump PR or carries
+# `release:hotfix`. The rule and its self-test are in medbrains/scripts/check_release_freeze.py.
+#
+# Two limits, both real:
+# - Not a required check until the owner adds "Release freeze" to the ruleset.
+# - A check run is as old as its last event: a PR that went green before the bump opened
+#   stays green. So whatever merges (a person, a merge loop) runs
+#   `python3 medbrains/scripts/check_release_freeze.py pr <number>` just before merging.
+name: Release freeze
+
+on:
+  pull_request:
+    # `edited` covers a changed base branch; the label events cover `release:hotfix`.
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  # To read this PR's labels and list the open bump PRs on its base.
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  freeze:
+    name: Release freeze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 medbrains/scripts/check_release_freeze.py --self-test
+      - name: The base branch is not frozen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: python3 medbrains/scripts/check_release_freeze.py pr "$PR"
