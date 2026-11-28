@@ -1,19 +1,37 @@
-//! Renal (eGFR) and hepatic dosing advisories for the CDS rail, moved out of
-//! `cds.rs` unchanged so the change that follows can be read on its own.
+//! Renal (eGFR) and hepatic dosing advisories for the CDS rail.
+//!
+//! The eGFR a renal rule doses from must be an eGFR — per 1.73 m² of body
+//! surface — and recent. A creatinine clearance in mL/min, or a value from
+//! last year, is not one. When no result qualifies, a line with a renal rule
+//! is reported as **not checked**, never as needing no adjustment.
 
+use chrono::NaiveDate;
+use medbrains_health_services::egfr::EgfrLookup;
+pub(crate) use medbrains_health_services::egfr::patient_latest_egfr;
 use medbrains_server_core::error::AppError;
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::cds::DoseCheckItem;
 
+/// A line whose eGFR is below its renal-adjustment threshold.
 #[derive(Debug, Serialize)]
 pub struct RenalDoseAlert {
     pub drug_name: String,
     pub egfr: f64,
+    /// The day the eGFR sample was taken, so the alert reads "eGFR 42, 12 Nov".
+    pub egfr_measured_on: NaiveDate,
     pub threshold: f64,
     /// Pharmacist-authored adjustment rule, e.g. "Reduce dose 50%" / "Avoid".
     pub rule: String,
+}
+
+/// A line with a renal rule that could not be checked.
+#[derive(Debug, Serialize)]
+pub struct RenalNotChecked {
+    pub drug_name: String,
+    /// What was missing, written for the prescriber.
+    pub reason: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -22,8 +40,16 @@ pub struct HepaticAlert {
     pub caution: String,
 }
 
+/// The renal and hepatic findings for one order.
+#[derive(Debug, Default)]
+pub(crate) struct RenalHepatic {
+    pub renal: Vec<RenalDoseAlert>,
+    pub not_checked: Vec<RenalNotChecked>,
+    pub hepatic: Vec<HepaticAlert>,
+}
+
 /// One catalogue line's renal threshold, renal rule and hepatic caution.
-#[derive(sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow)]
 struct RuleRow {
     id: Uuid,
     renal_adjust_egfr_threshold: Option<f64>,
@@ -31,46 +57,17 @@ struct RuleRow {
     hepatic_caution: Option<String>,
 }
 
-/// Latest recorded eGFR (mL/min/1.73m²) for a patient from lab results, if any.
-pub(crate) async fn patient_latest_egfr(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    patient_id: Uuid,
-) -> Result<Option<f64>, AppError> {
-    let egfr = sqlx::query_scalar::<_, Option<f64>>(
-        // Verified only. Until now `numeric_value` was NULL on every row, so
-        // this returned None for everybody and no renal alert could fire.
-        // Filling the column arms this query, and without a status predicate
-        // it would begin dosing off whatever a technologist last typed --
-        // unverified, possibly mid-correction. A gap that alerted on nothing
-        // would have become a gate that answered from unreleased values.
-        "SELECT lr.numeric_value::float8 FROM lab_results lr \
-         JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
-         WHERE lr.tenant_id = $1 AND lo.patient_id = $2 AND lr.numeric_value IS NOT NULL \
-           AND lo.status = 'verified'::lab_order_status \
-           AND (lower(lr.parameter_name) LIKE '%egfr%' OR lower(lr.parameter_name) LIKE '%gfr%') \
-         ORDER BY lr.created_at DESC LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
-    Ok(egfr)
-}
-
 /// Renal + hepatic advisories for the given lines from the catalogue rules.
 pub(crate) async fn renal_hepatic_alerts_for_items(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     items: &[DoseCheckItem],
-    egfr: Option<f64>,
-) -> Result<(Vec<RenalDoseAlert>, Vec<HepaticAlert>), AppError> {
+    egfr: Option<&EgfrLookup>,
+) -> Result<RenalHepatic, AppError> {
     let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
     if catalog_ids.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok(RenalHepatic::default());
     }
-
     let rows = sqlx::query_as::<_, RuleRow>(
         "SELECT pc.id, \
                 COALESCE(pc.renal_adjust_egfr_threshold, ref.renal_adjust_egfr_threshold)::float8 \
@@ -86,41 +83,138 @@ pub(crate) async fn renal_hepatic_alerts_for_items(
     .bind(&catalog_ids)
     .fetch_all(&mut **tx)
     .await?;
-
-    let mut renal = Vec::new();
-    let mut hepatic = Vec::new();
+    let mut found = RenalHepatic::default();
     for item in items {
-        let Some(catalog_id) = item.catalog_item_id else {
+        let Some(row) = item
+            .catalog_item_id
+            .and_then(|id| rows.iter().find(|r| r.id == id))
+        else {
             continue;
         };
-        let Some(row) = rows.iter().find(|r| r.id == catalog_id) else {
-            continue;
+        add_findings(&mut found, item, row, egfr);
+    }
+    Ok(found)
+}
+
+/// The trimmed text of a catalogue rule, or `None` when it is blank.
+fn text(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|t| !t.is_empty())
+}
+
+/// One line's findings: hepatic caution, then the renal rule against `egfr`.
+/// `egfr` is `None` when no patient was named.
+fn add_findings(
+    found: &mut RenalHepatic,
+    item: &DoseCheckItem,
+    row: &RuleRow,
+    egfr: Option<&EgfrLookup>,
+) {
+    if let Some(caution) = text(row.hepatic_caution.as_deref()) {
+        found.hepatic.push(HepaticAlert {
+            drug_name: item.drug_name.clone(),
+            caution: caution.to_owned(),
+        });
+    }
+    let (Some(threshold), Some(rule)) = (
+        row.renal_adjust_egfr_threshold,
+        text(row.renal_adjust_rule.as_deref()),
+    ) else {
+        return;
+    };
+    match egfr.and_then(|l| l.reading) {
+        Some(e) if e.value < threshold => found.renal.push(RenalDoseAlert {
+            drug_name: item.drug_name.clone(),
+            egfr: e.value,
+            egfr_measured_on: e.measured_at.date_naive(),
+            threshold,
+            rule: rule.to_owned(),
+        }),
+        Some(_) => {}
+        None => found.not_checked.push(RenalNotChecked {
+            drug_name: item.drug_name.clone(),
+            reason: not_checked_reason(egfr),
+        }),
+    }
+}
+
+/// Why a renal rule was not checked, and what to do: the hospital's window
+/// for this patient (Settings → Clinical configuration).
+fn not_checked_reason(egfr: Option<&EgfrLookup>) -> String {
+    let Some(egfr) = egfr else {
+        return "No patient chosen, so the eGFR could not be read".to_owned();
+    };
+    let who = if egfr.inpatient {
+        "an inpatient"
+    } else {
+        "an outpatient"
+    };
+    format!(
+        "No verified eGFR (mL/min/1.73 m²) in the last {} days for {who}. Order a \
+         creatinine/eGFR to check this dose.",
+        egfr.window_days
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use medbrains_health_services::egfr::{EgfrLookup, EgfrReading};
+    use medbrains_health_services::kidney_settings::KidneySettings;
+    use uuid::Uuid;
+
+    use super::{RenalHepatic, RuleRow, add_findings};
+    use crate::cds::DoseCheckItem;
+
+    /// Metformin's findings with this eGFR lookup, under an "eGFR < 30: Avoid" rule.
+    fn findings(egfr: Option<&EgfrLookup>) -> RenalHepatic {
+        let item = DoseCheckItem {
+            drug_name: "Metformin".to_owned(),
+            dosage: "500 mg".to_owned(),
+            frequency: "BD".to_owned(),
+            catalog_item_id: None,
         };
-        if let Some(caution) = row
-            .hepatic_caution
-            .as_deref()
-            .filter(|c| !c.trim().is_empty())
-        {
-            hepatic.push(HepaticAlert {
-                drug_name: item.drug_name.clone(),
-                caution: caution.to_owned(),
-            });
-        }
-        if let (Some(egfr), Some(threshold), Some(rule)) = (
-            egfr,
-            row.renal_adjust_egfr_threshold,
-            row.renal_adjust_rule
-                .as_deref()
-                .filter(|r| !r.trim().is_empty()),
-        ) && egfr < threshold
-        {
-            renal.push(RenalDoseAlert {
-                drug_name: item.drug_name.clone(),
-                egfr,
-                threshold,
-                rule: rule.to_owned(),
-            });
+        let row = RuleRow {
+            id: Uuid::nil(),
+            renal_adjust_egfr_threshold: Some(30.0),
+            renal_adjust_rule: Some("Avoid".to_owned()),
+            hepatic_caution: None,
+        };
+        let mut found = RenalHepatic::default();
+        add_findings(&mut found, &item, &row, egfr);
+        found
+    }
+
+    /// An inpatient lookup with an eGFR of `value` today, or none.
+    fn inpatient(value: Option<f64>) -> EgfrLookup {
+        EgfrLookup {
+            reading: value.map(|value| EgfrReading {
+                value,
+                measured_at: Utc::now(),
+            }),
+            window_days: 7,
+            inpatient: true,
+            settings: KidneySettings::default(),
         }
     }
-    Ok((renal, hepatic))
+
+    #[test]
+    fn no_recent_egfr_is_not_checked_never_fine() {
+        let f = findings(Some(&inpatient(None)));
+        assert!(f.renal.is_empty());
+        let reason = &f.not_checked[0].reason;
+        assert!(reason.contains("last 7 days for an inpatient"), "{reason}");
+        assert!(reason.contains("Order a creatinine/eGFR"), "{reason}");
+    }
+
+    #[test]
+    fn an_egfr_under_the_threshold_flags_and_over_it_passes() {
+        assert_eq!(findings(Some(&inpatient(Some(28.0)))).renal.len(), 1);
+        let ok = findings(Some(&inpatient(Some(45.0))));
+        assert!(ok.renal.is_empty() && ok.not_checked.is_empty());
+    }
+
+    #[test]
+    fn no_patient_is_not_checked() {
+        assert_eq!(findings(None).not_checked.len(), 1);
+    }
 }

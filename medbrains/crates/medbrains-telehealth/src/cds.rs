@@ -17,7 +17,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::renal_check::{
-    HepaticAlert, RenalDoseAlert, patient_latest_egfr, renal_hepatic_alerts_for_items,
+    HepaticAlert, RenalDoseAlert, RenalNotChecked, patient_latest_egfr,
+    renal_hepatic_alerts_for_items,
 };
 
 use medbrains_server_core::{
@@ -124,6 +125,8 @@ pub struct DrugSafetyCheckResult {
     pub dose_alerts: Vec<DoseAlert>,
     pub weight_alerts: Vec<WeightDoseAlert>,
     pub renal_alerts: Vec<RenalDoseAlert>,
+    /// Lines with a renal rule that had no recent eGFR to check against.
+    pub renal_not_checked: Vec<RenalNotChecked>,
     pub hepatic_alerts: Vec<HepaticAlert>,
     pub ingredient_alerts: Vec<IngredientAlert>,
     pub pregnancy_alerts: Vec<PregnancyAlert>,
@@ -142,8 +145,14 @@ fn dosing_advisories(result: &DrugSafetyCheckResult) -> Vec<String> {
         .renal_alerts
         .iter()
         .map(|a| format!("renal: {}", a.drug_name));
+    let unchecked = (result.renal_not_checked.iter())
+        .map(|a| format!("renal dose not checked: {}", a.drug_name));
     let hepatic = (result.hepatic_alerts.iter()).map(|a| format!("hepatic: {}", a.drug_name));
-    dose.chain(weight).chain(renal).chain(hepatic).collect()
+    dose.chain(weight)
+        .chain(renal)
+        .chain(unchecked)
+        .chain(hepatic)
+        .collect()
 }
 
 /// Reach a single clinical conclusion from all detector outputs. **This is the
@@ -405,14 +414,15 @@ pub async fn check_drug_safety(
 
     // Renal (eGFR-based) + hepatic dosing advisory — pharmacist-seeded rules on
     // the catalogue. Advisory only; never gates prescribing.
-    let (renal_alerts, hepatic_alerts) = if body.items.is_empty() {
-        (Vec::new(), Vec::new())
+    let renal = if body.items.is_empty() {
+        crate::renal_check::RenalHepatic::default()
     } else {
         let egfr = match body.patient_id {
-            Some(pid) => patient_latest_egfr(&mut tx, claims.tenant_id, pid).await?,
+            Some(pid) => Some(patient_latest_egfr(&mut tx, claims.tenant_id, pid).await?),
             None => None,
         };
-        renal_hepatic_alerts_for_items(&mut tx, claims.tenant_id, &body.items, egfr).await?
+        renal_hepatic_alerts_for_items(&mut tx, claims.tenant_id, &body.items, egfr.as_ref())
+            .await?
     };
 
     // Combination chemistry: duplicate active ingredients + incompatible pairs.
@@ -434,8 +444,9 @@ pub async fn check_drug_safety(
         allergy_conflicts,
         dose_alerts,
         weight_alerts,
-        renal_alerts,
-        hepatic_alerts,
+        renal_alerts: renal.renal,
+        renal_not_checked: renal.not_checked,
+        hepatic_alerts: renal.hepatic,
         ingredient_alerts,
         pregnancy_alerts,
         conclusion: ClinicalConclusion {

@@ -8689,6 +8689,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-health-services",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-server-services",

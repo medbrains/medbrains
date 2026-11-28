@@ -11,6 +11,7 @@ import type {
   PregnancyAlert,
   PrescriptionTemplate,
   RenalDoseAlert,
+  RenalNotChecked,
   WeightDoseAlert,
 } from "@medbrains/types";
 import {
@@ -38,6 +39,7 @@ import {
   quickRxDefaults,
   type RxItem,
 } from "./rxModel";
+import { renalRow } from "./rxSafety";
 import type { LastPrescription } from "./useLastPrescription";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
@@ -55,6 +57,7 @@ export interface RxSafety {
   allergy_conflicts: AllergyConflict[];
   weight_alerts: WeightDoseAlert[];
   renal_alerts: RenalDoseAlert[];
+  renal_not_checked: RenalNotChecked[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];
   pregnancy_alerts: PregnancyAlert[];
@@ -288,6 +291,7 @@ export function RxDoctor({
     seriousCautions.length +
     weightAlerts.length +
     renalAlerts.length +
+    safety.renal_not_checked.length +
     hepaticAlerts.length +
     ingredientAlerts.length +
     pregnancyAlerts.length;
@@ -543,17 +547,7 @@ export function RxDoctor({
               : "Within weight-based range (or not a paediatric patient)"
           }
         />
-        <SafetyRow
-          state={renalAlerts.length ? "flag" : "ok"}
-          label="Renal dose · eGFR"
-          detail={
-            renalAlerts.length
-              ? renalAlerts
-                  .map((r) => `${r.drug_name}: ${r.rule} (eGFR ${r.egfr} < ${r.threshold})`)
-                  .join(" · ")
-              : "No renal dose adjustment flagged"
-          }
-        />
+        <SafetyRow label="Renal dose · eGFR" {...renalRow(renalAlerts, safety.renal_not_checked)} />
         <SafetyRow
           state={hepaticAlerts.length ? "warn" : "ok"}
           label="Hepatic caution"
