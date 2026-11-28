@@ -248,6 +248,29 @@ Stale jobs are stopped with `TERM`, never `KILL` — cargo removes its lock file
 on the way out, and a `-9` leaves a lock that blocks the next run with a
 "waiting for file lock" message that explains nothing.
 
+#### Check once, properly, before every push (MANDATORY)
+
+CI must never be the first place a Rust or gate failure is found. Every change runs **one
+complete local gate, after the last edit**, with the commands CI runs, then pushes. Not after
+every edit, and never a guess: a push that fails CI on fmt, clippy, `unreachable_pub`, `.sqlx`,
+a missing doc comment or a ratchet costs a full CI run in a shared queue, a fix, and another run.
+
+In one target dir, in this order, stopping at the first failure:
+
+1. `cargo fmt --all -- --check`
+2. `cargo clippy --locked --all-targets` on the touched crates and their dependents
+   (test modules allow `clippy::unwrap_used`/`expect_used` explicitly; the ratchet counts the rest)
+3. `cargo build --locked -p medbrains-server --bin medbrains-server` (catches `unreachable_pub`)
+4. the touched crates' tests, with a time limit so nothing can hang
+5. the repo checks CI runs on a branch: `check_docs_on_new_functions.py`, `check_decisions.py`,
+   the rust, shell and web size checks, `check_kernel_boundary.py`, `check_brick_edges.py`,
+   `check_query_in_loop.py`, and `check_pr_evidence.py` on the PR body
+6. web changes: Biome, typecheck, and vitest for the touched files
+
+`.sqlx` is regenerated against a throwaway database, never written by hand. Each worktree has its
+own target dir: a shared one runs another branch's code and reports passes that are not real.
+The PR body names the commands that ran and their results; "should pass" is not a result.
+
 #### Cross-compilation
 
 - **`cargo-zigbuild` is the only cross-compile path.** No `cross` (cross-rs), no docker emulation, no QEMU. Operator's mac (arm64) → server (x86_64) is the common direction; zigbuild handles glibc ABI cleanly.
