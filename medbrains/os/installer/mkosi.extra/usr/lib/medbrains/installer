@@ -3,6 +3,7 @@
 # only one write). Class A: it erases a disk. The rules it keeps:
 #   - the image on the medium must match its SHA-256 before any disk is even offered, so a damaged stick or
 #     DVD can never leave a disk erased and empty;
+#   - a release medium on a machine with no TPM 2.0 offers no disk: the system it installs would not start;
 #   - nothing is written until the operator has typed the disk's name and then ERASE <name>;
 #   - the disk it started from, and any other installer stick, is never offered and is refused if typed;
 #   - the disk named is pinned by identity (major:minor, serial, WWN, size) when listed; after the write lock
@@ -18,6 +19,8 @@ LABEL=MEDBRAINS_INSTALL
 MEDIUM=/run/medbrains-installer/medium
 PAYLOAD="$MEDIUM/medbrains/medbrains-os.raw.zst"
 INFO="$MEDIUM/medbrains/image.info"
+# Put on the medium by os/build-iso.sh --debug only.
+DEBUG_MARK="$MEDIUM/medbrains/debug-image"
 LOCK=/run/medbrains-installer/lock
 MEDIUM_CHECK=/run/medbrains-installer/medium-check
 MEDIUM_WAIT_S=90
@@ -249,7 +252,40 @@ refuse_damaged_medium() {
     while true; do read -r _ || sleep infinity; done
 }
 
-# Entry point: mount the medium, then offer the install until one succeeds.
+# Prints on, off or unknown (no such variable, as on firmware without Secure Boot): the EFI global
+# SecureBoot variable, whose fifth byte (after 4 attribute bytes) is 1 when on.
+secure_boot_state() {
+    local var=/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+    case "$(od -An -tu1 -j4 -N1 "$var" 2>/dev/null | tr -d ' ')" in
+        1) echo on ;;
+        0) echo off ;;
+        *) echo unknown ;;
+    esac
+}
+
+# Checks for a TPM 2.0 before any disk is listed: a release system will not store data without one
+# (docs/decisions/2026-11-28-no-unencrypted-release-os.md), so installing it there would erase a disk for
+# nothing. /dev/tpmrm0 exists only for TPM 2.0, and is what the installed system's disk-setup looks for.
+# A debug medium (os/build-iso.sh --debug) warns and goes on. A release medium stays here, like a damaged one.
+check_security_chip() {
+    say "Secure Boot: $(secure_boot_state)."
+    if [[ -e /dev/tpmrm0 ]]; then
+        say "Security chip: TPM 2.0 found."
+        return 0
+    fi
+    if [[ -e "$DEBUG_MARK" ]]; then
+        say "TEST MEDIUM: this machine has no security chip (TPM 2.0). The test system will offer to store"
+        say "patient data unencrypted. Never install a test medium for a hospital."
+        return 0
+    fi
+    say ""
+    say "This machine has no security chip (TPM 2.0). Turn it on in the BIOS (it may be called PTT,"
+    say "fTPM or Security Device), or use a machine that has one. Nothing has been stored."
+    say "No disk was offered and nothing was written. Turn the machine off now."
+    while true; do read -r _ || sleep infinity; done
+}
+
+# Entry point: mount the medium, check for the TPM, then offer the install until one succeeds.
 main() {
     local size sha
     if ! mount_medium; then
@@ -258,6 +294,7 @@ main() {
         read -r _
         exit 1
     fi
+    check_security_chip
     read -r size sha <"$INFO"
     check_medium "$size" "$sha" || refuse_damaged_medium
     say "The installer medium is intact."

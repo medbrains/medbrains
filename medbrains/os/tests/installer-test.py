@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Proves the installer .iso in QEMU, through its serial console, the way an operator would use it:
 
+  T. with no TPM a release medium says so and offers no disk; a debug one warns and goes on; with a TPM
+     (swtpm, x86-64 only) it says it found one, and Secure Boot's state is shown either way;
   0. a stick with one byte of its image changed is refused before any disk is offered, and writes nothing;
   1. it boots from the ISO attached as a USB stick, next to one blank disk;
   2. the stick is not offered, and typing its name is refused;
@@ -11,7 +13,10 @@
   5. the blank disk now holds the image byte for byte, and boots on its own (debug image: its serial shell
      answers from the installed system's root partition).
 
-  os/tests/installer-test.py <installer.iso> <image.raw> [x86-64|arm64]
+  os/tests/installer-test.py <installer.iso> <image.raw> [x86-64|arm64] [debug|release]
+
+A release medium (built without build-iso.sh --debug) runs step T only: the system it installs has no shell to
+prove step 5 with. arm64 runs T without a TPM only: Debian's arm64 kernel has no driver for QEMU's TPM there.
 
 Hold the shared lock (/tmp/mb-osimage.lock) around it: x86-64 runs under TCG and takes a while.
 """
@@ -19,6 +24,7 @@ import hashlib, os, shutil, socket, subprocess, sys, tempfile, time
 
 ISO, RAW = sys.argv[1], sys.argv[2]
 ARCH = sys.argv[3] if len(sys.argv) > 3 else "x86-64"
+RELEASE = len(sys.argv) > 4 and sys.argv[4] == "release"
 SHARE = os.path.join(os.path.dirname(os.path.dirname(shutil.which("qemu-img"))), "share", "qemu")
 SLOW = 8 if ARCH == "x86-64" and os.uname().machine == "arm64" else 1
 BLANK_DISK_GB = 16
@@ -36,8 +42,17 @@ else:
 class Machine:
     """One QEMU run with its serial port on a socket; everything it printed is kept in `seen`."""
 
-    def __init__(self, work, with_stick, iso=ISO):
+    def __init__(self, work, with_stick, iso=ISO, tpm=False):
         self.sock_path = os.path.join(work, "serial.sock")
+        self.swtpm = None
+        tpm_args = []
+        if tpm:
+            os.makedirs(f"{work}/tpm", exist_ok=True)
+            self.swtpm = subprocess.Popen(["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={work}/tpm",
+                                           "--ctrl", f"type=unixio,path={work}/swtpm.sock"])
+            time.sleep(1)
+            tpm_args = ["-chardev", f"socket,id=chrtpm,path={work}/swtpm.sock",
+                        "-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0"]
         # The target sits behind its own PCIe root port so it can be hot-unplugged; two spare ports take the
         # disk swapped in and the original plugged back.
         drives = ["-device", "pcie-root-port,id=rp1,chassis=1", "-device", "pcie-root-port,id=rp2,chassis=2",
@@ -50,7 +65,7 @@ class Machine:
                        "-device", "usb-storage,drive=stick"]
         self.qemu = subprocess.Popen([QEMU, *MACHINE, "-smp", "4", "-m", "2048",
             "-drive", f"if=pflash,format=raw,readonly=on,file={SHARE}/{CODE}",
-            "-drive", f"if=pflash,format=raw,file={work}/vars.fd", *drives,
+            "-drive", f"if=pflash,format=raw,file={work}/vars.fd", *drives, *tpm_args,
             "-display", "none", "-serial", f"unix:{self.sock_path},server=on,wait=off",
             "-monitor", f"unix:{work}/monitor.sock,server=on,wait=off"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -132,6 +147,9 @@ class Machine:
         """Powers the machine off."""
         self.qemu.kill()
         self.qemu.wait()
+        if self.swtpm:
+            self.swtpm.kill()
+            self.swtpm.wait()
 
 
 def target_is_blank(work, name="target.qcow2"):
@@ -187,11 +205,45 @@ def damaged_medium_is_refused(work):
     shutil.copy(f"{SHARE}/{VARS}", f"{work}/vars.fd")
 
 
+def security_chip_is_checked(work):
+    """Step T: the TPM is checked, and Secure Boot reported, before any disk is listed."""
+    vm = Machine(work, with_stick=True)
+    try:
+        if RELEASE:
+            before = vm.expect("Turn it on in the BIOS", 600)
+            assert "Secure Boot: " in before, "FAIL: Secure Boot's state is not shown"
+            time.sleep(10)
+            assert "Type the name of the disk" not in vm.seen, "FAIL: a release medium offered a disk with no TPM"
+            assert target_is_blank(work), "FAIL: a release medium wrote with no TPM"
+            print("\nPASS: with no TPM a release medium refuses before any disk is offered; target still blank")
+        else:
+            vm.expect("TEST MEDIUM: this machine has no security chip", 600)
+            print("\nPASS: with no TPM a debug medium warns and goes on")
+    finally:
+        vm.stop()
+    shutil.copy(f"{SHARE}/{VARS}", f"{work}/vars.fd")
+    if ARCH != "x86-64":
+        print("NOT RUN: with a TPM (Debian's arm64 kernel has no driver for QEMU's TPM)")
+        return
+    vm = Machine(work, with_stick=True, tpm=True)
+    try:
+        vm.expect("Security chip: TPM 2.0 found.", 600)
+        vm.expect("Type the name of the disk", 900)
+        print("\nPASS: with a TPM the installer says so and offers the disk")
+    finally:
+        vm.stop()
+    shutil.copy(f"{SHARE}/{VARS}", f"{work}/vars.fd")
+
+
 def main():
-    """Runs the five steps above; exits non-zero on the first failure."""
+    """Runs step T and the five steps above (a release medium: step T only); exits non-zero on the first failure."""
     work = tempfile.mkdtemp(prefix="mb-installer-test-")
     shutil.copy(f"{SHARE}/{VARS}", f"{work}/vars.fd")
     subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", f"{work}/target.qcow2", f"{BLANK_DISK_GB}G"], check=True)
+    security_chip_is_checked(work)
+    if RELEASE:
+        shutil.rmtree(work)
+        return
     damaged_medium_is_refused(work)
     vm = Machine(work, with_stick=True)
     try:
