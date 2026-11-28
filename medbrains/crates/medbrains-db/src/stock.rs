@@ -19,12 +19,25 @@
 //! general store's table, which no pharmacy flow fills: the transfer screen
 //! showed stock the dispatch then called insufficient, and no pharmacy could
 //! ever supply another. What may leave a store is what may be dispensed from
-//! it: in date and cleared from quarantine.
+//! it: in date, cleared from quarantine, and with the hospital's minimum
+//! shelf life left ([`MIN_ISSUE_SHELF_LIFE_KEY`]), so a ward is never sent a
+//! batch that expires before it can be used.
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
+
+/// Days of shelf life a batch must still have to leave a store.
+///
+/// A hospital setting (`tenant_settings`, category `operations`), seeded for
+/// every hospital by migration 1491; unset or unreadable falls back to
+/// [`DEFAULT_MIN_ISSUE_SHELF_LIFE_DAYS`].
+pub const MIN_ISSUE_SHELF_LIFE_KEY: &str = "issue_min_shelf_life_days";
+/// The storefront's floor for an online order
+/// (`medbrains_core::pharmacy_storefront::DEFAULT_MIN_SHELF_LIFE_DAYS`, 90).
+pub const DEFAULT_MIN_ISSUE_SHELF_LIFE_DAYS: i32 =
+    medbrains_core::pharmacy_storefront::DEFAULT_MIN_SHELF_LIFE_DAYS;
 
 /// Movement is refused rather than half-applied.
 #[derive(Debug, thiserror::Error)]
@@ -51,6 +64,22 @@ pub enum StockError {
         "indent line '{name}' has no catalogue item — pick it from the catalogue before issuing"
     )]
     Uncatalogued { name: String },
+
+    /// The store holds the item, but not enough of it with the hospital's
+    /// minimum shelf life left. Names the earliest expiry on hand, so the
+    /// storekeeper sees what is on the shelf and why it may not go, instead
+    /// of a short-dated batch leaving without a word.
+    #[error(
+        "{name}: not enough stock with {min_days} days of shelf life left. The earliest batch \
+         on hand, {batch_number}, expires on {expiry}. Receive fresher stock, or change \
+         \"Minimum shelf life to issue\" in Settings, Operations."
+    )]
+    ShortDated {
+        name: String,
+        min_days: i32,
+        batch_number: String,
+        expiry: chrono::NaiveDate,
+    },
 }
 
 /// One line of a movement request: what, and how much.
@@ -74,9 +103,11 @@ pub struct StockLine {
     pub quantity: i32,
 }
 
-/// Take `items` from `from_location`, oldest expiry first.
+/// Take `items` from `from_location`, oldest expiry first, from batches with
+/// at least the hospital's minimum shelf life left ([`min_issue_shelf_days`]).
 ///
 /// All-or-nothing: the first item the source cannot cover aborts with
+/// [`StockError::ShortDated`] when short-dated stock is what is left, else
 /// [`StockError::Insufficient`]. The caller's transaction is what makes that
 /// true — this function decrements as it goes and relies on the rollback, so it
 /// must be called inside a transaction that the caller does not commit on error.
@@ -89,24 +120,24 @@ pub async fn issue_fefo(
     from_location: Uuid,
     items: &[StockRequest],
 ) -> Result<Vec<StockLine>, StockError> {
+    let min_days = min_issue_shelf_days(tx, tenant_id).await?;
     let mut taken: Vec<StockLine> = Vec::new();
-
     for item in items {
         if item.quantity <= 0 {
             continue;
         }
-
         let batches: Vec<(Uuid, String, Option<chrono::NaiveDate>, Decimal, i32)> = sqlx::query_as(
             "SELECT id, batch_number, expiry_date, COALESCE(purchase_rate, 0), quantity_on_hand \
                FROM pharmacy_batches \
               WHERE tenant_id = $1 AND store_location_id = $2 AND catalog_item_id = $3 \
                 AND quantity_on_hand > 0 AND deleted_at IS NULL \
-                AND expiry_date > CURRENT_DATE AND quarantine_status = 'cleared' \
+                AND expiry_date > CURRENT_DATE + $4 AND quarantine_status = 'cleared' \
               ORDER BY expiry_date ASC, created_at ASC, id ASC FOR UPDATE",
         )
         .bind(tenant_id)
         .bind(from_location)
         .bind(item.catalog_item_id)
+        .bind(min_days)
         .fetch_all(&mut **tx)
         .await?;
 
@@ -124,7 +155,6 @@ pub async fn issue_fefo(
             .bind(batch_id)
             .execute(&mut **tx)
             .await?;
-
             taken.push(StockLine {
                 catalog_item_id: item.catalog_item_id,
                 batch_number,
@@ -134,16 +164,72 @@ pub async fn issue_fefo(
             });
             remaining -= take;
         }
-
         if remaining > 0 {
-            return Err(StockError::Insufficient {
-                catalog_item_id: item.catalog_item_id,
-                short_by: remaining,
-            });
+            return Err(
+                shortfall(tx, tenant_id, from_location, item, (min_days, remaining)).await?,
+            );
         }
     }
-
     Ok(taken)
+}
+
+/// Days of shelf life a batch must still have to leave a store: the
+/// hospital's [`MIN_ISSUE_SHELF_LIFE_KEY`], else the default. Read once per
+/// movement, not per line.
+async fn min_issue_shelf_days(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+) -> Result<i32, StockError> {
+    let days: Option<Option<i32>> = sqlx::query_scalar(
+        "SELECT LEAST(GREATEST(floor((value #>> '{}')::numeric), 0), 36500)::int \
+           FROM tenant_settings \
+          WHERE tenant_id = $1 AND category = 'operations' AND key = $2 \
+            AND deleted_at IS NULL AND jsonb_typeof(value) = 'number'",
+    )
+    .bind(tenant_id)
+    .bind(MIN_ISSUE_SHELF_LIFE_KEY)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(days.flatten().unwrap_or(DEFAULT_MIN_ISSUE_SHELF_LIFE_DAYS))
+}
+
+/// Why `item` could not be covered: [`StockError::ShortDated`], naming the
+/// earliest in-date batch on hand, when only short-dated stock is left;
+/// [`StockError::Insufficient`] when the store simply does not hold enough.
+async fn shortfall(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    from_location: Uuid,
+    item: &StockRequest,
+    (min_days, short_by): (i32, i32),
+) -> Result<StockError, StockError> {
+    let earliest: Option<(String, chrono::NaiveDate, String)> = sqlx::query_as(
+        "SELECT b.batch_number, b.expiry_date, c.name \
+           FROM pharmacy_batches b JOIN pharmacy_catalog c ON c.id = b.catalog_item_id \
+          WHERE b.tenant_id = $1 AND b.store_location_id = $2 AND b.catalog_item_id = $3 \
+            AND b.quantity_on_hand > 0 AND b.deleted_at IS NULL \
+            AND b.quarantine_status = 'cleared' \
+            AND b.expiry_date > CURRENT_DATE AND b.expiry_date <= CURRENT_DATE + $4 \
+          ORDER BY b.expiry_date ASC, b.created_at ASC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(from_location)
+    .bind(item.catalog_item_id)
+    .bind(min_days)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(match earliest {
+        Some((batch_number, expiry, name)) => StockError::ShortDated {
+            name,
+            min_days,
+            batch_number,
+            expiry,
+        },
+        None => StockError::Insufficient {
+            catalog_item_id: item.catalog_item_id,
+            short_by,
+        },
+    })
 }
 
 /// Credit `lines` to `to_location`, preserving batch identity.
