@@ -91,6 +91,7 @@
     "components/Queues": "registration",
     "components/Radiology": "radiology",
     "components/RadiologyExamSelect": "radiology",
+    "components/RecordAccess": "shared",
     "components/Reports": "reports",
     "components/RoomConsentFields": "core",
     "components/RoomSelect": "core",
