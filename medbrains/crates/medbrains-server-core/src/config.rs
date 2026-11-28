@@ -4,6 +4,9 @@ use figment::{
 };
 use serde::{Deserialize, Serialize};
 
+mod spicedb;
+pub use spicedb::SpiceDbConfig;
+
 /// Intermediate config struct for Figment extraction.
 /// Fields match the env var names (lowercased) and config.toml keys.
 #[derive(Debug, Deserialize, Serialize)]

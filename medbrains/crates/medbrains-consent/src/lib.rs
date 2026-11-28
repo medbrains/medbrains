@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+mod validity;
+
 use axum::routing::{get, post};
 use axum::{
     Extension, Json,
@@ -14,8 +16,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
+    error::AppError, hospital_time::tenant_local_today, middleware::auth::Claims,
+    middleware::authorization::require_permission, state::AppState,
 };
 
 /// ReBAC pre-check: the caller must hold `view` on the patient whose consent is being read.
@@ -508,6 +510,7 @@ pub async fn patient_summary(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let mut items = Vec::new();
+    let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     // Patient consents
     let pc_rows = sqlx::query_as::<_, PatientConsentRow>(
@@ -523,13 +526,8 @@ pub async fn patient_summary(
     .await?;
 
     for r in pc_rows {
-        let status = if r.revoked_at.is_some() {
-            "withdrawn".to_owned()
-        } else if r.valid_until.is_some_and(|d| d < Utc::now().date_naive()) {
-            "expired".to_owned()
-        } else {
-            r.consent_status.clone()
-        };
+        let status = validity::status_on(r.revoked_at.is_some(), r.valid_until, today)
+            .map_or_else(|| r.consent_status.clone(), str::to_owned);
 
         items.push(ConsentSummaryItem {
             consent_type: r.consent_type,

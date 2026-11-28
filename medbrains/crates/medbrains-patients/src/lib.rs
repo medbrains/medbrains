@@ -3,6 +3,7 @@
 pub mod abha_link;
 pub mod acquisition;
 pub mod actions;
+mod age;
 pub mod contact_consent;
 mod context_parts;
 pub mod dpdp_consent;
@@ -52,6 +53,7 @@ use uuid::Uuid;
 use axum::routing::{delete, get, patch, post, put};
 use medbrains_kernel::authz::require_permission;
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::hospital_time::tenant_local_today;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
@@ -4526,10 +4528,8 @@ pub async fn get_patient_context(
     {
         None
     } else {
-        core.date_of_birth.map(|dob| {
-            let years = Utc::now().date_naive().years_since(dob).unwrap_or(0);
-            i32::try_from(years).unwrap_or(0)
-        })
+        let today = tenant_local_today(&mut *tx, claims.tenant_id).await?;
+        core.date_of_birth.map(|dob| age::years_on(dob, today))
     };
     let mlc_number = if patient_field_is_hidden(&restricted, PATIENT_MLC_NUMBER_FIELD) {
         None
